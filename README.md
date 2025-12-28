@@ -1,73 +1,51 @@
-# React + TypeScript + Vite
+(🚧：It's still under development...)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+# Mermaid Animation: Universal Diagram Animator
 
-Currently, two official plugins are available:
+Mermaid Animation is a high-performance tool built with React 19 and Tailwind CSS v4, specifically designed for Mermaid.js diagrams. It automatically parses diagram paths and renders fluid particle animations using the Canvas API, transforming static architecture and sequence diagrams into dynamic visual assets.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Check the site [here](https://www.hazelshen.me/mermaid-animation/)
 
-## React Compiler
+## Key Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Broad Diagram Support**: Fully compatible with Sequence Diagrams, Flowcharts, and Architecture Diagrams.
+- **High-Performance Rendering**: Built on the HTML5 Canvas API to maintain 60 FPS even with complex, large-scale diagrams.
+- **Design System Controls**:
+  - **Premium Mode**: Toggle advanced rendering effects including particle glow and refined pathing.
+  - **Parameterized Tuning**: Real-time control over particle Speed and Color.
+- **Export Capabilities**: Built-in WebM recording for seamless integration into presentations or technical documentation.
+- **High-Density UI**: Compact layout optimized for SRE/DevOps workflows, driven by Tailwind v4 CSS variables.
 
-## Expanding the ESLint configuration
+## Tech Stack
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **Framework**: React 19 (Client-side Rendering)
+- **Build Tooling**: Vite 6
+- **Styling Engine**: Tailwind CSS v4 (Theme-driven via CSS variables)
+- **Diagramming**: Mermaid.js
+- **Iconography**: Lucide-React
+- **Hosting**: GitHub Pages (Static Hosting)
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Development and Deployment
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Local Development
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+# Install dependencies
+npm install
+
+# Start the development server
+npm run dev
+
+# Build the project and deploy to gh-pages branch
+npm run deploy
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Security Audit
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+In light of the critical vulnerabilities discovered in late 2025 regarding React 19, this project has undergone the following security assessment:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+CVE-2025-55182 (React2Shell) Mitigation: This vulnerability targets the React Server Components (RSC) "Flight" protocol during server-side deserialization.
+
+Architectural Isolation: This project utilizes a pure Client-side Rendering (CSR) architecture and is hosted in a static environment on GitHub Pages.
+
+Conclusion: Because the application lacks a Node.js server-side decoder to process react-server data streams, it maintains No Attack Surface regarding this 10.0 CVSS vulnerability.
