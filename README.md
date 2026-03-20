@@ -8,13 +8,13 @@ Check the site [here](https://www.hazelshen.me/mermaid-animation/)
 
 ## Key Features
 
-- **Broad Diagram Support**: Fully compatible with Sequence Diagrams, Flowcharts, and Architecture Diagrams.
-- **High-Performance Rendering**: Built on the HTML5 Canvas API to maintain 60 FPS even with complex, large-scale diagrams.
-- **Design System Controls**:
-  - **Premium Mode**: Toggle advanced rendering effects including particle glow and refined pathing.
-  - **Parameterized Tuning**: Real-time control over particle Speed and Color.
-- **Export Capabilities**: Built-in WebM recording for seamless integration into presentations or technical documentation.
-- **High-Density UI**: Compact layout optimized for SRE/DevOps workflows, driven by Tailwind v4 CSS variables.
+- **Multi-Diagram Support**: Renders Sequence Diagrams, Flowcharts, and Architecture Diagrams from a single Mermaid source.
+- **Particle Animation Engine**: Automatically traces diagram paths and overlays smooth, real-time particle flows using the Canvas API at 60 FPS.
+- **Live Tuning Controls**: Adjust particle speed and color on the fly without re-rendering the diagram.
+- **Export / Draft Mode**: Switch between a polished Export mode (with glow effects and grid) and a clean Draft mode for quick iteration.
+- **Video Export**: Records and downloads the animated canvas as a 1280×720 video (MP4 or WebM) with 2× supersampling for sharp output.
+- **Pan, Zoom & Fit**: Full interactive canvas navigation — scroll to zoom, drag to pan, and one-click fit-to-screen.
+- **Responsive Layout**: Collapsible editor sidebar with drag-to-resize on desktop and a slide-up drawer on mobile.
 
 ## Tech Stack
 
@@ -49,3 +49,33 @@ CVE-2025-55182 (React2Shell) Mitigation: This vulnerability targets the React Se
 Architectural Isolation: This project utilizes a pure Client-side Rendering (CSR) architecture and is hosted in a static environment on GitHub Pages.
 
 Conclusion: Because the application lacks a Node.js server-side decoder to process react-server data streams, it maintains No Attack Surface regarding this 10.0 CVSS vulnerability.
+
+## Architecture
+
+```bash
+src/
+├── App.tsx                        ← Orchestrates all layers
+├── types/
+│   └── index.ts                   ← Shared types (DiagramNode, DiagramEdge, SeqLabel, Transform…)
+├── utils/
+│   ├── particle.ts                ← Particle class
+│   ├── colorUtils.ts              ← hexToRgba utility function
+│   └── canvasRenderer.ts          ← drawGrid / drawNode / drawEdge / renderFrame (pure functions)
+├── services/
+│   ├── svgUtils.ts                ← getCumulativeTransform (shared SVG helper)
+│   ├── SequenceParser.ts          ← Sequence diagram parser (nodes / edges / labels / loopFrames)
+│   └── FlowchartParser.ts         ← Flowchart parser (nodes / edges)
+├── hooks/
+│   ├── useMermaidParser.ts        ← Mermaid script loading + render + SVG parsing
+│   ├── useCanvasTransform.ts      ← Pan / Zoom / Fit / Hover collision detection
+│   ├── useCanvasResize.ts         ← Syncs canvas buffer with container via ResizeObserver
+│   ├── useParticleSystem.ts       ← Generates Particle array based on edges
+│   ├── useMediaRecorder.ts        ← 2× supersampling video recording + download
+│   └── useEditorResize.ts         ← Sidebar width adjustment/resizing
+└── components/
+    ├── AppHeader.tsx              ← Top navigation bar (particle controls + action buttons)
+    ├── EditorSidebar.tsx          ← Left-side Mermaid editor panel
+    ├── CanvasView.tsx             ← Canvas preview area + expand/collapse button
+    ├── ZoomToolbar.tsx            ← Bottom-right zoom toolkit
+    └── MobileDrawer.tsx           ← Mobile bottom drawer + FAB (Floating Action Button)
+```
