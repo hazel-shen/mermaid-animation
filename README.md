@@ -2,9 +2,18 @@
 
 # Mermaid Animation: Universal Diagram Animator
 
+<img width="1921" height="960" alt="image" src="https://github.com/user-attachments/assets/a9730225-2c95-471e-9a95-bda06770a913" />
+
+Output files (play it :D):
+
+![Mermaid Animation](https://cdn.jsdelivr.net/gh/hazel-shen/Image_Repo@main/mermaid_animation.gif)
+
 Mermaid Animation is a high-performance tool built with React 19 and Tailwind CSS v4, specifically designed for Mermaid.js diagrams. It automatically parses diagram paths and renders fluid particle animations using the Canvas API, transforming static architecture and sequence diagrams into dynamic visual assets.
 
 Check the site [here](https://www.hazelshen.me/mermaid-animation/)
+
+
+
 
 ## Key Features
 
