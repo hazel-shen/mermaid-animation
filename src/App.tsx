@@ -91,6 +91,105 @@ const ARCH_CODE = `flowchart TB
     style AWS_DB fill:#ff9900
     style GCP_DB fill:#4285f4,opacity:0.6`;
 
+const CLASS_CODE = `classDiagram
+    class Animal {
+        +String name
+        +int age
+        +makeSound() void
+    }
+    class Dog {
+        +String breed
+        +fetch() void
+    }
+    class Cat {
+        +bool indoor
+        +purr() void
+    }
+    class PoliceDog {
+        +String badgeNumber
+        +patrol() void
+    }
+    Animal <|-- Dog
+    Animal <|-- Cat
+    Dog <|-- PoliceDog
+    Dog "1" --> "*" Cat : chases`;
+
+const STATE_CODE = `stateDiagram-v2
+    [*] --> Idle
+    Idle --> Processing : 收到請求
+    Processing --> Success : 處理成功
+    Processing --> Error : 發生錯誤
+    Success --> Idle : 重置
+    Error --> Idle : 重試
+    Error --> [*] : 放棄
+    
+    state Processing {
+        [*] --> Validating
+        Validating --> Executing
+        Executing --> [*]
+    }`;
+
+const ER_CODE = `erDiagram
+    USER {
+        int id PK
+        string name
+        string email
+    }
+    ORDER {
+        int id PK
+        date created_at
+        float total
+    }
+    PRODUCT {
+        int id PK
+        string name
+        float price
+    }
+    ORDER_ITEM {
+        int order_id FK
+        int product_id FK
+        int quantity
+    }
+    USER ||--o{ ORDER : places
+    ORDER ||--|{ ORDER_ITEM : contains
+    PRODUCT ||--o{ ORDER_ITEM : "included in"`;
+
+const GANTT_CODE = `gantt
+    title 專案開發時程
+    dateFormat  YYYY-MM-DD
+    section 規劃
+    需求分析      :done,    des1, 2024-01-01, 2024-01-07
+    系統設計      :done,    des2, 2024-01-08, 5d
+    section 開發
+    後端實作      :active,  dev1, 2024-01-15, 10d
+    前端實作      :         dev2, 2024-01-20, 8d
+    section 測試
+    整合測試      :         test1, after dev2, 5d
+    使用者驗收    :         test2, after test1, 3d`;
+
+const PIE_CODE = `pie title 技術棧佔比
+    "TypeScript" : 42
+    "Python" : 28
+    "Go" : 15
+    "Rust" : 10
+    "Other" : 5`;
+
+const GITGRAPH_CODE = `gitGraph
+    commit id: "初始提交"
+    commit id: "基礎架構"
+    branch feature/auth
+    checkout feature/auth
+    commit id: "新增登入"
+    commit id: "新增註冊"
+    checkout main
+    branch feature/api
+    checkout feature/api
+    commit id: "REST API"
+    checkout main
+    merge feature/auth id: "合併 Auth"
+    merge feature/api id: "合併 API"
+    commit id: "v1.0 發布"`;
+
 // --- 主元件 ---
 const CanvasDiagram = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -117,6 +216,7 @@ const CanvasDiagram = () => {
   // --- Hooks ---
   const { nodes, edges, seqLabels, isLoading, errorMsg, renderMermaidToData, viewBox } =
     useMermaidParser(code, isPremium, hiddenContainerRef as React.RefObject<HTMLDivElement>);
+  // diagramType is available from useMermaidParser but not consumed at top-level (used internally by parsers)
 
   const particles = useParticleSystem(edges);
 
@@ -192,11 +292,12 @@ const CanvasDiagram = () => {
   }, [nodes, edges, particles, seqLabels, isPremium, isRecording, particleColor, particleSpeed, transformState]);
 
   // --- Download handler ---
-  const handleDownload = useCallback(() => {
+  const handleDownload = useCallback((format: import('./hooks/useMediaRecorder').DownloadFormat) => {
     startDownload(
       canvasRef,
       diagramSizeRef,
-      { nodes, edges, particles, seqLabels, isPremium, particleColor, isRecording, hoveredNodeId: hoveredNodeIdRef.current }
+      { nodes, edges, particles, seqLabels, isPremium, particleColor, isRecording, hoveredNodeId: hoveredNodeIdRef.current },
+      format
     );
   }, [startDownload, nodes, edges, particles, seqLabels, isPremium, particleColor, isRecording, diagramSizeRef]);
 
@@ -260,6 +361,12 @@ const CanvasDiagram = () => {
           onLoadSequence={() => setCode(SEQUENCE_CODE)}
           onLoadFlowchart={() => setCode(FLOWCHART_CODE)}
           onLoadArch={() => setCode(ARCH_CODE)}
+          onLoadClass={() => setCode(CLASS_CODE)}
+          onLoadState={() => setCode(STATE_CODE)}
+          onLoadEr={() => setCode(ER_CODE)}
+          onLoadGantt={() => setCode(GANTT_CODE)}
+          onLoadPie={() => setCode(PIE_CODE)}
+          onLoadGitGraph={() => setCode(GITGRAPH_CODE)}
           onResizeStart={handleResizeStart}
         />
 
