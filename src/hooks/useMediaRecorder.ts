@@ -74,7 +74,7 @@ export const useMediaRecorder = (): UseMediaRecorderReturn => {
       const captureNextFrame = () => {
         if (framesCaptured >= totalFrames) {
           encoder.finish();
-          const bytes = encoder.bytes();
+          const bytes = encoder.bytes() as BlobPart;
           const blob = new Blob([bytes], { type: 'image/gif' });
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');

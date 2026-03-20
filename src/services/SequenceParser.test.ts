@@ -5,7 +5,6 @@ import {
   parseSequenceMessageLabels,
   parseSequenceEdges,
 } from './SequenceParser';
-import type { DiagramNode, DiagramEdge, SeqLabel } from '../types';
 
 describe('SequenceParser', () => {
   let svgElement: SVGSVGElement;
