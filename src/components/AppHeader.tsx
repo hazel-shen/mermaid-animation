@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap, Video, Loader2, RefreshCw, Palette, Gauge } from 'lucide-react';
+import { Zap, Video, RefreshCw, Palette, Gauge } from 'lucide-react';
 
 interface AppHeaderProps {
   isPremium: boolean;

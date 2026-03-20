@@ -4,7 +4,7 @@ import { ZoomToolbar } from './ZoomToolbar';
 import type { Transform } from '../types';
 
 interface CanvasViewProps {
-  canvasRef: React.RefObject<HTMLCanvasElement>;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
   containerRef: React.RefObject<HTMLDivElement>;
   isLoading: boolean;
   isEditorOpen: boolean;

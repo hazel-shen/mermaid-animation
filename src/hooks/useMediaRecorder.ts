@@ -5,7 +5,7 @@ import { renderFrame } from '../utils/canvasRenderer';
 interface UseMediaRecorderReturn {
   isRecording: boolean;
   startDownload: (
-    canvasRef: React.RefObject<HTMLCanvasElement>,
+    canvasRef: React.RefObject<HTMLCanvasElement | null>,
     diagramSizeRef: React.MutableRefObject<{ w: number; h: number }>,
     opts: RenderFrameOptions
   ) => void;
@@ -15,7 +15,7 @@ export const useMediaRecorder = (): UseMediaRecorderReturn => {
   const [isRecording, setIsRecording] = useState(false);
 
   const startDownload = useCallback((
-    canvasRef: React.RefObject<HTMLCanvasElement>,
+    canvasRef: React.RefObject<HTMLCanvasElement | null>,
     diagramSizeRef: React.MutableRefObject<{ w: number; h: number }>,
     opts: RenderFrameOptions
   ) => {

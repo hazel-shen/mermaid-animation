@@ -16,13 +16,13 @@ interface UseCanvasTransformReturn {
   handleWheel: (e: WheelEvent) => void;
   applyViewBox: (
     viewBox: { x: number; y: number; width: number; height: number },
-    canvasRef: React.RefObject<HTMLCanvasElement>,
+    canvasRef: React.RefObject<HTMLCanvasElement | null>,
     canvasContainerRef: React.RefObject<HTMLDivElement>
   ) => void;
 }
 
 export const useCanvasTransform = (
-  canvasRef: React.RefObject<HTMLCanvasElement>
+  canvasRef: React.RefObject<HTMLCanvasElement | null>
 ): UseCanvasTransformReturn => {
   const transformRef = useRef<Transform>({ x: 0, y: 0, scale: 1 });
   const [transformState, setTransformState] = useState<Transform>({ x: 0, y: 0, scale: 1 });
@@ -40,7 +40,7 @@ export const useCanvasTransform = (
 
   const applyViewBox = useCallback((
     viewBox: { x: number; y: number; width: number; height: number },
-    canvasRef: React.RefObject<HTMLCanvasElement>,
+    canvasRef: React.RefObject<HTMLCanvasElement | null>,
     canvasContainerRef: React.RefObject<HTMLDivElement>
   ) => {
     if (!canvasRef.current || !canvasContainerRef.current) return;
@@ -198,7 +198,7 @@ export const useCanvasTransform = (
 
 // Hook to sync canvas buffer size to container
 export const useCanvasResize = (
-  canvasRef: React.RefObject<HTMLCanvasElement>,
+  canvasRef: React.RefObject<HTMLCanvasElement | null>,
   containerRef: React.RefObject<HTMLDivElement>
 ) => {
   useEffect(() => {
