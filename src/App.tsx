@@ -25,6 +25,7 @@ type DiagramEdge = {
   stroke: string;
   type: EdgeType;
   dash?: number[]; // 虛線樣式
+  hasArrow?: boolean; // draw arrowhead at the end of the path
 };
 
 // --- 預設代碼 (Sequence Diagram) ---
@@ -156,6 +157,9 @@ const CanvasDiagram = () => {
   const [nodes, setNodes] = useState<DiagramNode[]>([]);
   const [edges, setEdges] = useState<DiagramEdge[]>([]);
   const [particles, setParticles] = useState<Particle[]>([]);
+  // Floating text labels for sequence diagrams (messageText, loopText, labelText)
+  type SeqLabel = { x: number; y: number; text: string; fontSize: number; bold: boolean; color: string; align: CanvasTextAlign };
+  const [seqLabels, setSeqLabels] = useState<SeqLabel[]>([]);
   
   const canvasContainerRef = useRef<HTMLDivElement>(null);
 
@@ -342,91 +346,179 @@ const CanvasDiagram = () => {
       const viewBox = svgElement.viewBox.baseVal;
 
       // --- A. 解析節點 ---
-      const allGroups = svgElement.querySelectorAll('g');
-      
-      allGroups.forEach(g => {
-          const isNode = g.classList.contains('node');
-          const isCluster = g.classList.contains('cluster');
-          const isActor = g.classList.contains('actor') || g.querySelector('rect.actor');
-          const isNote = g.classList.contains('note') || g.querySelector('rect.note');
-          
-          if (!isNode && !isCluster && !isActor && !isNote) return;
+      // Detect diagram type: sequence diagrams have <rect class="actor ..."> directly in the SVG.
+      const isSequenceDiagram = svgElement.querySelector('rect.actor, line.messageLine0, line.messageLine1') !== null;
 
-          // 尋找視覺形狀元素 (取第一個匹配的圖形)
-          const rect = g.querySelector('rect, circle, polygon, path') as SVGGraphicsElement;
-          if (!rect) return;
+      if (isSequenceDiagram) {
+          // === Sequence Diagram: select rect elements directly by CSS class ===
+          // --- Helper: read rect geometry from attributes + parent transform ---
+          const getRectGeom = (rect: SVGRectElement) => {
+              const { x: tx, y: ty } = getCumulativeTransform(rect, svgElement);
+              const rx = parseFloat(rect.getAttribute('x') || '0');
+              const ry = parseFloat(rect.getAttribute('y') || '0');
+              const rw = parseFloat(rect.getAttribute('width') || '0');
+              const rh = parseFloat(rect.getAttribute('height') || '0');
+              return { cx: tx + rx + rw / 2, cy: ty + ry + rh / 2, w: rw, h: rh };
+          };
 
-          // 1. 取得累積位移 (包含自身與所有父層，確保 Subgraph 和複雜形狀位置正確)
-          const { x: totalTx, y: totalTy } = getCumulativeTransform(rect, svgElement);
-          
-          // 2. 取得形狀自身的 Bounding Box (Local Coordinates)
-          // 這會包含 x, y, width, height (相對於自身的座標，無論是 x/y 屬性還是 d 路徑)
-          const bbox = rect.getBBox();
-          
-          // 3. 計算最終中心點
-          // Global Center = Cumulative Transform + Local BBox Origin + Half Size
-          // 這樣的算法對於 rect(x,y), circle(cx,cy -> bbox), path(d -> bbox) 都通用
-          const finalX = totalTx + bbox.x + bbox.width / 2;
-          const finalY = totalTy + bbox.y + bbox.height / 2;
-          const width = bbox.width;
-          const height = bbox.height;
+          // 1. Participant boxes — include BOTH top and bottom actor rects so the
+          //    mirrored boxes at the bottom of the diagram are also rendered.
+          svgElement.querySelectorAll<SVGRectElement>('rect.actor').forEach(rect => {
+              const { cx, cy, w, h } = getRectGeom(rect);
+              if (w <= 0 || h <= 0) return;
+              // Deduplicate only exact duplicates (same x AND y)
+              if (extractedNodes.some(n => Math.abs(n.x - cx) < 1 && Math.abs(n.y - cy) < 1)) return;
 
-          // 4. 處理樣式與形狀類型
-          let shape: DiagramNode['shape'] = 'rect';
-          let color = isPremium ? '#ffffff' : '#fff'; 
-          let stroke = isPremium ? '#94a3b8' : '#333'; 
-          let type: NodeType = 'node';
-
-          const style = window.getComputedStyle(rect);
-          if (style.fill && style.fill !== 'none' && style.fill !== 'rgb(0, 0, 0)') color = style.fill;
-          if (style.stroke && style.stroke !== 'none') stroke = style.stroke;
-
-          const tagName = rect.tagName.toLowerCase();
-          
-          if (tagName === 'circle') shape = 'circle';
-          else if (tagName === 'polygon') shape = 'diamond';
-          else if (tagName === 'rect') shape = 'roundRect';
-          else if (tagName === 'path') shape = 'roundRect'; // DB (Cylinder) 或其他複雜形狀
-
-          // Extract label text
-          let label = "";
-          const textElement = g.querySelector('text');
-          const foreignObject = g.querySelector('foreignObject');
-          
-          if (foreignObject) {
-              const contentDiv = foreignObject.querySelector('div');
-              if (contentDiv) {
-                  let html = contentDiv.innerHTML;
-                  html = html.replace(/<br\s*\/?>/gi, '\n');
-                  const temp = document.createElement('div');
-                  temp.innerHTML = html;
-                  label = temp.textContent || "";
-              } else {
-                label = (foreignObject as unknown as HTMLElement).innerText || foreignObject.textContent || "";
+              let label = rect.getAttribute('name') || '';
+              const parentG = rect.parentElement;
+              if (parentG) {
+                  const txt = parentG.querySelector<SVGTextElement>('text');
+                  if (txt) label = txt.textContent?.trim() || label;
               }
-          } else if (textElement) {
-              const spans = textElement.querySelectorAll('tspan');
-              if (spans.length > 0) {
-                  label = Array.from(spans).map(s => s.textContent).join('\n');
-              } else {
-                  label = textElement.textContent || "";
+              const style = window.getComputedStyle(rect);
+              const color = (style.fill && style.fill !== 'none') ? style.fill : '#ECECFF';
+              const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : '#9370DB';
+              extractedNodes.push({ id: `actor-${Math.random()}`, label, type: 'actor', shape: 'roundRect', x: cx, y: cy, width: w, height: h, color, stroke });
+          });
+
+          // 2. Actor-man (人形符號): <g class="actor-man"> — render both top and bottom
+          svgElement.querySelectorAll<SVGGElement>('g.actor-man').forEach(g => {
+              const name = g.getAttribute('name') || '';
+
+              // Bounding circle head
+              const circle = g.querySelector<SVGCircleElement>('circle');
+              if (!circle) return;
+              const circR = parseFloat(circle.getAttribute('r') || '15');
+              // The actor-man spans from head to feet; use the bounding box via getBBox on the group
+              let bx: number, by: number, bw: number, bh: number;
+              try {
+                  const bb = g.getBBox();
+                  bx = bb.x; by = bb.y; bw = bb.width; bh = bb.height;
+              } catch {
+                  bx = -circR; by = -circR; bw = circR * 2; bh = circR * 4;
               }
-          }
+              const { x: gtx, y: gty } = getCumulativeTransform(g, svgElement);
+              const cx = gtx + bx + bw / 2;
+              const cy = gty + by + bh / 2;
+              if (extractedNodes.some(n => Math.abs(n.x - cx) < 1 && Math.abs(n.y - cy) < 1)) return;
 
-          if (isCluster) { 
-              type = 'cluster'; 
-              color = hexToRgba(color, 0.05); 
-          }
-          else if (isActor) { type = 'actor'; shape = 'rect'; }
-          else if (isNote) { type = 'note'; shape = 'note'; color = '#fef3c7'; stroke='#d97706'; }
+              let label = name;
+              const txt = g.querySelector<SVGTextElement>('text');
+              if (txt) label = txt.textContent?.trim() || label;
 
-          if (width > 0 && height > 0) {
-              extractedNodes.push({ id: g.id || `node-${Math.random()}`, label, type, x: finalX, y: finalY, width, height, color, stroke, shape });
-          }
-      });
+              extractedNodes.push({ id: g.id || `actor-man-${Math.random()}`, label, type: 'actor', shape: 'circle', x: cx, y: cy, width: bw, height: bh, color: '#ECECFF', stroke: '#9370DB' });
+          });
+
+          // 3. Note boxes: <rect class="note">
+          svgElement.querySelectorAll<SVGRectElement>('rect.note').forEach(rect => {
+              const { cx, cy, w, h } = getRectGeom(rect);
+              if (w <= 0 || h <= 0) return;
+              let label = '';
+              const parentG = rect.parentElement;
+              if (parentG) {
+                  const txt = parentG.querySelector<SVGTextElement>('text');
+                  if (txt) label = txt.textContent?.trim() || '';
+              }
+              extractedNodes.push({ id: `note-${Math.random()}`, label, type: 'note', shape: 'note', x: cx, y: cy, width: w, height: h, color: '#fff5ad', stroke: '#aaaa33' });
+          });
+
+          // 4. Background rect blocks: <rect class="rect"> (rect rgb(...) sections)
+          //    These are semi-transparent background rectangles, render as cluster-style
+          svgElement.querySelectorAll<SVGRectElement>('rect.rect').forEach(rect => {
+              const { cx, cy, w, h } = getRectGeom(rect);
+              if (w <= 0 || h <= 0) return;
+              const style = window.getComputedStyle(rect);
+              const fillAttr = rect.getAttribute('fill') || 'rgba(240,240,240,0.5)';
+              const color = fillAttr !== 'none' ? fillAttr : 'rgba(240,240,240,0.4)';
+              extractedNodes.push({ id: `bgRect-${Math.random()}`, label: '', type: 'cluster', shape: 'rect', x: cx, y: cy, width: w, height: h, color, stroke: style.stroke !== 'none' ? style.stroke : '#aaa' });
+          });
+
+      } else {
+          // === Flowchart / Other Diagram: select by <g class="node|cluster|note"> ===
+          const allGroups = svgElement.querySelectorAll('g');
+          
+          allGroups.forEach(g => {
+              const isNode = g.classList.contains('node');
+              const isCluster = g.classList.contains('cluster');
+              const isNote = g.classList.contains('note');
+              
+              if (!isNode && !isCluster && !isNote) return;
+
+              const rect = g.querySelector('rect, circle, polygon, path') as SVGGraphicsElement;
+              if (!rect) return;
+
+              const { x: totalTx, y: totalTy } = getCumulativeTransform(rect, svgElement);
+              const bbox = rect.getBBox();
+              const finalX = totalTx + bbox.x + bbox.width / 2;
+              const finalY = totalTy + bbox.y + bbox.height / 2;
+              const width = bbox.width;
+              const height = bbox.height;
+
+              let shape: DiagramNode['shape'] = 'rect';
+              let color = isPremium ? '#ffffff' : '#fff'; 
+              let stroke = isPremium ? '#94a3b8' : '#333'; 
+              let type: NodeType = 'node';
+
+              const style = window.getComputedStyle(rect);
+              if (style.fill && style.fill !== 'none' && style.fill !== 'rgb(0, 0, 0)') color = style.fill;
+              if (style.stroke && style.stroke !== 'none') stroke = style.stroke;
+
+              const tagName = rect.tagName.toLowerCase();
+              if (tagName === 'circle') shape = 'circle';
+              else if (tagName === 'polygon') shape = 'diamond';
+              else if (tagName === 'rect') shape = 'roundRect';
+              else if (tagName === 'path') shape = 'roundRect';
+
+              let label = "";
+              const textElement = g.querySelector('text');
+              const foreignObject = g.querySelector('foreignObject');
+              
+              if (foreignObject) {
+                  const contentDiv = foreignObject.querySelector('div');
+                  if (contentDiv) {
+                      let html = contentDiv.innerHTML;
+                      html = html.replace(/<br\s*\/?>/gi, '\n');
+                      const temp = document.createElement('div');
+                      temp.innerHTML = html;
+                      label = temp.textContent || "";
+                  } else {
+                      label = (foreignObject as unknown as HTMLElement).innerText || foreignObject.textContent || "";
+                  }
+              } else if (textElement) {
+                  const spans = textElement.querySelectorAll('tspan');
+                  if (spans.length > 0) {
+                      label = Array.from(spans).map(s => s.textContent).join('\n');
+                  } else {
+                      label = textElement.textContent || "";
+                  }
+              }
+
+              if (isCluster) { 
+                  type = 'cluster'; 
+                  color = hexToRgba(color, 0.05); 
+              }
+              else if (isNote) { type = 'note'; shape = 'note'; color = '#fef3c7'; stroke='#d97706'; }
+
+              if (width > 0 && height > 0) {
+                  const nodeId = g.id || `node-${Math.random()}`;
+                  if (!extractedNodes.some(n => n.id === nodeId)) {
+                      extractedNodes.push({ id: nodeId, label, type, x: finalX, y: finalY, width, height, color, stroke, shape });
+                  }
+              }
+          });
+      }
 
       // --- B. 解析連線 ---
-      const linkSelector = '.edgePath path, .flowchart-link, line.messageLine0, line.messageLine1, path.messageLine0, path.messageLine1';
+      // Covers flowchart edges, sequence message lines (solid + dashed), and self-loop paths
+      const linkSelector = [
+          '.edgePath path',
+          '.flowchart-link',
+          'line.messageLine0',
+          'line.messageLine1',
+          'path.messageLine0',
+          'path.messageLine1',
+      ].join(', ');
+      // Actor lifelines (vertical dashed lines under each participant box)
       const structSelector = '.actor-line, line[class*="actor-line"]';
 
       const processEdge = (el: Element, type: EdgeType) => {
@@ -460,30 +552,35 @@ const CanvasDiagram = () => {
           }
 
           if (d && d.length > 10) {
+              // Detect arrowhead: SVG marker-end present, or it's a message line (always has arrow)
+              const hasArrow = type === 'link' && (
+                  el.getAttribute('marker-end') != null ||
+                  el.classList.contains('messageLine0') ||
+                  el.classList.contains('messageLine1')
+              );
               extractedEdges.push({
                   id: `edge-${Math.random()}`,
                   pathD: d,
                   stroke,
                   type,
-                  dash
+                  dash,
+                  hasArrow,
               });
           }
       };
 
       svgElement.querySelectorAll(linkSelector).forEach(el => {
-          // For <line> elements, filter out those that are part of a self-loop or control-flow decoration.
-          // Mermaid renders self-loops (e.g. John->>John) as both:
-          //   • <line class="messageLine0"> segments (top/bottom of the rectangular loop shape)
-          //   • <path class="messageLine0"> (the arc that's already captured separately)
-          // We skip the redundant line segments to avoid spurious horizontal lines on the canvas.
           if (el.tagName.toLowerCase() === 'line') {
               const parent = el.parentElement;
               if (parent) {
-                  // If the parent group also has a path.messageLine* sibling, the path handles this
-                  // edge — skip the raw line segments to prevent duplicate/ghost lines.
-                  if (parent.querySelector('path.messageLine0, path.messageLine1')) return;
-                  // Skip lines inside loop/alt/opt control-flow boxes
-                  if (parent.querySelector('rect.loopLine, rect.labelBox')) return;
+                  // Self-loop groups contain both <line> segments AND a <path> for the arc.
+                  // The path already captures the full loop shape, so skip the redundant line segments.
+                  // We detect a self-loop group by checking for a sibling path.messageLine* AND
+                  // a sibling <text class="messageText"> on the same group (self-loops always have label).
+                  const hasSiblingPath = parent.querySelector(':scope > path.messageLine0, :scope > path.messageLine1');
+                  if (hasSiblingPath) return;
+                  // Skip lines that are decorations inside loop/alt/opt control-flow boxes (rect.loopLine present as sibling)
+                  if (parent.querySelector(':scope > rect.loopLine')) return;
               }
           }
           processEdge(el, 'link');
@@ -491,6 +588,8 @@ const CanvasDiagram = () => {
       svgElement.querySelectorAll(structSelector).forEach(el => processEdge(el, 'structural'));
 
       svgElement.querySelectorAll('line').forEach(line => {
+          // Skip loopLine border segments — they form the loop/alt frame box, not lifelines
+          if (line.classList.contains('loopLine')) return;
           const lx1 = parseFloat(line.getAttribute('x1') || '0');
           const lx2 = parseFloat(line.getAttribute('x2') || '0');
           const ly1 = parseFloat(line.getAttribute('y1') || '0');
@@ -509,6 +608,68 @@ const CanvasDiagram = () => {
               }
           }
       });
+
+      // --- C. Sequence-specific: floating text labels + loop/alt/opt frames ---
+      type SeqLabel = { x: number; y: number; text: string; fontSize: number; bold: boolean; color: string; align: CanvasTextAlign };
+      const extractedLabels: SeqLabel[] = [];
+
+      if (isSequenceDiagram) {
+          // Message text labels (arrow labels)
+          svgElement.querySelectorAll<SVGTextElement>('text.messageText').forEach(el => {
+              const { x: tx, y: ty } = getCumulativeTransform(el, svgElement);
+              const x = tx + parseFloat(el.getAttribute('x') || '0');
+              const y = ty + parseFloat(el.getAttribute('y') || '0');
+              const dy = parseFloat(el.getAttribute('dy') || '0');
+              const text = el.textContent?.trim() || '';
+              if (text) extractedLabels.push({ x, y: y + dy, text, fontSize: 13, bold: false, color: '#333', align: 'center' });
+          });
+
+          // Loop/alt/opt frame boxes: built from <line class="loopLine"> sets
+          // Each frame is a group containing 4 loopLines. We find groups that contain loopLine lines.
+          svgElement.querySelectorAll<SVGGElement>('g').forEach(g => {
+              const loopLines = g.querySelectorAll<SVGLineElement>(':scope > line.loopLine');
+              if (loopLines.length < 2) return;
+
+              // Compute bounding box from the 4 lines
+              let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+              loopLines.forEach(line => {
+                  const { x: tx, y: ty } = getCumulativeTransform(line, svgElement);
+                  [parseFloat(line.getAttribute('x1') || '0') + tx, parseFloat(line.getAttribute('x2') || '0') + tx].forEach(v => { minX = Math.min(minX, v); maxX = Math.max(maxX, v); });
+                  [parseFloat(line.getAttribute('y1') || '0') + ty, parseFloat(line.getAttribute('y2') || '0') + ty].forEach(v => { minY = Math.min(minY, v); maxY = Math.max(maxY, v); });
+              });
+              const w = maxX - minX; const h = maxY - minY;
+              if (w <= 0 || h <= 0) return;
+
+              extractedNodes.push({
+                  id: `loopFrame-${Math.random()}`, label: '', type: 'cluster', shape: 'rect',
+                  x: minX + w / 2, y: minY + h / 2, width: w, height: h,
+                  color: 'rgba(236,236,255,0.15)', stroke: '#9370DB',
+              });
+
+              // labelText ("loop", "alt", "opt"...)
+              const labelTxt = g.querySelector<SVGTextElement>('text.labelText');
+              if (labelTxt) {
+                  const { x: tx, y: ty } = getCumulativeTransform(labelTxt, svgElement);
+                  const lx = tx + parseFloat(labelTxt.getAttribute('x') || '0');
+                  const ly = ty + parseFloat(labelTxt.getAttribute('y') || '0');
+                  const t = labelTxt.textContent?.trim() || '';
+                  if (t) extractedLabels.push({ x: lx, y: ly, text: t, fontSize: 12, bold: true, color: '#5b21b6', align: 'center' });
+              }
+
+              // loopText ("[每 30 秒執行一次]" etc.)
+              const loopTxt = g.querySelector<SVGTextElement>('text.loopText');
+              if (loopTxt) {
+                  const { x: tx, y: ty } = getCumulativeTransform(loopTxt, svgElement);
+                  const lx = tx + parseFloat(loopTxt.getAttribute('x') || '0');
+                  const ly = ty + parseFloat(loopTxt.getAttribute('y') || '0');
+                  const tspan = loopTxt.querySelector('tspan');
+                  const t = tspan?.textContent?.trim() || loopTxt.textContent?.trim() || '';
+                  if (t) extractedLabels.push({ x: lx, y: ly, text: t, fontSize: 13, bold: false, color: '#374151', align: 'center' });
+              }
+          });
+      }
+
+      setSeqLabels(extractedLabels);
 
       setNodes(extractedNodes);
       // Filter out horizontal structural edges: actor lifelines are vertical; any horizontal
@@ -733,93 +894,6 @@ const CanvasDiagram = () => {
       window.addEventListener('mouseup', onUp);
   }, [editorWidth]);
 
-  // 5. 繪圖
-  useEffect(() => {
-      const canvas = canvasRef.current; if (!canvas) return;
-      const ctx = canvas.getContext('2d'); if (!ctx) return;
-      let rafId: number;
-
-      const render = () => {
-          const w = canvas.width; const h = canvas.height;
-          const offset = (canvas as any).viewBoxOffset || { x: 0, y: 0 };
-          const tr = transformRef.current;
-
-          ctx.fillStyle = isPremium ? '#f8fafc' : '#fff'; 
-          ctx.fillRect(0, 0, w, h);
-          
-          ctx.save();
-          // 套用 pan + zoom，再加上 viewBox 偏移
-          ctx.translate(tr.x, tr.y);
-          ctx.scale(tr.scale, tr.scale);
-          ctx.translate(offset.x, offset.y);
-
-          if (isPremium) drawGrid(ctx, w, h);
-
-          // --- 渲染層級調整 (Z-Index Logic) ---
-          
-          // 層級 1: 繪製 Cluster (底層區塊)，確保它們在最下面
-          const clusterNodes = nodes.filter(n => n.type === 'cluster');
-          clusterNodes.forEach(node => drawNode(ctx, node, isPremium, hoveredNodeIdRef.current));
-
-          // 層級 2: 畫連線 (Edges)，現在會疊在 Cluster 上
-          edges.sort((a, _b) => (a.type === 'structural' ? -1 : 1));
-          edges.forEach(edge => {
-              const p = new Path2D(edge.pathD);
-              ctx.strokeStyle = edge.stroke;
-              
-              if (isPremium) {
-                  ctx.strokeStyle = edge.type === 'structural' ? '#cbd5e1' : '#64748b';
-              } else {
-                  if(edge.type === 'structural' && (!edge.stroke || edge.stroke === 'none')) {
-                      ctx.strokeStyle = '#333';
-                  }
-              }
-              
-              ctx.lineWidth = 2;
-              
-              if (edge.dash) ctx.setLineDash(edge.dash);
-              else if (edge.type === 'structural') ctx.setLineDash([5, 5]); 
-              else ctx.setLineDash([]);
-
-              ctx.stroke(p);
-          });
-          
-          ctx.setLineDash([]); // Reset
-
-          // 層級 3: 粒子 (Particles)
-          if (isPremium) {
-              ctx.globalCompositeOperation = 'multiply';
-              particles.forEach(p => {
-                  p.update(particleSpeed); // 傳入速度倍率
-                  const pos = p.getPosition();
-                  if (pos.x === 0 && pos.y === 0) return;
-                  ctx.shadowBlur = 4; 
-                  ctx.shadowColor = particleColor; 
-                  ctx.fillStyle = particleColor;
-                  ctx.beginPath(); ctx.arc(pos.x, pos.y, 3, 0, Math.PI * 2); ctx.fill();
-              });
-              ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0;
-          }
-
-          // 層級 4: 繪製一般節點 (Nodes)，確保它們在線和 Cluster 之上
-          // Note 節點通常要最上層，所以排最後
-          const normalNodes = nodes.filter(n => n.type !== 'cluster').sort((a, _b) => {
-              if (a.type === 'note') return 1;
-              return 0;
-          });
-          normalNodes.forEach(node => drawNode(ctx, node, isPremium, hoveredNodeIdRef.current));
-
-          ctx.restore();
-
-          if (isRecording) {
-              ctx.fillStyle = 'red'; ctx.font = 'bold 16px Inter'; ctx.fillText("● REC", 20, 30);
-          }
-          rafId = requestAnimationFrame(render);
-      };
-      render();
-      return () => cancelAnimationFrame(rafId);
-  }, [nodes, edges, particles, isPremium, isRecording, particleColor, particleSpeed, transformState]);
-
   const drawNode = (ctx: CanvasRenderingContext2D, node: DiagramNode, premium: boolean, hoveredId: string | null) => {
       const { x, y, width, height, color, stroke, shape, label } = node;
       const isHovered = node.id === hoveredId;
@@ -897,20 +971,193 @@ const CanvasDiagram = () => {
       ctx.stroke();
   };
 
+  // Shared render function — draws one frame onto any canvas context at the given size + transform
+  const renderFrame = useCallback((
+      ctx: CanvasRenderingContext2D,
+      w: number,
+      h: number,
+      tr: { x: number; y: number; scale: number },
+      offset: { x: number; y: number },
+      showRec: boolean
+  ) => {
+      ctx.fillStyle = isPremium ? '#f8fafc' : '#fff';
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.save();
+      ctx.translate(tr.x, tr.y);
+      ctx.scale(tr.scale, tr.scale);
+      ctx.translate(offset.x, offset.y);
+
+      if (isPremium) drawGrid(ctx, w, h);
+
+      const clusterNodes = nodes.filter(n => n.type === 'cluster');
+      clusterNodes.forEach(node => drawNode(ctx, node, isPremium, hoveredNodeIdRef.current));
+
+      edges.sort((a, _b) => (a.type === 'structural' ? -1 : 1));
+      edges.forEach(edge => {
+          const p = new Path2D(edge.pathD);
+          const edgeColor = isPremium
+              ? (edge.type === 'structural' ? '#cbd5e1' : '#64748b')
+              : (edge.type === 'structural' && (!edge.stroke || edge.stroke === 'none') ? '#333' : edge.stroke);
+          ctx.strokeStyle = edgeColor;
+          ctx.lineWidth = 2;
+          if (edge.dash) ctx.setLineDash(edge.dash);
+          else if (edge.type === 'structural') ctx.setLineDash([5, 5]);
+          else ctx.setLineDash([]);
+          ctx.stroke(p);
+
+          // Draw arrowhead at the end of the path
+          if (edge.hasArrow) {
+              ctx.setLineDash([]);
+              // Parse end point and direction from pathD
+              const coordRe = /[ML]\s*([-\d.]+)\s+([-\d.]+)/gi;
+              const pts: [number, number][] = [];
+              let m: RegExpExecArray | null;
+              const pd = edge.pathD;
+              while ((m = coordRe.exec(pd)) !== null) pts.push([parseFloat(m[1]), parseFloat(m[2])]);
+              if (pts.length >= 2) {
+                  const [x2, y2] = pts[pts.length - 1];
+                  const [x1, y1] = pts[pts.length - 2];
+                  const angle = Math.atan2(y2 - y1, x2 - x1);
+                  const size = 10;
+                  ctx.fillStyle = edgeColor;
+                  ctx.beginPath();
+                  ctx.moveTo(x2, y2);
+                  ctx.lineTo(x2 - size * Math.cos(angle - 0.4), y2 - size * Math.sin(angle - 0.4));
+                  ctx.lineTo(x2 - size * Math.cos(angle + 0.4), y2 - size * Math.sin(angle + 0.4));
+                  ctx.closePath();
+                  ctx.fill();
+              }
+          }
+      });
+      ctx.setLineDash([]);
+
+      if (isPremium) {
+          ctx.globalCompositeOperation = 'multiply';
+          particles.forEach(p => {
+              const pos = p.getPosition();
+              if (pos.x === 0 && pos.y === 0) return;
+              ctx.shadowBlur = 4;
+              ctx.shadowColor = particleColor;
+              ctx.fillStyle = particleColor;
+              ctx.beginPath(); ctx.arc(pos.x, pos.y, 3, 0, Math.PI * 2); ctx.fill();
+          });
+          ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0;
+      }
+
+      const normalNodes = nodes.filter(n => n.type !== 'cluster').sort((a, _b) => (a.type === 'note' ? 1 : 0));
+      normalNodes.forEach(node => drawNode(ctx, node, isPremium, hoveredNodeIdRef.current));
+
+      // Floating sequence labels (messageText, loopText, labelText)
+      if (seqLabels.length > 0) {
+          ctx.shadowBlur = 0;
+          seqLabels.forEach(lbl => {
+              ctx.font = `${lbl.bold ? 'bold ' : ''}${lbl.fontSize}px Inter, sans-serif`;
+              ctx.fillStyle = lbl.color;
+              ctx.textAlign = lbl.align;
+              ctx.textBaseline = 'top';
+              ctx.fillText(lbl.text, lbl.x, lbl.y);
+          });
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+      }
+
+      ctx.restore();
+
+      if (showRec) {
+          ctx.fillStyle = 'rgba(220,38,38,0.9)';
+          ctx.font = 'bold 18px Inter';
+          ctx.fillText('● REC', 24, 36);
+      }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, edges, particles, isPremium, particleColor, seqLabels]);
+
+  // 5. 繪圖
+  useEffect(() => {
+      const canvas = canvasRef.current; if (!canvas) return;
+      const ctx = canvas.getContext('2d'); if (!ctx) return;
+      let rafId: number;
+
+      const render = () => {
+          const w = canvas.width; const h = canvas.height;
+          const offset = (canvas as any).viewBoxOffset || { x: 0, y: 0 };
+          const tr = transformRef.current;
+
+          // Advance particle positions in the main loop only
+          if (isPremium) particles.forEach(p => p.update(particleSpeed));
+
+          renderFrame(ctx, w, h, tr, offset, isRecording);
+          rafId = requestAnimationFrame(render);
+      };
+      render();
+      return () => cancelAnimationFrame(rafId);
+  }, [nodes, edges, particles, seqLabels, isPremium, isRecording, particleColor, particleSpeed, transformState, renderFrame]);
+
   const handleDownload = () => {
-     if(!canvasRef.current) return;
+     if (!canvasRef.current) return;
      setIsRecording(true);
-     const stream = (canvasRef.current as any).captureStream(60);
+
+     // Output dimensions
+     const HD_W = 1280;
+     const HD_H = 720;
+
+     // 2× supersampling: render at double resolution so text and lines are crisp,
+     // then downscale to HD via an intermediate canvas before capturing the stream.
+     const SS = 2;
+     const SS_W = HD_W * SS;
+     const SS_H = HD_H * SS;
+
+     // High-res render canvas (never shown to user)
+     const ssCanvas = document.createElement('canvas');
+     ssCanvas.width = SS_W;
+     ssCanvas.height = SS_H;
+     const ssCtx = ssCanvas.getContext('2d')!;
+
+     // Output canvas that is actually captured
+     const outCanvas = document.createElement('canvas');
+     outCanvas.width = HD_W;
+     outCanvas.height = HD_H;
+     const outCtx = outCanvas.getContext('2d')!;
+
+     // Compute a transform that fits the entire diagram into the HD frame (at 1× scale),
+     // then we will apply an additional SS scale on top when rendering into ssCanvas.
+     const diagramOffset = (canvasRef.current as any).viewBoxOffset || { x: 0, y: 0 };
+     const { w: dw, h: dh } = diagramSizeRef.current;
+     const padding = 48;
+     const hdScale = dw > 0 && dh > 0
+         ? Math.min((HD_W - padding) / dw, (HD_H - padding) / dh)
+         : 1;
+     // Scale up the transform to match the SS canvas size
+     const ssTr = {
+         x: (HD_W - dw * hdScale) / 2 * SS,
+         y: (HD_H - dh * hdScale) / 2 * SS,
+         scale: hdScale * SS,
+     };
+     const ssOffset = { x: diagramOffset.x, y: diagramOffset.y };
+
+     let rafId: number;
+     const drawHDFrame = () => {
+         // 1. Render at 2× into ssCanvas
+         renderFrame(ssCtx, SS_W, SS_H, ssTr, ssOffset, true);
+         // 2. Downscale to HD output canvas — browser bilinear filter makes text crisp
+         outCtx.clearRect(0, 0, HD_W, HD_H);
+         outCtx.drawImage(ssCanvas, 0, 0, HD_W, HD_H);
+         rafId = requestAnimationFrame(drawHDFrame);
+     };
+     drawHDFrame();
+
+     const stream = (outCanvas as any).captureStream(60);
      // Prefer MP4 (H.264) when the browser supports it; fall back to WebM
      const mp4Types = ['video/mp4;codecs=h264,mp4a.40.2', 'video/mp4;codecs=avc1', 'video/mp4'];
      const mimeType = mp4Types.find(t => MediaRecorder.isTypeSupported(t)) ?? 'video/webm';
      const ext = mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
-     const recorder = new MediaRecorder(stream, { mimeType });
+     const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 12_000_000 });
      const chunks: any[] = [];
      recorder.ondataavailable = e => chunks.push(e.data);
      recorder.onstop = () => {
+         cancelAnimationFrame(rafId);
          const url = URL.createObjectURL(new Blob(chunks, { type: mimeType }));
-         const a = document.createElement('a'); a.href=url; a.download=`flowmotion.${ext}`; a.click();
+         const a = document.createElement('a'); a.href = url; a.download = `flowmotion.${ext}`; a.click();
          setIsRecording(false);
      };
      recorder.start();
