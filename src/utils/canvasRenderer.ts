@@ -12,6 +12,40 @@ export const drawGrid = (ctx: CanvasRenderingContext2D, w: number, h: number) =>
   ctx.stroke();
 };
 
+/**
+ * Parses a CSS color string (hex, rgb, rgba, named) and returns perceived
+ * luminance in [0, 1]. Returns 1 (light) for unrecognised formats.
+ */
+const getLuminance = (colorStr: string): number => {
+  if (!colorStr || colorStr === 'none' || colorStr === 'transparent') return 1;
+
+  let r = 255, g = 255, b = 255;
+
+  // rgb(a)(...)
+  const rgbMatch = colorStr.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
+  if (rgbMatch) {
+    r = parseFloat(rgbMatch[1]);
+    g = parseFloat(rgbMatch[2]);
+    b = parseFloat(rgbMatch[3]);
+  } else {
+    // hex
+    let hex = colorStr.trim().replace('#', '');
+    if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+    if (hex.length === 6) {
+      r = parseInt(hex.slice(0, 2), 16);
+      g = parseInt(hex.slice(2, 4), 16);
+      b = parseInt(hex.slice(4, 6), 16);
+    }
+  }
+
+  // Relative luminance (WCAG formula)
+  const toLinear = (c: number) => {
+    const s = c / 255;
+    return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+};
+
 export const drawNode = (
   ctx: CanvasRenderingContext2D,
   node: DiagramNode,
@@ -82,7 +116,7 @@ export const drawNode = (
   ctx.textBaseline = 'middle';
 
   if (node.type === 'cluster') {
-    ctx.fillStyle = '#334155';
+    ctx.fillStyle = getLuminance(color) < 0.35 ? '#f1f5f9' : '#334155';
     ctx.font = 'bold 11px Inter';
     ctx.textBaseline = 'bottom';
     ctx.fillText(label, x, y - height / 2 - 4);
@@ -92,7 +126,7 @@ export const drawNode = (
     ctx.font = `bold ${Math.max(9, Math.min(12, width * 0.55))}px Inter`;
     ctx.fillText(label, x, y);
   } else {
-    ctx.fillStyle = '#000000';
+    ctx.fillStyle = getLuminance(color) < 0.35 ? '#f1f5f9' : '#1e293b';
     ctx.font = 'bold 14px Inter';
     const lines = label.split('\n');
     const lh = 16;
