@@ -27,18 +27,23 @@ type DiagramEdge = {
   dash?: number[]; // 虛線樣式
 };
 
+const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
 // --- 預設代碼 (Sequence Diagram) ---
 const SEQUENCE_CODE = `sequenceDiagram
-    participant Alice
-    participant Bob
-    Alice->>John: Hello John, how are you?
-    loop Healthcheck
-        John->>John: Fight against hypochondria
+    participant App
+    participant API
+    
+    rect rgb(240, 240, 240)
+        Note right of App: 初始化連線
+        App->>API: 建立連線 (Sync)
+        API-->>App: 連線已確認
     end
-    Note right of John: Rational thoughts <br/>prevail!
-    John-->>Alice: Great!
-    John->>Bob: How about you?
-    Bob-->>John: Jolly good!`;
+    
+    loop 每 30 秒執行一次
+        App->>API: 獲取最新數據
+        API-->>App: 回傳數據內容
+    end`;
 
 // --- 預設代碼 (Flowchart) ---
 const FLOWCHART_CODE = `graph LR
@@ -386,7 +391,11 @@ const CanvasDiagram = () => {
           if (style.stroke && style.stroke !== 'none') stroke = style.stroke;
           
           if (style.strokeDasharray && style.strokeDasharray !== 'none') {
-              dash = style.strokeDasharray.split(',').map(n => parseFloat(n));
+              const dashValues = style.strokeDasharray.split(',').map(n => parseFloat(n));
+              // Only apply dash if at least one value is actually > 0
+              if (dashValues.some(v => v > 0)) {
+                  dash = dashValues;
+              }
           }
 
           const tagName = el.tagName.toLowerCase();
@@ -414,7 +423,24 @@ const CanvasDiagram = () => {
           }
       };
 
-      svgElement.querySelectorAll(linkSelector).forEach(el => processEdge(el, 'link'));
+      svgElement.querySelectorAll(linkSelector).forEach(el => {
+          // For <line> elements, filter out those that are part of a self-loop or control-flow decoration.
+          // Mermaid renders self-loops (e.g. John->>John) as both:
+          //   • <line class="messageLine0"> segments (top/bottom of the rectangular loop shape)
+          //   • <path class="messageLine0"> (the arc that's already captured separately)
+          // We skip the redundant line segments to avoid spurious horizontal lines on the canvas.
+          if (el.tagName.toLowerCase() === 'line') {
+              const parent = el.parentElement;
+              if (parent) {
+                  // If the parent group also has a path.messageLine* sibling, the path handles this
+                  // edge — skip the raw line segments to prevent duplicate/ghost lines.
+                  if (parent.querySelector('path.messageLine0, path.messageLine1')) return;
+                  // Skip lines inside loop/alt/opt control-flow boxes
+                  if (parent.querySelector('rect.loopLine, rect.labelBox')) return;
+              }
+          }
+          processEdge(el, 'link');
+      });
       svgElement.querySelectorAll(structSelector).forEach(el => processEdge(el, 'structural'));
 
       svgElement.querySelectorAll('line').forEach(line => {
@@ -438,7 +464,19 @@ const CanvasDiagram = () => {
       });
 
       setNodes(extractedNodes);
-      setEdges(extractedEdges);
+      // Filter out horizontal structural edges: actor lifelines are vertical; any horizontal
+      // "structural" line is likely an actor-box border already rendered as a node rectangle.
+      const cleanedEdges = extractedEdges.filter(edge => {
+          if (edge.type !== 'structural') return true;
+          const m = edge.pathD.match(/M\s*([\d.e+\-]+)\s+([\d.e+\-]+)\s+L\s*([\d.e+\-]+)\s+([\d.e+\-]+)/i);
+          if (m) {
+              const dx = Math.abs(parseFloat(m[3]) - parseFloat(m[1]));
+              const dy = Math.abs(parseFloat(m[4]) - parseFloat(m[2]));
+              return dy > dx * 0.8; // keep only near-vertical structural lines
+          }
+          return true;
+      });
+      setEdges(cleanedEdges);
       
       if (canvasRef.current) {
           canvasRef.current.width = viewBox.width + 100;
@@ -632,12 +670,15 @@ const CanvasDiagram = () => {
       
       ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; ctx.setLineDash([]);
 
-      ctx.fillStyle = '#000000'; 
-      ctx.font = node.type === 'cluster' ? 'bold 12px Inter' : 'bold 14px Inter';
+      ctx.fillStyle = node.type === 'cluster' ? '#334155' : '#000000';
+      ctx.font = node.type === 'cluster' ? 'bold 11px Inter' : 'bold 14px Inter';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       
       if (node.type === 'cluster') {
-          ctx.fillText(label, x, y - height/2 + 20);
+          // Draw label above the cluster top border so it doesn't overlap inner nodes
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(label, x, y - height / 2 - 4);
+          ctx.textBaseline = 'middle';
       } else {
           const lines = label.split('\n');
           const lh = 16;
@@ -662,12 +703,16 @@ const CanvasDiagram = () => {
      if(!canvasRef.current) return;
      setIsRecording(true);
      const stream = (canvasRef.current as any).captureStream(60);
-     const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+     // Prefer MP4 (H.264) when the browser supports it; fall back to WebM
+     const mp4Types = ['video/mp4;codecs=h264,mp4a.40.2', 'video/mp4;codecs=avc1', 'video/mp4'];
+     const mimeType = mp4Types.find(t => MediaRecorder.isTypeSupported(t)) ?? 'video/webm';
+     const ext = mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
+     const recorder = new MediaRecorder(stream, { mimeType });
      const chunks: any[] = [];
      recorder.ondataavailable = e => chunks.push(e.data);
      recorder.onstop = () => {
-         const url = URL.createObjectURL(new Blob(chunks));
-         const a = document.createElement('a'); a.href=url; a.download='flowmotion.webm'; a.click();
+         const url = URL.createObjectURL(new Blob(chunks, { type: mimeType }));
+         const a = document.createElement('a'); a.href=url; a.download=`flowmotion.${ext}`; a.click();
          setIsRecording(false);
      };
      recorder.start();
@@ -734,7 +779,7 @@ const CanvasDiagram = () => {
               }`}
             >
               <span>{isPremium ? '✨' : '◻'}</span>
-              <span className="hidden sm:inline">{isPremium ? 'Premium' : 'Draft'}</span>
+              <span className="hidden sm:inline">{isPremium ? 'Export' : 'Draft'}</span>
             </button>
             <button onClick={handleDownload} disabled={isRecording} className={`px-2 py-1.5 md:px-3 md:py-2 rounded text-sm flex items-center gap-1.5 font-bold shadow-sm transition-transform ${isRecording ? 'bg-red-100 text-red-600 border border-red-200' : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:scale-105'}`}>
                 <Video size={15}/> <span className="hidden sm:inline">{isRecording ? 'REC...' : 'Download'}</span>
