@@ -30,16 +30,19 @@ const SEQUENCE_CODE = `sequenceDiagram
     end`;
 
 const FLOWCHART_CODE = `graph LR
-    W0[Week 0<br/>GCP: 100%<br/>AWS: 0%]
-    W1[Week 1<br/>GCP: 60%<br/>AWS: 40%]
-    W2[Week 2<br/>GCP: 25%<br/>AWS: 75%]
-    W3[Week 3<br/>GCP: 5%<br/>AWS: 95%]
-    W4[Week 4<br/>GCP: 0.8%<br/>AWS: 99.2%]
+    W0["Week 0<br/>GCP: 100%"]
+    W1["Week 1<br/>GCP: 60%"]
+    W2["Week 2<br/>GCP: 25%"]
+    W3["Week 3<br/>GCP: 5%"]
+    W4["Week 4<br/>GCP: 0.8%"]
     
     W0 --> W1 --> W2 --> W3 --> W4
     
-    style W0 fill:#4285f4,color:#fff
-    style W4 fill:#ff9900`;
+    style W0 fill:#4285f4,color:#fff,stroke:#333
+    style W1 fill:#7aa9f7,color:#fff,stroke:#333
+    style W2 fill:#f7c47a,color:#000,stroke:#333
+    style W3 fill:#ffb347,color:#000,stroke:#333
+    style W4 fill:#ff9900,color:#000,stroke:#333,stroke-width:4px`;
 
 const ARCH_CODE = `flowchart TB
     subgraph Devices[" "]
@@ -197,8 +200,34 @@ const CanvasDiagram = () => {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const hoveredNodeIdRef = useRef<string | null>(null);
 
+  // --- Sample map ---
+  const SAMPLES: Record<string, string> = {
+    sequence:   SEQUENCE_CODE,
+    flowchart:  FLOWCHART_CODE,
+    arch:       ARCH_CODE,
+    class:      CLASS_CODE,
+    state:      STATE_CODE,
+    er:         ER_CODE,
+    gantt:      GANTT_CODE,
+    pie:        PIE_CODE,
+    gitgraph:   GITGRAPH_CODE,
+  };
+
+  const SAMPLE_OPTIONS = [
+    { value: 'sequence',  label: 'Sequence Diagram' },
+    { value: 'flowchart', label: 'Flowchart' },
+    { value: 'arch',      label: 'Architecture' },
+    { value: 'class',     label: 'Class Diagram' },
+    { value: 'state',     label: 'State Diagram' },
+    { value: 'er',        label: 'ER Diagram' },
+    { value: 'gantt',     label: 'Gantt Chart' },
+    { value: 'pie',       label: 'Pie Chart' },
+    { value: 'gitgraph',  label: 'Git Graph' },
+  ];
+
   // UI state
-  const [code, setCode] = useState(ARCH_CODE);
+  const [selectedSample, setSelectedSample] = useState('sequence');
+  const [code, setCode] = useState(SEQUENCE_CODE);
   const [isPremium, setIsPremium] = useState(true);
   const [particleColor, setParticleColor] = useState('#6366f1');
   const [particleSpeed, setParticleSpeed] = useState(1);
@@ -356,17 +385,11 @@ const CanvasDiagram = () => {
           isDesktop={isDesktop}
           editorWidth={editorWidth}
           isResizing={isResizingRef.current}
+          samples={SAMPLE_OPTIONS}
+          selectedSample={selectedSample}
           onCodeChange={setCode}
           onToggleOpen={setIsEditorOpen}
-          onLoadSequence={() => setCode(SEQUENCE_CODE)}
-          onLoadFlowchart={() => setCode(FLOWCHART_CODE)}
-          onLoadArch={() => setCode(ARCH_CODE)}
-          onLoadClass={() => setCode(CLASS_CODE)}
-          onLoadState={() => setCode(STATE_CODE)}
-          onLoadEr={() => setCode(ER_CODE)}
-          onLoadGantt={() => setCode(GANTT_CODE)}
-          onLoadPie={() => setCode(PIE_CODE)}
-          onLoadGitGraph={() => setCode(GITGRAPH_CODE)}
+          onLoadSample={(key) => { setSelectedSample(key); setCode(SAMPLES[key] ?? code); }}
           onResizeStart={handleResizeStart}
         />
 

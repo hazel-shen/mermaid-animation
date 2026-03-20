@@ -1,5 +1,11 @@
 import React from 'react';
-import { Code, X } from 'lucide-react';
+import { Code, X, ChevronDown } from 'lucide-react';
+
+export interface SampleOption {
+  value: string;
+  label: string;
+}
+
 
 interface EditorSidebarProps {
   code: string;
@@ -8,25 +14,12 @@ interface EditorSidebarProps {
   isDesktop: boolean;
   editorWidth: number;
   isResizing: boolean;
+  samples: SampleOption[];
+  selectedSample: string;
   onCodeChange: (value: string) => void;
   onToggleOpen: (open: boolean) => void;
-  onLoadSequence: () => void;
-  onLoadFlowchart: () => void;
-  onLoadArch: () => void;
-  onLoadClass: () => void;
-  onLoadState: () => void;
-  onLoadEr: () => void;
-  onLoadGantt: () => void;
-  onLoadPie: () => void;
-  onLoadGitGraph: () => void;
+  onLoadSample: (value: string) => void;
   onResizeStart: (e: React.MouseEvent) => void;
-}
-
-interface SampleButton {
-  label: string;
-  shortLabel: string;
-  onClick: () => void;
-  color: string;
 }
 
 export const EditorSidebar: React.FC<EditorSidebarProps> = ({
@@ -36,30 +29,16 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
   isDesktop,
   editorWidth,
   isResizing,
+  samples,
+  selectedSample,
   onCodeChange,
   onToggleOpen,
-  onLoadSequence,
-  onLoadFlowchart,
-  onLoadArch,
-  onLoadClass,
-  onLoadState,
-  onLoadEr,
-  onLoadGantt,
-  onLoadPie,
-  onLoadGitGraph,
+  onLoadSample,
   onResizeStart,
 }) => {
-  const sampleButtons: SampleButton[] = [
-    { label: 'Sequence', shortLabel: 'Seq', onClick: onLoadSequence, color: 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-700' },
-    { label: 'Flowchart', shortLabel: 'Flow', onClick: onLoadFlowchart, color: 'bg-sky-50 hover:bg-sky-100 border-sky-200 text-sky-700' },
-    { label: 'Architecture', shortLabel: 'Arch', onClick: onLoadArch, color: 'bg-violet-50 hover:bg-violet-100 border-violet-200 text-violet-700' },
-    { label: 'Class', shortLabel: 'Class', onClick: onLoadClass, color: 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700' },
-    { label: 'State', shortLabel: 'State', onClick: onLoadState, color: 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700' },
-    { label: 'ER', shortLabel: 'ER', onClick: onLoadEr, color: 'bg-green-50 hover:bg-green-100 border-green-200 text-green-700' },
-    { label: 'Gantt', shortLabel: 'Gantt', onClick: onLoadGantt, color: 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-700' },
-    { label: 'Pie', shortLabel: 'Pie', onClick: onLoadPie, color: 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700' },
-    { label: 'Git Graph', shortLabel: 'Git', onClick: onLoadGitGraph, color: 'bg-orange-50 hover:bg-orange-100 border-orange-200 text-orange-700' },
-  ];
+  const handleSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    onLoadSample(e.target.value);
+  };
 
   return (
     <div
@@ -80,16 +59,13 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
         {isOpen ? (
           <>
             <span className="flex items-center gap-1.5 truncate"><Code size={12} /> MERMAID SOURCE</span>
-            <div className="flex items-center gap-1 flex-shrink-0">
-              {/* Collapse button — desktop only */}
-              <button
-                onClick={() => onToggleOpen(false)}
-                className="hidden lg:flex ml-1 w-5 h-5 items-center justify-center rounded hover:bg-gray-200 text-slate-400 hover:text-slate-600 transition-colors"
-                title="收合編輯器"
-              >
-                <X size={11} />
-              </button>
-            </div>
+            <button
+              onClick={() => onToggleOpen(false)}
+              className="hidden lg:flex ml-1 w-5 h-5 items-center justify-center rounded hover:bg-gray-200 text-slate-400 hover:text-slate-600 transition-colors"
+              title="收合編輯器"
+            >
+              <X size={11} />
+            </button>
           </>
         ) : (
           <button
@@ -100,7 +76,6 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
             <Code size={13} />
           </button>
         )}
-        {/* Mobile collapse/expand */}
         {isOpen && (
           <button
             onClick={() => onToggleOpen(false)}
@@ -112,27 +87,26 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
         )}
       </div>
 
-      {/* Sample diagram buttons */}
+      {/* Sample dropdown */}
       {isOpen && (
-        <div className="px-2 py-1.5 border-b border-gray-100 bg-gray-50 flex-shrink-0">
-          <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wide mb-1">範例圖表</p>
-          <div className="flex flex-wrap gap-1">
-            {sampleButtons.map(btn => (
-              <button
-                key={btn.label}
-                onClick={btn.onClick}
-                className={`px-1.5 py-0.5 text-[10px] border rounded transition-colors ${btn.color}`}
-                title={btn.label}
-              >
-                <span className="hidden xl:inline">{btn.label}</span>
-                <span className="xl:hidden">{btn.shortLabel}</span>
-              </button>
-            ))}
+        <div className="px-2 py-1.5 border-b border-gray-100 bg-gray-50 flex-shrink-0 flex items-center gap-1.5">
+          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide whitespace-nowrap">範例</span>
+          <div className="relative flex-1 min-w-0">
+            <select
+              value={selectedSample}
+              onChange={handleSelect}
+              className="w-full appearance-none bg-white border border-gray-200 rounded text-[11px] text-slate-600 pl-2 pr-6 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400 cursor-pointer hover:border-indigo-300 transition-colors"
+            >
+              {samples.map(s => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+            <ChevronDown size={11} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           </div>
         </div>
       )}
 
-      {/* Editor content */}
+      {/* Editor textarea */}
       {isOpen && (
         <>
           <textarea

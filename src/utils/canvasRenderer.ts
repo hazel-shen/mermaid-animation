@@ -95,6 +95,65 @@ export const drawNode = (
   }
 };
 
+/**
+ * Extracts the arrow tip position and approach angle from an SVG path string.
+ * Handles M/L (straight lines) and C (cubic bezier, used by Mermaid curve:'basis').
+ * For a cubic bezier "C cx1 cy1 cx2 cy2 ex ey", the tangent at the endpoint
+ * is from (cx2,cy2) → (ex,ey).
+ */
+const getArrowTip = (pathD: string): { x2: number; y2: number; angle: number } | null => {
+  // Tokenise the path into commands + coordinate groups
+  const segments = pathD.trim().match(/[MLCQTSAZ][^MLCQTSAZ]*/gi);
+  if (!segments || segments.length < 2) return null;
+
+  const last = segments[segments.length - 1].trim();
+  const cmd = last[0].toUpperCase();
+  const nums = last.slice(1).trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+
+  // Find the second-to-last endpoint for direction reference
+  const prev = segments[segments.length - 2].trim();
+  const prevCmd = prev[0].toUpperCase();
+  const prevNums = prev.slice(1).trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+
+  let x2: number, y2: number, x1: number, y1: number;
+
+  if (cmd === 'C' && nums.length >= 6) {
+    // C cx1 cy1 cx2 cy2 ex ey  — use last control point as direction source
+    x2 = nums[nums.length - 2];
+    y2 = nums[nums.length - 1];
+    x1 = nums[nums.length - 4]; // second control point
+    y1 = nums[nums.length - 3];
+  } else if (cmd === 'L' && nums.length >= 2) {
+    x2 = nums[nums.length - 2];
+    y2 = nums[nums.length - 1];
+    // direction from previous segment endpoint
+    if (prevCmd === 'C' && prevNums.length >= 6) {
+      x1 = prevNums[prevNums.length - 2];
+      y1 = prevNums[prevNums.length - 1];
+    } else if (prevNums.length >= 2) {
+      x1 = prevNums[prevNums.length - 2];
+      y1 = prevNums[prevNums.length - 1];
+    } else {
+      return null;
+    }
+  } else if (cmd === 'M' && nums.length >= 2 && segments.length >= 2) {
+    // Fallback: treat last M as endpoint
+    x2 = nums[nums.length - 2];
+    y2 = nums[nums.length - 1];
+    if (prevNums.length >= 2) {
+      x1 = prevNums[prevNums.length - 2];
+      y1 = prevNums[prevNums.length - 1];
+    } else {
+      return null;
+    }
+  } else {
+    return null;
+  }
+
+  if (Math.hypot(x2 - x1, y2 - y1) < 0.5) return null;
+  return { x2, y2, angle: Math.atan2(y2 - y1, x2 - x1) };
+};
+
 export const drawEdge = (
   ctx: CanvasRenderingContext2D,
   edge: DiagramEdge,
@@ -116,15 +175,9 @@ export const drawEdge = (
 
   if (edge.hasArrow) {
     ctx.setLineDash([]);
-    const coordRe = /[ML]\s*([-\d.]+)\s+([-\d.]+)/gi;
-    const pts: [number, number][] = [];
-    let m: RegExpExecArray | null;
-    const pd = edge.pathD;
-    while ((m = coordRe.exec(pd)) !== null) pts.push([parseFloat(m[1]), parseFloat(m[2])]);
-    if (pts.length >= 2) {
-      const [x2, y2] = pts[pts.length - 1];
-      const [x1, y1] = pts[pts.length - 2];
-      const angle = Math.atan2(y2 - y1, x2 - x1);
+    const tip = getArrowTip(edge.pathD);
+    if (tip) {
+      const { x2, y2, angle } = tip;
       const size = 10;
       ctx.fillStyle = edgeColor;
       ctx.beginPath();

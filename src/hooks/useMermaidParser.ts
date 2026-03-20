@@ -1,12 +1,34 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { DiagramNode, DiagramEdge, SeqLabel } from '../types';
+import { getDiagramType } from '../services/diagramTypes';
+import type { DiagramType } from '../services/diagramTypes';
+
+// Sequence
 import { parseSequenceNodes, parseSequenceEdges, parseSequenceLoopFrames, parseSequenceMessageLabels } from '../services/SequenceParser';
+// Flowchart
 import { parseFlowchartNodes, parseFlowchartEdges } from '../services/FlowchartParser';
+// Class
+import { parseClassNodes, parseClassEdges } from '../services/ClassParser';
+// State
+import { parseStateNodes, parseStateEdges } from '../services/StateParser';
+// ER
+import { parseErNodes, parseErEdges } from '../services/ErParser';
+// Gantt / Timeline
+import { parseGanttNodes, parseGanttEdges } from '../services/GanttParser';
+// Pie
+import { parsePieNodes, parsePieEdges } from '../services/PieParser';
+// Mindmap
+import { parseMindmapNodes, parseMindmapEdges } from '../services/MindmapParser';
+// Git Graph
+import { parseGitGraphNodes, parseGitGraphEdges } from '../services/GitGraphParser';
+// Generic fallback
+import { parseGeneric } from '../services/GenericParser';
 
 interface UseMermaidParserReturn {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
   seqLabels: SeqLabel[];
+  diagramType: DiagramType;
   isLoading: boolean;
   errorMsg: string | null;
   mermaidReady: boolean;
@@ -22,12 +44,12 @@ export const useMermaidParser = (
   const [nodes, setNodes] = useState<DiagramNode[]>([]);
   const [edges, setEdges] = useState<DiagramEdge[]>([]);
   const [seqLabels, setSeqLabels] = useState<SeqLabel[]>([]);
+  const [diagramType, setDiagramType] = useState<DiagramType>('flowchart');
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [mermaidReady, setMermaidReady] = useState(false);
   const [viewBox, setViewBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
-  // Keep isPremium in a ref so renderMermaidToData doesn't need to re-create itself
   const isPremiumRef = useRef(isPremium);
   useEffect(() => { isPremiumRef.current = isPremium; }, [isPremium]);
 
@@ -60,33 +82,114 @@ export const useMermaidParser = (
     }
   }, []);
 
-  const extractDataFromSVG = useCallback((svgElement: SVGSVGElement) => {
+  const extractDataFromSVG = useCallback((svgElement: SVGSVGElement, type: DiagramType) => {
     const vb = svgElement.viewBox.baseVal;
     setViewBox({ x: vb.x, y: vb.y, width: vb.width, height: vb.height });
-
-    const isSequenceDiagram = svgElement.querySelector('rect.actor, line.messageLine0, line.messageLine1') !== null;
 
     let extractedNodes: DiagramNode[];
     let extractedEdges: DiagramEdge[];
     let extractedLabels: SeqLabel[] = [];
+    const premium = isPremiumRef.current;
 
-    if (isSequenceDiagram) {
-      extractedNodes = parseSequenceNodes(svgElement);
-      extractedEdges = parseSequenceEdges(svgElement, isPremiumRef.current);
+    switch (type) {
+      case 'sequence': {
+        extractedNodes = parseSequenceNodes(svgElement);
+        extractedEdges = parseSequenceEdges(svgElement, premium);
+        const { nodes: loopNodes, labels: loopLabels } = parseSequenceLoopFrames(svgElement);
+        extractedNodes.push(...loopNodes);
+        extractedLabels.push(...loopLabels);
+        extractedLabels.push(...parseSequenceMessageLabels(svgElement));
+        break;
+      }
 
-      const { nodes: loopNodes, labels: loopLabels } = parseSequenceLoopFrames(svgElement);
-      extractedNodes.push(...loopNodes);
-      extractedLabels.push(...loopLabels);
-      extractedLabels.push(...parseSequenceMessageLabels(svgElement));
-    } else {
-      extractedNodes = parseFlowchartNodes(svgElement, isPremiumRef.current);
-      extractedEdges = parseFlowchartEdges(svgElement, isPremiumRef.current);
+      case 'flowchart': {
+        extractedNodes = parseFlowchartNodes(svgElement, premium);
+        extractedEdges = parseFlowchartEdges(svgElement, premium);
+        break;
+      }
+
+      case 'class': {
+        extractedNodes = parseClassNodes(svgElement, premium);
+        extractedEdges = parseClassEdges(svgElement, premium);
+        // Fallback: if we got no edges, use generic
+        if (extractedEdges.length === 0) {
+          const gen = parseGeneric(svgElement, premium);
+          if (extractedNodes.length === 0) extractedNodes = gen.nodes;
+          extractedEdges = gen.edges;
+        }
+        break;
+      }
+
+      case 'state': {
+        extractedNodes = parseStateNodes(svgElement, premium);
+        extractedEdges = parseStateEdges(svgElement, premium);
+        if (extractedEdges.length === 0) {
+          const gen = parseGeneric(svgElement, premium);
+          if (extractedNodes.length === 0) extractedNodes = gen.nodes;
+          extractedEdges = gen.edges;
+        }
+        break;
+      }
+
+      case 'er': {
+        extractedNodes = parseErNodes(svgElement, premium);
+        extractedEdges = parseErEdges(svgElement, premium);
+        if (extractedEdges.length === 0) {
+          const gen = parseGeneric(svgElement, premium);
+          if (extractedNodes.length === 0) extractedNodes = gen.nodes;
+          extractedEdges = gen.edges;
+        }
+        break;
+      }
+
+      case 'gantt':
+      case 'timeline': {
+        extractedNodes = parseGanttNodes(svgElement);
+        extractedEdges = parseGanttEdges(svgElement, premium);
+        break;
+      }
+
+      case 'pie': {
+        extractedNodes = parsePieNodes(svgElement);
+        extractedEdges = parsePieEdges(svgElement);
+        break;
+      }
+
+      case 'mindmap': {
+        extractedNodes = parseMindmapNodes(svgElement, premium);
+        extractedEdges = parseMindmapEdges(svgElement, premium);
+        if (extractedNodes.length === 0 && extractedEdges.length === 0) {
+          const gen = parseGeneric(svgElement, premium);
+          extractedNodes = gen.nodes;
+          extractedEdges = gen.edges;
+        }
+        break;
+      }
+
+      case 'gitgraph': {
+        extractedNodes = parseGitGraphNodes(svgElement, premium);
+        extractedEdges = parseGitGraphEdges(svgElement, premium);
+        if (extractedEdges.length === 0) {
+          const gen = parseGeneric(svgElement, premium);
+          if (extractedNodes.length === 0) extractedNodes = gen.nodes;
+          extractedEdges = gen.edges;
+        }
+        break;
+      }
+
+      default: {
+        // Generic DFS fallback for sankey, unknown types, etc.
+        const gen = parseGeneric(svgElement, premium);
+        extractedNodes = gen.nodes;
+        extractedEdges = gen.edges;
+        break;
+      }
     }
 
     setSeqLabels(extractedLabels);
     setNodes(extractedNodes);
 
-    // Filter out horizontal structural edges
+    // Filter out mostly-horizontal structural edges (lifelines noise reduction)
     const cleanedEdges = extractedEdges.filter(edge => {
       if (edge.type !== 'structural') return true;
       const m = edge.pathD.match(/M\s*([\d.e+\-]+)\s+([\d.e+\-]+)\s+L\s*([\d.e+\-]+)\s+([\d.e+\-]+)/i);
@@ -111,6 +214,9 @@ export const useMermaidParser = (
     setIsLoading(true);
     setErrorMsg(null);
 
+    const type = getDiagramType(code);
+    setDiagramType(type);
+
     try {
       const id = 'mermaid-hidden-' + Math.round(Math.random() * 10000);
       hiddenContainerRef.current.innerHTML = '';
@@ -120,7 +226,7 @@ export const useMermaidParser = (
         hiddenContainerRef.current.innerHTML = svg;
         const svgEl = hiddenContainerRef.current.querySelector('svg');
         if (svgEl) {
-          extractDataFromSVG(svgEl as SVGSVGElement);
+          extractDataFromSVG(svgEl as SVGSVGElement, type);
         } else {
           throw new Error("SVG 生成失敗");
         }
@@ -130,7 +236,7 @@ export const useMermaidParser = (
       let msg = "語法錯誤或無法解析";
       if (err.message) {
         if (err.message.includes('No diagram type detected')) {
-          msg = "無法識別圖表類型，請檢查開頭關鍵字 (如 sequenceDiagram, graph TB)";
+          msg = "無法識別圖表類型，請檢查開頭關鍵字 (如 sequenceDiagram, graph TB, classDiagram)";
         } else {
           msg = err.message.split('\n')[0];
         }
@@ -149,5 +255,5 @@ export const useMermaidParser = (
     }
   }, [code, mermaidReady, renderMermaidToData]);
 
-  return { nodes, edges, seqLabels, isLoading, errorMsg, mermaidReady, renderMermaidToData, viewBox };
+  return { nodes, edges, seqLabels, diagramType, isLoading, errorMsg, mermaidReady, renderMermaidToData, viewBox };
 };
