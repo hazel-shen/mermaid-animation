@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Zap, Video, Loader2, Code, RefreshCw, FileText, Activity, Palette, Server, Gauge, SlidersHorizontal, X } from 'lucide-react';
+import { Zap, Video, Loader2, Code, RefreshCw, FileText, Activity, Palette, Server, Gauge, SlidersHorizontal, X, ZoomIn, ZoomOut, Maximize2, RotateCcw } from 'lucide-react';
 
 // --- 類型定義 ---
 type NodeType = 'node' | 'cluster' | 'actor' | 'note';
@@ -157,6 +157,18 @@ const CanvasDiagram = () => {
   const [edges, setEdges] = useState<DiagramEdge[]>([]);
   const [particles, setParticles] = useState<Particle[]>([]);
   
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
+
+  // Pan + Zoom transform (所有互動都透過這組值驅動，不用 CSS scale)
+  const transformRef = useRef({ x: 0, y: 0, scale: 1 });
+  const [transformState, setTransformState] = useState({ x: 0, y: 0, scale: 1 });
+  // 紀錄 diagram 的自然尺寸，供 fit 計算使用
+  const diagramSizeRef = useRef({ w: 0, h: 0 });
+
+  // Pan drag state
+  const isPanningRef = useRef(false);
+  const panStartRef = useRef({ x: 0, y: 0 });
+
   const [isPremium, setIsPremium] = useState(true);
   const [particleColor, setParticleColor] = useState('#6366f1');
   const [particleSpeed, setParticleSpeed] = useState(1);
@@ -165,6 +177,42 @@ const CanvasDiagram = () => {
   const [mermaidReady, setMermaidReady] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isControlBarOpen, setIsControlBarOpen] = useState(true);
+  const [isEditorOpen, setIsEditorOpen] = useState(true);
+  const [editorWidth, setEditorWidth] = useState(320); // 桌面版側欄寬度 (px)
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
+  const isResizingRef = useRef(false);
+  const resizeStartXRef = useRef(0);
+  const resizeStartWRef = useRef(0);
+
+  // isDesktop 監聽
+  useEffect(() => {
+      const handler = () => setIsDesktop(window.innerWidth >= 1024);
+      window.addEventListener('resize', handler);
+      return () => window.removeEventListener('resize', handler);
+  }, []);
+
+  // 0. 讓 canvas buffer 尺寸跟隨容器尺寸
+  useEffect(() => {
+      const container = canvasContainerRef.current;
+      const canvas = canvasRef.current;
+      if (!container || !canvas) return;
+
+      const resizeCanvas = () => {
+          const w = container.clientWidth;
+          const h = container.clientHeight;
+          if (w === 0 || h === 0) return;
+          // 只在尺寸真的改變時才重設，避免清除 buffer
+          if (canvas.width !== w || canvas.height !== h) {
+              canvas.width = w;
+              canvas.height = h;
+          }
+      };
+
+      resizeCanvas();
+      const ro = new ResizeObserver(resizeCanvas);
+      ro.observe(container);
+      return () => ro.disconnect();
+  }, []);
 
   // 1. 初始化
   useEffect(() => {
@@ -477,10 +525,28 @@ const CanvasDiagram = () => {
       });
       setEdges(cleanedEdges);
       
-      if (canvasRef.current) {
-          canvasRef.current.width = viewBox.width + 100;
-          canvasRef.current.height = viewBox.height + 100;
-          (canvasRef.current as any).viewBoxOffset = { x: -viewBox.x + 50, y: -viewBox.y + 50 };
+      if (canvasRef.current && canvasContainerRef.current) {
+          // canvas 固定填滿容器，diagram 透過 transform 縮放
+          const containerW = canvasContainerRef.current.clientWidth;
+          const containerH = canvasContainerRef.current.clientHeight;
+          canvasRef.current.width = containerW;
+          canvasRef.current.height = containerH;
+          (canvasRef.current as any).viewBoxOffset = { x: -viewBox.x, y: -viewBox.y };
+
+          // 記下 diagram 原始尺寸
+          const dw = viewBox.width;
+          const dh = viewBox.height;
+          diagramSizeRef.current = { w: dw, h: dh };
+
+          // 初始 fit：縮放讓整張圖以 padding 16px 填滿容器
+          const padding = 32;
+          const scaleX = (containerW - padding) / dw;
+          const scaleY = (containerH - padding) / dh;
+          const fitScale = Math.min(scaleX, scaleY, 2); // 最大不超過 2x
+          const fitX = (containerW - dw * fitScale) / 2;
+          const fitY = (containerH - dh * fitScale) / 2;
+          transformRef.current = { x: fitX, y: fitY, scale: fitScale };
+          setTransformState({ x: fitX, y: fitY, scale: fitScale });
       }
   };
 
@@ -498,24 +564,45 @@ const CanvasDiagram = () => {
       setParticles(newParticles);
   }, [edges]);
 
+  // 把 canvas 像素座標轉為 diagram 世界座標（考慮 pan + zoom + viewBoxOffset）
+  const canvasToWorld = useCallback((cx: number, cy: number) => {
+      const tr = transformRef.current;
+      const offset = (canvasRef.current as any)?.viewBoxOffset || { x: 0, y: 0 };
+      // 逆變換：先減 pan，再除以 scale，再減 viewBoxOffset
+      const wx = (cx - tr.x) / tr.scale - offset.x;
+      const wy = (cy - tr.y) / tr.scale - offset.y;
+      return { x: wx, y: wy };
+  }, []);
+
+  // 互動處理: 滑鼠按下（開始拖曳）
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (e.button !== 0) return;
+      isPanningRef.current = true;
+      panStartRef.current = { x: e.clientX - transformRef.current.x, y: e.clientY - transformRef.current.y };
+      canvasRef.current!.style.cursor = 'grabbing';
+  };
+
   // 互動處理: 滑鼠移動
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
       const canvas = canvasRef.current;
       if (!canvas) return;
 
+      // --- 拖曳平移 ---
+      if (isPanningRef.current) {
+          const newX = e.clientX - panStartRef.current.x;
+          const newY = e.clientY - panStartRef.current.y;
+          transformRef.current = { ...transformRef.current, x: newX, y: newY };
+          setTransformState(t => ({ ...t, x: newX, y: newY }));
+          canvas.style.cursor = 'grabbing';
+          return;
+      }
+
+      // --- Hover 碰撞偵測 ---
       const rect = canvas.getBoundingClientRect();
-      const rawX = e.clientX - rect.left;
-      const rawY = e.clientY - rect.top;
+      const { x: mouseX, y: mouseY } = canvasToWorld(e.clientX - rect.left, e.clientY - rect.top);
 
-      const offset = (canvas as any).viewBoxOffset || { x: 0, y: 0 };
-      // 轉換為 Canvas 內的世界座標
-      const mouseX = rawX - offset.x;
-      const mouseY = rawY - offset.y;
-
-      // 碰撞檢測
       let foundId = null;
       for (const node of nodes) {
-          // 簡單的矩形碰撞檢測
           if (
               mouseX >= node.x - node.width / 2 &&
               mouseX <= node.x + node.width / 2 &&
@@ -523,20 +610,128 @@ const CanvasDiagram = () => {
               mouseY <= node.y + node.height / 2
           ) {
               foundId = node.id;
-              break; // 找到第一個重疊的節點即可
+              break;
           }
       }
 
       hoveredNodeIdRef.current = foundId;
-      canvas.style.cursor = foundId ? 'pointer' : 'default';
+      canvas.style.cursor = foundId ? 'pointer' : 'grab';
+  };
+
+  const handleMouseUp = () => {
+      isPanningRef.current = false;
+      if (canvasRef.current) canvasRef.current.style.cursor = 'grab';
   };
 
   const handleMouseLeave = () => {
+      isPanningRef.current = false;
       hoveredNodeIdRef.current = null;
-      if (canvasRef.current) {
-          canvasRef.current.style.cursor = 'default';
-      }
+      if (canvasRef.current) canvasRef.current.style.cursor = 'grab';
   };
+
+  // 互動處理: 滾輪縮放（以滑鼠為中心）
+  const handleWheel = useCallback((e: WheelEvent) => {
+      e.preventDefault();
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      const tr = transformRef.current;
+      const newScale = Math.min(Math.max(tr.scale * delta, 0.1), 8);
+
+      // 縮放時保持滑鼠指向的世界座標不變
+      const newX = mouseX - (mouseX - tr.x) * (newScale / tr.scale);
+      const newY = mouseY - (mouseY - tr.y) * (newScale / tr.scale);
+
+      transformRef.current = { x: newX, y: newY, scale: newScale };
+      setTransformState({ x: newX, y: newY, scale: newScale });
+  }, []);
+
+  // 綁定 wheel 事件（需要 passive: false 才能 preventDefault）
+  useEffect(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      canvas.addEventListener('wheel', handleWheel, { passive: false });
+      return () => canvas.removeEventListener('wheel', handleWheel);
+  }, [handleWheel, nodes]); // nodes 更新後重新綁定
+
+  // Fit to screen
+  const handleFit = useCallback(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const { w: dw, h: dh } = diagramSizeRef.current;
+      if (!dw || !dh) return;
+      const padding = 48;
+      const scaleX = (canvas.width - padding) / dw;
+      const scaleY = (canvas.height - padding) / dh;
+      const fitScale = Math.min(scaleX, scaleY, 2);
+      const fitX = (canvas.width - dw * fitScale) / 2;
+      const fitY = (canvas.height - dh * fitScale) / 2;
+      transformRef.current = { x: fitX, y: fitY, scale: fitScale };
+      setTransformState({ x: fitX, y: fitY, scale: fitScale });
+  }, []);
+
+  const handleZoomIn = useCallback(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const tr = transformRef.current;
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const newScale = Math.min(tr.scale * 1.25, 8);
+      const newX = cx - (cx - tr.x) * (newScale / tr.scale);
+      const newY = cy - (cy - tr.y) * (newScale / tr.scale);
+      transformRef.current = { x: newX, y: newY, scale: newScale };
+      setTransformState({ x: newX, y: newY, scale: newScale });
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const tr = transformRef.current;
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const newScale = Math.max(tr.scale * 0.8, 0.1);
+      const newX = cx - (cx - tr.x) * (newScale / tr.scale);
+      const newY = cy - (cy - tr.y) * (newScale / tr.scale);
+      transformRef.current = { x: newX, y: newY, scale: newScale };
+      setTransformState({ x: newX, y: newY, scale: newScale });
+  }, []);
+
+  const handleResetZoom = useCallback(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      handleFit();
+  }, [handleFit]);
+
+  // Resize handle handlers (桌面版側欄拖曳調整寬度)
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+      e.preventDefault();
+      isResizingRef.current = true;
+      resizeStartXRef.current = e.clientX;
+      resizeStartWRef.current = editorWidth;
+
+      const onMove = (ev: MouseEvent) => {
+          if (!isResizingRef.current) return;
+          const delta = ev.clientX - resizeStartXRef.current;
+          const newW = Math.min(Math.max(resizeStartWRef.current + delta, 180), 600);
+          setEditorWidth(newW);
+      };
+      const onUp = () => {
+          isResizingRef.current = false;
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+      };
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+  }, [editorWidth]);
 
   // 5. 繪圖
   useEffect(() => {
@@ -547,11 +742,15 @@ const CanvasDiagram = () => {
       const render = () => {
           const w = canvas.width; const h = canvas.height;
           const offset = (canvas as any).viewBoxOffset || { x: 0, y: 0 };
+          const tr = transformRef.current;
 
           ctx.fillStyle = isPremium ? '#f8fafc' : '#fff'; 
           ctx.fillRect(0, 0, w, h);
           
           ctx.save();
+          // 套用 pan + zoom，再加上 viewBox 偏移
+          ctx.translate(tr.x, tr.y);
+          ctx.scale(tr.scale, tr.scale);
           ctx.translate(offset.x, offset.y);
 
           if (isPremium) drawGrid(ctx, w, h);
@@ -619,7 +818,7 @@ const CanvasDiagram = () => {
       };
       render();
       return () => cancelAnimationFrame(rafId);
-  }, [nodes, edges, particles, isPremium, isRecording, particleColor, particleSpeed]); // 加入 particleSpeed 依賴
+  }, [nodes, edges, particles, isPremium, isRecording, particleColor, particleSpeed, transformState]);
 
   const drawNode = (ctx: CanvasRenderingContext2D, node: DiagramNode, premium: boolean, hoveredId: string | null) => {
       const { x, y, width, height, color, stroke, shape, label } = node;
@@ -798,7 +997,7 @@ const CanvasDiagram = () => {
       {/* ===== Mobile FAB (hidden on md+) ===== */}
       <button
         onClick={() => setIsControlBarOpen(v => !v)}
-        className="md:hidden fixed bottom-5 right-5 z-30 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 shadow-lg"
+        className="md:hidden fixed bottom-16 right-3 z-30 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 shadow-md"
         style={{
           background: isControlBarOpen
             ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
@@ -807,8 +1006,8 @@ const CanvasDiagram = () => {
         aria-label={isControlBarOpen ? '隱藏控制列' : '顯示控制列'}
       >
         {isControlBarOpen
-          ? <X size={15} className="text-white" />
-          : <SlidersHorizontal size={15} className="text-white" />
+          ? <X size={13} className="text-white" />
+          : <SlidersHorizontal size={13} className="text-white" />
         }
       </button>
 
@@ -901,46 +1100,173 @@ const CanvasDiagram = () => {
       </>
 
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
-        <div className="h-[40vh] lg:h-auto lg:w-1/3 flex-shrink-0 border-b lg:border-b-0 lg:border-r border-gray-200 flex flex-col bg-white">
-            <div className="px-3 py-2 border-b border-gray-200 text-xs font-semibold text-slate-500 flex justify-between items-center bg-gray-50 flex-shrink-0">
-                <span className="flex items-center gap-1.5"><Code size={13}/> MERMAID SOURCE</span>
-                <div className="flex gap-1">
-                    <button onClick={() => setCode(SEQUENCE_CODE)} className="px-1.5 py-1 text-[10px] bg-white border border-gray-300 rounded hover:bg-gray-100 flex items-center gap-1" title="載入時序圖範例">
-                        <FileText size={9}/> <span className="hidden sm:inline">Sequence</span><span className="sm:hidden">Seq</span>
-                    </button>
-                    <button onClick={() => setCode(FLOWCHART_CODE)} className="px-1.5 py-1 text-[10px] bg-white border border-gray-300 rounded hover:bg-gray-100 flex items-center gap-1" title="載入流程圖範例">
-                        <Activity size={9}/> <span className="hidden sm:inline">Flowchart</span><span className="sm:hidden">Flow</span>
-                    </button>
-                    <button onClick={() => setCode(ARCH_CODE)} className="px-1.5 py-1 text-[10px] bg-white border border-gray-300 rounded hover:bg-gray-100 flex items-center gap-1" title="載入架構圖範例">
-                        <Server size={9}/> <span className="hidden sm:inline">Architecture</span><span className="sm:hidden">Arch</span>
-                    </button>
+
+        {/* ===== 左側 Editor 面板 ===== */}
+        <div
+          className={`
+            flex-shrink-0 border-gray-200 flex flex-col bg-white relative
+            ${isEditorOpen
+              ? 'h-[40vh] lg:h-auto border-b lg:border-b-0 lg:border-r'
+              : 'h-8 lg:h-auto border-b-0 lg:border-r'
+            }
+          `}
+          style={isDesktop
+            ? { width: isEditorOpen ? editorWidth : 32, transition: isResizingRef.current ? 'none' : 'width 0.25s ease' }
+            : undefined
+          }
+        >
+          {/* 標題列 */}
+          <div className="px-2 py-1.5 border-b border-gray-200 text-xs font-semibold text-slate-500 flex justify-between items-center bg-gray-50 flex-shrink-0 min-w-0">
+            {isEditorOpen ? (
+              <>
+                <span className="flex items-center gap-1.5 truncate"><Code size={12}/> MERMAID SOURCE</span>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => setCode(SEQUENCE_CODE)} className="px-1.5 py-0.5 text-[10px] bg-white border border-gray-300 rounded hover:bg-gray-100 flex items-center gap-1" title="Sequence">
+                    <FileText size={9}/> <span className="hidden xl:inline">Sequence</span><span className="xl:hidden">Seq</span>
+                  </button>
+                  <button onClick={() => setCode(FLOWCHART_CODE)} className="px-1.5 py-0.5 text-[10px] bg-white border border-gray-300 rounded hover:bg-gray-100 flex items-center gap-1" title="Flowchart">
+                    <Activity size={9}/> <span className="hidden xl:inline">Flowchart</span><span className="xl:hidden">Flow</span>
+                  </button>
+                  <button onClick={() => setCode(ARCH_CODE)} className="px-1.5 py-0.5 text-[10px] bg-white border border-gray-300 rounded hover:bg-gray-100 flex items-center gap-1" title="Architecture">
+                    <Server size={9}/> <span className="hidden xl:inline">Architecture</span><span className="xl:hidden">Arch</span>
+                  </button>
+                  {/* 收合按鈕 — 桌面版顯示在標題列右側 */}
+                  <button
+                    onClick={() => setIsEditorOpen(false)}
+                    className="hidden lg:flex ml-1 w-5 h-5 items-center justify-center rounded hover:bg-gray-200 text-slate-400 hover:text-slate-600 transition-colors"
+                    title="收合編輯器"
+                  >
+                    <X size={11} />
+                  </button>
                 </div>
-            </div>
-            <textarea 
-                value={code} 
-                onChange={e=>setCode(e.target.value)} 
-                className="flex-1 bg-white text-slate-800 p-4 font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20" 
+              </>
+            ) : (
+              /* 收合狀態：只顯示展開按鈕（桌面版直向排列） */
+              <button
+                onClick={() => setIsEditorOpen(true)}
+                className="hidden lg:flex w-full h-full items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
+                title="展開編輯器"
+              >
+                <Code size={13} />
+              </button>
+            )}
+            {/* 手機版：收合 / 展開按鈕（固定顯示，不受 isEditorOpen 影響） */}
+            {isEditorOpen && (
+              <button
+                onClick={() => setIsEditorOpen(false)}
+                className="lg:hidden ml-1 w-5 h-5 flex items-center justify-center rounded hover:bg-gray-200 text-slate-400 transition-colors"
+                title="收合編輯器"
+              >
+                <X size={11} />
+              </button>
+            )}
+          </div>
+
+          {/* 內容區：只在展開時顯示 */}
+          {isEditorOpen && (
+            <>
+              <textarea
+                value={code}
+                onChange={e => setCode(e.target.value)}
+                className="flex-1 bg-white text-slate-800 p-4 font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                 spellCheck={false}
-            />
-            {errorMsg && <div className="p-3 bg-red-50 text-red-600 text-xs border-t border-red-100">⚠️ {errorMsg}</div>}
+              />
+              {errorMsg && <div className="p-3 bg-red-50 text-red-600 text-xs border-t border-red-100">⚠️ {errorMsg}</div>}
+            </>
+          )}
+
+          {/* Resize handle — 桌面版才顯示，貼在面板右邊緣 */}
+          {isDesktop && isEditorOpen && (
+            <div
+              onMouseDown={handleResizeStart}
+              className="absolute top-0 right-0 w-1 h-full cursor-col-resize z-30 group"
+              title="拖曳調整寬度"
+            >
+              {/* 視覺指示條：hover 時才顯示 */}
+              <div className="absolute inset-y-0 right-0 w-1 bg-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity duration-150 rounded-full" />
+            </div>
+          )}
         </div>
-        
-        <div className="flex-1 bg-gray-100 flex items-center justify-center overflow-auto relative p-4 min-h-0">
-             {isLoading && (
-                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/50 z-10 backdrop-blur-sm">
-                     <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
-                     <p className="text-slate-600 font-medium">Rendering...</p>
-                 </div>
-             )}
-             <div className="rounded-xl overflow-hidden border border-gray-200 shadow-xl bg-white self-start">
-                {/* Canvas renders at its natural buffer size — no CSS scaling to avoid distortion */}
-                <canvas 
-                    ref={canvasRef} 
-                    onMouseMove={handleMouseMove}
-                    onMouseLeave={handleMouseLeave}
-                    className="block"
-                />
-             </div>
+
+        {/* ===== 右側 Canvas 預覽區 ===== */}
+        <div ref={canvasContainerRef} className="flex-1 relative overflow-hidden min-h-0 bg-gray-100">
+          {isLoading && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/50 z-10 backdrop-blur-sm">
+              <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
+              <p className="text-slate-600 font-medium">Rendering...</p>
+            </div>
+          )}
+
+          {/* 展開編輯器按鈕（桌面版，僅在收合時顯示） */}
+          {!isEditorOpen && (
+            <button
+              onClick={() => setIsEditorOpen(true)}
+              className="hidden lg:flex absolute top-3 left-3 z-20 items-center gap-1.5 px-2 py-1 bg-white/90 backdrop-blur border border-gray-200 rounded-lg shadow-sm text-xs text-slate-600 hover:bg-white transition-colors"
+              title="展開編輯器"
+            >
+              <Code size={12} />
+              <span>編輯</span>
+            </button>
+          )}
+
+          {/* 手機版展開按鈕（editor 收合時顯示） */}
+          {!isEditorOpen && (
+            <button
+              onClick={() => setIsEditorOpen(true)}
+              className="lg:hidden absolute top-3 left-3 z-20 flex items-center gap-1.5 px-2 py-1 bg-white/90 backdrop-blur border border-gray-200 rounded-lg shadow-sm text-xs text-slate-600"
+            >
+              <Code size={12} />
+              <span>編輯</span>
+            </button>
+          )}
+
+          {/* Canvas */}
+          <canvas
+            ref={canvasRef}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseLeave}
+            className="block w-full h-full"
+            style={{ cursor: 'grab' }}
+          />
+
+          {/* 縮放工具列 — 右下角浮動，緊湊版 */}
+          <div className="absolute bottom-3 right-3 flex items-center gap-1 z-20 bg-white/90 backdrop-blur border border-gray-200 rounded-lg shadow-sm px-1.5 py-1">
+            <span className="text-[10px] font-mono text-slate-400 w-8 text-center tabular-nums">
+              {Math.round(transformState.scale * 100)}%
+            </span>
+            <div className="w-px h-3.5 bg-gray-200" />
+            <button
+              onClick={handleZoomOut}
+              className="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-100 active:scale-90 transition-all text-slate-500"
+              title="縮小"
+            >
+              <ZoomOut size={12} />
+            </button>
+            <button
+              onClick={handleZoomIn}
+              className="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-100 active:scale-90 transition-all text-slate-500"
+              title="放大"
+            >
+              <ZoomIn size={12} />
+            </button>
+            <div className="w-px h-3.5 bg-gray-200" />
+            <button
+              onClick={handleFit}
+              className="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-100 active:scale-90 transition-all text-slate-500"
+              title="符合畫面"
+            >
+              <Maximize2 size={12} />
+            </button>
+            <button
+              onClick={handleResetZoom}
+              className="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-100 active:scale-90 transition-all text-slate-400"
+              title="重置"
+            >
+              <RotateCcw size={11} />
+            </button>
+          </div>
         </div>
       </div>
     </div>
