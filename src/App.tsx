@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Zap, Video, Loader2, Code, RefreshCw, FileText, Activity, Palette, Server, Gauge } from 'lucide-react';
+import { Zap, Video, Loader2, Code, RefreshCw, FileText, Activity, Palette, Server, Gauge, SlidersHorizontal, X } from 'lucide-react';
 
 // --- 類型定義 ---
 type NodeType = 'node' | 'cluster' | 'actor' | 'note';
@@ -26,8 +26,6 @@ type DiagramEdge = {
   type: EdgeType;
   dash?: number[]; // 虛線樣式
 };
-
-const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
 // --- 預設代碼 (Sequence Diagram) ---
 const SEQUENCE_CODE = `sequenceDiagram
@@ -160,12 +158,13 @@ const CanvasDiagram = () => {
   const [particles, setParticles] = useState<Particle[]>([]);
   
   const [isPremium, setIsPremium] = useState(true);
-  const [particleColor, setParticleColor] = useState('#6366f1'); // 粒子顏色
-  const [particleSpeed, setParticleSpeed] = useState(1);        // 粒子速度倍率
+  const [particleColor, setParticleColor] = useState('#6366f1');
+  const [particleSpeed, setParticleSpeed] = useState(1);
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [mermaidReady, setMermaidReady] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isControlBarOpen, setIsControlBarOpen] = useState(true);
 
   // 1. 初始化
   useEffect(() => {
@@ -723,69 +722,183 @@ const CanvasDiagram = () => {
     <div className="flex flex-col h-screen bg-gray-50 text-slate-800 font-sans overflow-hidden">
       <div ref={hiddenContainerRef} style={{ position: 'absolute', top: -9999, left: -9999, visibility: 'hidden', pointerEvents: 'none' }}></div>
 
-      <header className="border-b border-gray-200 px-3 py-2 md:px-4 md:py-3 flex flex-wrap items-center gap-2 bg-white/80 backdrop-blur sticky top-0 z-10">
-         <div className="flex items-center gap-2 flex-shrink-0">
-             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-1.5 md:p-2 rounded-lg shadow-sm"><Zap size={18} className="text-white" /></div>
-             <div>
-                 <h1 className="font-bold text-base md:text-lg leading-tight text-slate-800">Mermaid Animation</h1>
-                 <p className="text-[10px] md:text-xs text-slate-500 hidden sm:block">Universal Mermaid Animator</p>
-             </div>
-         </div>
-         <div className="flex flex-wrap gap-1.5 items-center ml-auto">
-            {isPremium && (
-                <>
-                {/* 速度控制 */}
-                <div className="flex items-center border-r border-gray-200 pr-2 md:pr-3">
-                    <label className="flex items-center gap-1 text-sm text-slate-600 hover:bg-gray-50 px-1.5 py-1 rounded cursor-pointer border border-transparent hover:border-gray-200 transition-colors" title="更改粒子速度">
-                        <Gauge size={16} className="text-slate-500 flex-shrink-0" />
-                        <span className="hidden md:inline text-sm font-medium">速度</span>
-                        <input 
-                            type="range" 
-                            min="0.1" 
-                            max="5" 
-                            step="0.1"
-                            value={particleSpeed} 
-                            onChange={(e) => setParticleSpeed(parseFloat(e.target.value))}
-                            className="w-14 md:w-20 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                        />
-                    </label>
-                </div>
-                {/* 顏色控制 */}
-                <div className="flex items-center border-r border-gray-200 pr-2 md:pr-3">
-                    <label className="flex items-center gap-1 text-sm text-slate-600 hover:bg-gray-50 px-1.5 py-1 rounded cursor-pointer border border-transparent hover:border-gray-200 transition-colors" title="更改粒子顏色">
-                        <Palette size={16} className="text-slate-500 flex-shrink-0" />
-                        <span className="hidden md:inline text-sm font-medium">粒子色</span>
-                        <input 
-                            type="color" 
-                            value={particleColor} 
-                            onChange={(e) => setParticleColor(e.target.value)}
-                            className="w-5 h-5 rounded overflow-hidden border-0 p-0 bg-transparent cursor-pointer"
-                        />
-                    </label>
-                </div>
-                </>
-            )}
-            
-            <button onClick={renderMermaidToData} className="px-2 py-1.5 md:px-3 md:py-2 bg-white border border-gray-300 hover:bg-gray-50 text-slate-700 rounded text-sm flex items-center gap-1.5 shadow-sm transition-colors">
-                <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''}/>
-                <span className="hidden sm:inline">重新渲染</span>
-            </button>
-            <button 
-              onClick={() => setIsPremium(!isPremium)} 
-              className={`px-2 py-1.5 md:px-3 md:py-2 rounded text-sm border shadow-sm transition-colors flex items-center gap-1 ${
-                isPremium 
-                  ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700' 
-                  : 'bg-white text-slate-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              <span>{isPremium ? '✨' : '◻'}</span>
-              <span className="hidden sm:inline">{isPremium ? 'Export' : 'Draft'}</span>
-            </button>
-            <button onClick={handleDownload} disabled={isRecording} className={`px-2 py-1.5 md:px-3 md:py-2 rounded text-sm flex items-center gap-1.5 font-bold shadow-sm transition-transform ${isRecording ? 'bg-red-100 text-red-600 border border-red-200' : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:scale-105'}`}>
-                <Video size={15}/> <span className="hidden sm:inline">{isRecording ? 'REC...' : 'Download'}</span>
-            </button>
-         </div>
+      {/* ===== Header ===== */}
+      <header className="border-b border-gray-200 bg-white/90 backdrop-blur sticky top-0 z-10 px-3 py-2 flex items-center gap-2 min-w-0">
+        {/* Logo + title */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-1.5 rounded-lg shadow-sm">
+            <Zap size={16} className="text-white" />
+          </div>
+          <h1 className="font-bold text-sm md:text-base leading-tight text-slate-800 whitespace-nowrap">
+            Mermaid<span className="hidden sm:inline"> Animation</span>
+          </h1>
+        </div>
+
+        {/* Particle controls — desktop only */}
+        {isPremium && (
+          <div className="hidden md:flex items-center gap-3 ml-4 pl-4 border-l border-gray-200">
+            <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer" title="更改粒子速度">
+              <Gauge size={13} className="text-slate-400 flex-shrink-0" />
+              <span className="font-medium whitespace-nowrap">速度</span>
+              <input
+                type="range" min="0.1" max="5" step="0.1"
+                value={particleSpeed}
+                onChange={(e) => setParticleSpeed(parseFloat(e.target.value))}
+                className="w-20 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+              />
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer" title="更改粒子顏色">
+              <Palette size={13} className="text-slate-400 flex-shrink-0" />
+              <span className="font-medium whitespace-nowrap">粒子色</span>
+              <input
+                type="color" value={particleColor}
+                onChange={(e) => setParticleColor(e.target.value)}
+                className="w-6 h-6 rounded overflow-hidden border-0 p-0 bg-transparent cursor-pointer"
+              />
+            </label>
+          </div>
+        )}
+
+        {/* Action buttons — desktop only */}
+        <div className="hidden md:flex items-center gap-1.5 ml-auto flex-shrink-0">
+          <button
+            onClick={renderMermaidToData}
+            className="px-2.5 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-slate-700 rounded text-xs flex items-center gap-1 shadow-sm transition-colors"
+            title="重新渲染"
+          >
+            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+            重新渲染
+          </button>
+          <button
+            onClick={() => setIsPremium(!isPremium)}
+            className={`px-2.5 py-1.5 rounded text-xs border shadow-sm transition-colors flex items-center gap-1 ${
+              isPremium
+                ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700'
+                : 'bg-white text-slate-700 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            <span>{isPremium ? '✨' : '◻'}</span>
+            {isPremium ? 'Export' : 'Draft'}
+          </button>
+          <button
+            onClick={handleDownload}
+            disabled={isRecording}
+            className={`px-2.5 py-1.5 rounded text-xs flex items-center gap-1 font-bold shadow-sm transition-transform ${
+              isRecording
+                ? 'bg-red-100 text-red-600 border border-red-200'
+                : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:scale-105'
+            }`}
+          >
+            <Video size={14} />
+            {isRecording ? 'REC...' : 'Download'}
+          </button>
+        </div>
       </header>
+
+      {/* ===== Mobile FAB (hidden on md+) ===== */}
+      <button
+        onClick={() => setIsControlBarOpen(v => !v)}
+        className="md:hidden fixed bottom-5 right-5 z-30 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 shadow-lg"
+        style={{
+          background: isControlBarOpen
+            ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
+            : 'linear-gradient(135deg, #3b82f6, #6366f1)',
+        }}
+        aria-label={isControlBarOpen ? '隱藏控制列' : '顯示控制列'}
+      >
+        {isControlBarOpen
+          ? <X size={15} className="text-white" />
+          : <SlidersHorizontal size={15} className="text-white" />
+        }
+      </button>
+
+      {/* ===== Mobile bottom drawer ===== */}
+      <>
+        {/* Backdrop */}
+        <div
+          className={`md:hidden fixed inset-0 z-20 bg-black/30 backdrop-blur-sm transition-opacity duration-300 ${
+            isControlBarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
+          onClick={() => setIsControlBarOpen(false)}
+        />
+
+        {/* Drawer */}
+        <div
+          className={`md:hidden fixed bottom-0 left-0 right-0 z-20 bg-white rounded-t-2xl shadow-2xl border-t border-gray-200 transition-transform duration-300 ease-in-out ${
+            isControlBarOpen ? 'translate-y-0' : 'translate-y-full'
+          }`}
+        >
+          {/* Handle */}
+          <div className="flex justify-center pt-3 pb-1">
+            <div className="w-10 h-1 bg-gray-300 rounded-full" />
+          </div>
+
+          <div className="px-5 pt-2 pb-8 flex flex-col gap-4">
+            {/* Particle controls (only in premium mode) */}
+            {isPremium && (
+              <div className="flex flex-col gap-4 pb-4 border-b border-gray-100">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">粒子設定</p>
+                <label className="flex items-center gap-3 text-sm text-slate-600 cursor-pointer">
+                  <Gauge size={16} className="text-slate-400 flex-shrink-0" />
+                  <span className="font-medium w-14">速度</span>
+                  <input
+                    type="range" min="0.1" max="5" step="0.1"
+                    value={particleSpeed}
+                    onChange={(e) => setParticleSpeed(parseFloat(e.target.value))}
+                    className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                  />
+                  <span className="text-xs text-slate-400 w-7 text-right tabular-nums">{particleSpeed.toFixed(1)}</span>
+                </label>
+                <label className="flex items-center gap-3 text-sm text-slate-600 cursor-pointer">
+                  <Palette size={16} className="text-slate-400 flex-shrink-0" />
+                  <span className="font-medium w-14">粒子色</span>
+                  <input
+                    type="color" value={particleColor}
+                    onChange={(e) => setParticleColor(e.target.value)}
+                    className="w-9 h-9 rounded-lg overflow-hidden border border-gray-200 p-0.5 bg-white cursor-pointer"
+                  />
+                  <span className="text-xs text-slate-400 font-mono">{particleColor}</span>
+                </label>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div className="flex flex-col gap-3">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">操作</p>
+              <button
+                onClick={() => { renderMermaidToData(); setIsControlBarOpen(false); }}
+                className="flex items-center gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl text-sm text-slate-700 font-medium transition-colors"
+              >
+                <RefreshCw size={16} className={`text-slate-400 ${isLoading ? 'animate-spin' : ''}`} />
+                重新渲染
+              </button>
+              <button
+                onClick={() => setIsPremium(!isPremium)}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium border transition-colors ${
+                  isPremium
+                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+                    : 'bg-gray-50 text-slate-700 border-gray-200 hover:bg-gray-100'
+                }`}
+              >
+                <span className="text-base">{isPremium ? '✨' : '◻'}</span>
+                {isPremium ? 'Export 模式（關閉切換 Draft）' : 'Draft 模式（點擊切換 Export）'}
+              </button>
+              <button
+                onClick={() => { handleDownload(); setIsControlBarOpen(false); }}
+                disabled={isRecording}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-transform ${
+                  isRecording
+                    ? 'bg-red-50 text-red-600 border border-red-200'
+                    : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:scale-[1.02]'
+                }`}
+              >
+                <Video size={16} />
+                {isRecording ? '錄製中...' : '下載影片'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </>
 
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
         <div className="h-[40vh] lg:h-auto lg:w-1/3 flex-shrink-0 border-b lg:border-b-0 lg:border-r border-gray-200 flex flex-col bg-white">
