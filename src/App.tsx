@@ -271,10 +271,11 @@ const CanvasDiagram = () => {
       if (transform) {
         // 解析 translate(x, y) 或 translate(x y)
         // 支援逗號或空格分隔，並支援小數點與負數
-        const match = transform.match(/translate\s*\(\s*([-\d.]+)[ ,]+([-\d.]+)\s*\)/);
+        // Support both translate(x, y) and translate(x) forms
+        const match = transform.match(/translate\s*\(\s*([-\d.]+)(?:[ ,]+([-\d.]+))?\s*\)/);
         if (match) {
           x += parseFloat(match[1]);
-          y += parseFloat(match[2]);
+          y += parseFloat(match[2] || '0');
         }
       }
       current = current.parentElement as Element;
@@ -391,13 +392,13 @@ const CanvasDiagram = () => {
           const tagName = el.tagName.toLowerCase();
 
           if (tagName === 'line') {
-              const x1 = el.getAttribute('x1');
-              const y1 = el.getAttribute('y1');
-              const x2 = el.getAttribute('x2');
-              const y2 = el.getAttribute('y2');
-              if (x1 && y1 && x2 && y2) {
-                  d = `M ${x1} ${y1} L ${x2} ${y2}`;
-              }
+              const lx1 = parseFloat(el.getAttribute('x1') || '0');
+              const ly1 = parseFloat(el.getAttribute('y1') || '0');
+              const lx2 = parseFloat(el.getAttribute('x2') || '0');
+              const ly2 = parseFloat(el.getAttribute('y2') || '0');
+              // Apply accumulated parent transforms so coords map to SVG root space
+              const { x: tx, y: ty } = getCumulativeTransform(el, svgElement);
+              d = `M ${lx1 + tx} ${ly1 + ty} L ${lx2 + tx} ${ly2 + ty}`;
           } else if (tagName === 'path') {
               d = el.getAttribute('d') || "";
           }
@@ -417,16 +418,18 @@ const CanvasDiagram = () => {
       svgElement.querySelectorAll(structSelector).forEach(el => processEdge(el, 'structural'));
 
       svgElement.querySelectorAll('line').forEach(line => {
-          const x1 = parseFloat(line.getAttribute('x1') || '0');
-          const x2 = parseFloat(line.getAttribute('x2') || '0');
-          const y1 = parseFloat(line.getAttribute('y1') || '0');
-          const y2 = parseFloat(line.getAttribute('y2') || '0');
+          const lx1 = parseFloat(line.getAttribute('x1') || '0');
+          const lx2 = parseFloat(line.getAttribute('x2') || '0');
+          const ly1 = parseFloat(line.getAttribute('y1') || '0');
+          const ly2 = parseFloat(line.getAttribute('y2') || '0');
           
-          const dx = Math.abs(x2 - x1);
-          const dy = Math.abs(y2 - y1);
+          const dx = Math.abs(lx2 - lx1);
+          const dy = Math.abs(ly2 - ly1);
           
           if (dy > dx * 3 && dy > 50) {
-              const potentialPath = `M ${x1} ${y1} L ${x2} ${y2}`;
+              // Build the same transformed path that processEdge will produce
+              const { x: tx, y: ty } = getCumulativeTransform(line, svgElement);
+              const potentialPath = `M ${lx1 + tx} ${ly1 + ty} L ${lx2 + tx} ${ly2 + ty}`;
               const alreadyProcessed = extractedEdges.some(e => e.pathD === potentialPath);
               if (!alreadyProcessed) {
                   processEdge(line, 'structural');
@@ -672,25 +675,25 @@ const CanvasDiagram = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 text-slate-800 font-sans">
+    <div className="flex flex-col h-screen bg-gray-50 text-slate-800 font-sans overflow-hidden">
       <div ref={hiddenContainerRef} style={{ position: 'absolute', top: -9999, left: -9999, visibility: 'hidden', pointerEvents: 'none' }}></div>
 
-      <header className="border-b border-gray-200 p-4 flex items-center justify-between bg-white/80 backdrop-blur sticky top-0 z-10">
-         <div className="flex items-center gap-3">
-             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-2 rounded-lg shadow-sm"><Zap size={22} className="text-white" /></div>
+      <header className="border-b border-gray-200 px-3 py-2 md:px-4 md:py-3 flex flex-wrap items-center gap-2 bg-white/80 backdrop-blur sticky top-0 z-10">
+         <div className="flex items-center gap-2 flex-shrink-0">
+             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-1.5 md:p-2 rounded-lg shadow-sm"><Zap size={18} className="text-white" /></div>
              <div>
-                 <h1 className="font-bold text-lg leading-tight text-slate-800">Mermaid Animation</h1>
-                 <p className="text-xs text-slate-500">Universal Mermaid Animator</p>
+                 <h1 className="font-bold text-base md:text-lg leading-tight text-slate-800">Mermaid Animation</h1>
+                 <p className="text-[10px] md:text-xs text-slate-500 hidden sm:block">Universal Mermaid Animator</p>
              </div>
          </div>
-         <div className="flex gap-2 items-center">
+         <div className="flex flex-wrap gap-1.5 items-center ml-auto">
             {isPremium && (
                 <>
                 {/* 速度控制 */}
-                <div className="flex items-center gap-2 mr-2 border-r border-gray-200 pr-4">
-                    <label className="flex items-center gap-1 text-sm text-slate-600 hover:bg-gray-50 px-2 py-1.5 rounded cursor-pointer border border-transparent hover:border-gray-200 transition-colors" title="更改粒子速度">
-                        <Gauge size={22} className="text-slate-500" />
-                        <span className="text-lg font-medium">速度</span>
+                <div className="flex items-center border-r border-gray-200 pr-2 md:pr-3">
+                    <label className="flex items-center gap-1 text-sm text-slate-600 hover:bg-gray-50 px-1.5 py-1 rounded cursor-pointer border border-transparent hover:border-gray-200 transition-colors" title="更改粒子速度">
+                        <Gauge size={16} className="text-slate-500 flex-shrink-0" />
+                        <span className="hidden md:inline text-sm font-medium">速度</span>
                         <input 
                             type="range" 
                             min="0.1" 
@@ -698,58 +701,60 @@ const CanvasDiagram = () => {
                             step="0.1"
                             value={particleSpeed} 
                             onChange={(e) => setParticleSpeed(parseFloat(e.target.value))}
-                            className="w-20 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 ml-2"
+                            className="w-14 md:w-20 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                         />
                     </label>
                 </div>
                 {/* 顏色控制 */}
-                <div className="flex items-center gap-2 mr-2 border-r border-gray-200 pr-4">
-                    <label className="flex items-center gap-1 text-sm text-slate-600 hover:bg-gray-50 px-2 py-1.5 rounded cursor-pointer border border-transparent hover:border-gray-200 transition-colors" title="更改粒子顏色">
-                        <Palette size={22} className="text-slate-500" />
-                        <span className="text-lg font-medium">粒子色</span>
+                <div className="flex items-center border-r border-gray-200 pr-2 md:pr-3">
+                    <label className="flex items-center gap-1 text-sm text-slate-600 hover:bg-gray-50 px-1.5 py-1 rounded cursor-pointer border border-transparent hover:border-gray-200 transition-colors" title="更改粒子顏色">
+                        <Palette size={16} className="text-slate-500 flex-shrink-0" />
+                        <span className="hidden md:inline text-sm font-medium">粒子色</span>
                         <input 
                             type="color" 
                             value={particleColor} 
                             onChange={(e) => setParticleColor(e.target.value)}
-                            className="w-5 h-5 rounded overflow-hidden border-0 p-0 bg-transparent cursor-pointer ml-1"
+                            className="w-5 h-5 rounded overflow-hidden border-0 p-0 bg-transparent cursor-pointer"
                         />
                     </label>
                 </div>
                 </>
             )}
             
-            <button onClick={renderMermaidToData} className="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-slate-700 rounded text-sm flex items-center gap-2 shadow-sm transition-colors">
-                <RefreshCw size={22} className={isLoading ? 'animate-spin' : ''}/> 重新渲染
+            <button onClick={renderMermaidToData} className="px-2 py-1.5 md:px-3 md:py-2 bg-white border border-gray-300 hover:bg-gray-50 text-slate-700 rounded text-sm flex items-center gap-1.5 shadow-sm transition-colors">
+                <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''}/>
+                <span className="hidden sm:inline">重新渲染</span>
             </button>
             <button 
               onClick={() => setIsPremium(!isPremium)} 
-              className={`px-4 py-2 rounded text-sm border shadow-sm transition-colors ${
+              className={`px-2 py-1.5 md:px-3 md:py-2 rounded text-sm border shadow-sm transition-colors flex items-center gap-1 ${
                 isPremium 
-                  ? 'bg-indigo-600  text-slate-700 border-indigo-600 hover:bg-indigo-700' 
+                  ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700' 
                   : 'bg-white text-slate-700 border-gray-300 hover:bg-gray-50'
               }`}
             >
-              {isPremium ? '✨ Premium Style' : 'Draft Style'}
+              <span>{isPremium ? '✨' : '◻'}</span>
+              <span className="hidden sm:inline">{isPremium ? 'Premium' : 'Draft'}</span>
             </button>
-            <button onClick={handleDownload} disabled={isRecording} className={`px-4 py-2 rounded text-sm flex gap-2 font-bold shadow-sm transition-transform ${isRecording ? 'bg-red-100 text-red-600 border border-red-200' : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:scale-105'}`}>
-                <Video size={22}/> {isRecording ? 'REC...' : 'Download'}
+            <button onClick={handleDownload} disabled={isRecording} className={`px-2 py-1.5 md:px-3 md:py-2 rounded text-sm flex items-center gap-1.5 font-bold shadow-sm transition-transform ${isRecording ? 'bg-red-100 text-red-600 border border-red-200' : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:scale-105'}`}>
+                <Video size={15}/> <span className="hidden sm:inline">{isRecording ? 'REC...' : 'Download'}</span>
             </button>
          </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden">
-        <div className="w-1/3 border-r border-gray-200 flex flex-col bg-white">
-            <div className="p-3 border-b border-gray-200 text-xs font-semibold text-slate-500 flex justify-between items-center bg-gray-50">
-                <span className="flex items-center gap-2"><Code size={14}/> MERMAID SOURCE</span>
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
+        <div className="h-[40vh] lg:h-auto lg:w-1/3 flex-shrink-0 border-b lg:border-b-0 lg:border-r border-gray-200 flex flex-col bg-white">
+            <div className="px-3 py-2 border-b border-gray-200 text-xs font-semibold text-slate-500 flex justify-between items-center bg-gray-50 flex-shrink-0">
+                <span className="flex items-center gap-1.5"><Code size={13}/> MERMAID SOURCE</span>
                 <div className="flex gap-1">
-                    <button onClick={() => setCode(SEQUENCE_CODE)} className="px-2 py-1 text-[10px] bg-white border border-gray-300 rounded hover:bg-gray-100 flex items-center gap-1" title="載入時序圖範例">
-                        <FileText size={10}/> Sequence
+                    <button onClick={() => setCode(SEQUENCE_CODE)} className="px-1.5 py-1 text-[10px] bg-white border border-gray-300 rounded hover:bg-gray-100 flex items-center gap-1" title="載入時序圖範例">
+                        <FileText size={9}/> <span className="hidden sm:inline">Sequence</span><span className="sm:hidden">Seq</span>
                     </button>
-                    <button onClick={() => setCode(FLOWCHART_CODE)} className="px-2 py-1 text-[10px] bg-white border border-gray-300 rounded hover:bg-gray-100 flex items-center gap-1" title="載入流程圖範例">
-                        <Activity size={10}/> Flowchart
+                    <button onClick={() => setCode(FLOWCHART_CODE)} className="px-1.5 py-1 text-[10px] bg-white border border-gray-300 rounded hover:bg-gray-100 flex items-center gap-1" title="載入流程圖範例">
+                        <Activity size={9}/> <span className="hidden sm:inline">Flowchart</span><span className="sm:hidden">Flow</span>
                     </button>
-                    <button onClick={() => setCode(ARCH_CODE)} className="px-2 py-1 text-[10px] bg-white border border-gray-300 rounded hover:bg-gray-100 flex items-center gap-1" title="載入架構圖範例">
-                        <Server size={10}/> Architecture
+                    <button onClick={() => setCode(ARCH_CODE)} className="px-1.5 py-1 text-[10px] bg-white border border-gray-300 rounded hover:bg-gray-100 flex items-center gap-1" title="載入架構圖範例">
+                        <Server size={9}/> <span className="hidden sm:inline">Architecture</span><span className="sm:hidden">Arch</span>
                     </button>
                 </div>
             </div>
@@ -762,20 +767,20 @@ const CanvasDiagram = () => {
             {errorMsg && <div className="p-3 bg-red-50 text-red-600 text-xs border-t border-red-100">⚠️ {errorMsg}</div>}
         </div>
         
-        <div className="flex-1 bg-gray-100 flex items-center justify-center overflow-auto relative">
+        <div className="flex-1 bg-gray-100 flex items-center justify-center overflow-auto relative p-4 min-h-0">
              {isLoading && (
                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/50 z-10 backdrop-blur-sm">
                      <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
                      <p className="text-slate-600 font-medium">Rendering...</p>
                  </div>
              )}
-             <div className="rounded-xl overflow-hidden border border-gray-200 shadow-xl bg-white">
-                {/* 綁定滑鼠事件 */}
+             <div className="rounded-xl overflow-hidden border border-gray-200 shadow-xl bg-white self-start">
+                {/* Canvas renders at its natural buffer size — no CSS scaling to avoid distortion */}
                 <canvas 
                     ref={canvasRef} 
                     onMouseMove={handleMouseMove}
                     onMouseLeave={handleMouseLeave}
-                    className="w-full h-full block"
+                    className="block"
                 />
              </div>
         </div>
