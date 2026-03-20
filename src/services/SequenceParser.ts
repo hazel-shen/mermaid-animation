@@ -1,6 +1,29 @@
 import type { DiagramNode, DiagramEdge, SeqLabel, EdgeType } from '../types';
 import { getCumulativeTransform } from './svgUtils';
 
+/** Shift all absolute coordinates in an SVG path d-string by (tx, ty). */
+const shiftPathCoords = (raw: string, tx: number, ty: number): string => {
+  if (!raw || (Math.abs(tx) < 0.5 && Math.abs(ty) < 0.5)) return raw;
+  return raw.replace(
+    /([MLCSQTAZHVmlcsqtazhv])\s*([-\d.,\s]*)/g,
+    (match, cmd: string, coords: string) => {
+      const upper = cmd.toUpperCase();
+      if (upper === 'Z') return cmd;
+      // lowercase = relative, skip
+      if (cmd !== upper) return match;
+      if (upper === 'H') {
+        return cmd + coords.trim().split(/[\s,]+/).map(n => (parseFloat(n) + tx).toFixed(2)).join(' ');
+      }
+      if (upper === 'V') {
+        return cmd + coords.trim().split(/[\s,]+/).map(n => (parseFloat(n) + ty).toFixed(2)).join(' ');
+      }
+      const ns = coords.trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+      const shifted = ns.map((n, i) => (i % 2 === 0 ? n + tx : n + ty).toFixed(2));
+      return cmd + shifted.join(' ');
+    }
+  );
+};
+
 const getRectGeom = (rect: SVGRectElement, svgElement: SVGSVGElement) => {
   const { x: tx, y: ty } = getCumulativeTransform(rect, svgElement);
   const rx = parseFloat(rect.getAttribute('x') || '0');
@@ -82,51 +105,163 @@ export const parseSequenceNodes = (svgElement: SVGSVGElement): DiagramNode[] => 
   return extractedNodes;
 };
 
-export const parseSequenceLoopFrames = (svgElement: SVGSVGElement): { nodes: DiagramNode[]; labels: SeqLabel[] } => {
+export const parseSequenceLoopFrames = (
+  svgElement: SVGSVGElement
+): { nodes: DiagramNode[]; labels: SeqLabel[]; dividerEdges: DiagramEdge[] } => {
   const nodes: DiagramNode[] = [];
   const labels: SeqLabel[] = [];
+  const dividerEdges: DiagramEdge[] = [];
 
   svgElement.querySelectorAll<SVGGElement>('g').forEach(g => {
     const loopLines = g.querySelectorAll<SVGLineElement>(':scope > line.loopLine');
     if (loopLines.length < 2) return;
 
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    // Collect all loopLine coords
+    const lineCoords: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
     loopLines.forEach(line => {
       const { x: tx, y: ty } = getCumulativeTransform(line, svgElement);
-      [parseFloat(line.getAttribute('x1') || '0') + tx, parseFloat(line.getAttribute('x2') || '0') + tx].forEach(v => { minX = Math.min(minX, v); maxX = Math.max(maxX, v); });
-      [parseFloat(line.getAttribute('y1') || '0') + ty, parseFloat(line.getAttribute('y2') || '0') + ty].forEach(v => { minY = Math.min(minY, v); maxY = Math.max(maxY, v); });
+      lineCoords.push({
+        x1: parseFloat(line.getAttribute('x1') || '0') + tx,
+        y1: parseFloat(line.getAttribute('y1') || '0') + ty,
+        x2: parseFloat(line.getAttribute('x2') || '0') + tx,
+        y2: parseFloat(line.getAttribute('y2') || '0') + ty,
+      });
     });
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    lineCoords.forEach(c => {
+      minX = Math.min(minX, c.x1, c.x2);
+      maxX = Math.max(maxX, c.x1, c.x2);
+      minY = Math.min(minY, c.y1, c.y2);
+      maxY = Math.max(maxY, c.y1, c.y2);
+    });
+
     const w = maxX - minX;
     const h = maxY - minY;
     if (w <= 0 || h <= 0) return;
 
+    // Detect frame type from labelText
+    const labelTxt = g.querySelector<SVGTextElement>('text.labelText');
+    const frameType = labelTxt?.textContent?.trim().toLowerCase() || 'loop';
+    const isAlt = frameType === 'alt' || frameType === 'opt' || frameType === 'par';
+
     nodes.push({
       id: `loopFrame-${Math.random()}`, label: '', type: 'cluster', shape: 'rect',
       x: minX + w / 2, y: minY + h / 2, width: w, height: h,
-      color: 'rgba(236,236,255,0.15)', stroke: '#9370DB',
+      color: isAlt ? 'rgba(255,245,200,0.18)' : 'rgba(236,236,255,0.15)',
+      stroke: isAlt ? '#d97706' : '#9370DB',
     });
 
-    const labelTxt = g.querySelector<SVGTextElement>('text.labelText');
+    // Frame type label (e.g. "alt", "loop")
     if (labelTxt) {
       const { x: tx, y: ty } = getCumulativeTransform(labelTxt, svgElement);
       const lx = tx + parseFloat(labelTxt.getAttribute('x') || '0');
       const ly = ty + parseFloat(labelTxt.getAttribute('y') || '0');
       const t = labelTxt.textContent?.trim() || '';
-      if (t) labels.push({ x: lx, y: ly, text: t, fontSize: 12, bold: true, color: '#5b21b6', align: 'center' });
+      if (t) labels.push({ x: lx, y: ly, text: t, fontSize: 12, bold: true, color: isAlt ? '#92400e' : '#5b21b6', align: 'left' });
     }
 
-    const loopTxt = g.querySelector<SVGTextElement>('text.loopText');
-    if (loopTxt) {
+    // Condition labels — loopText tspans cover ALL sections (alt condition per tspan)
+    g.querySelectorAll<SVGTextElement>('text.loopText').forEach(loopTxt => {
       const { x: tx, y: ty } = getCumulativeTransform(loopTxt, svgElement);
-      const lx = tx + parseFloat(loopTxt.getAttribute('x') || '0');
-      const ly = ty + parseFloat(loopTxt.getAttribute('y') || '0');
-      const tspan = loopTxt.querySelector('tspan');
-      const t = tspan?.textContent?.trim() || loopTxt.textContent?.trim() || '';
-      if (t) labels.push({ x: lx, y: ly, text: t, fontSize: 13, bold: false, color: '#374151', align: 'center' });
-    }
+      const baseX = tx + parseFloat(loopTxt.getAttribute('x') || '0');
+      const baseY = ty + parseFloat(loopTxt.getAttribute('y') || '0');
+
+      const tspans = loopTxt.querySelectorAll('tspan');
+      if (tspans.length > 0) {
+        tspans.forEach(tspan => {
+          const t = tspan.textContent?.trim() || '';
+          if (!t) return;
+          const dx = parseFloat(tspan.getAttribute('x') || '0');
+          const dy = parseFloat(tspan.getAttribute('dy') || '0');
+          const sx = dx !== 0 ? tx + dx : baseX;
+          const sy = baseY + dy;
+          labels.push({ x: sx, y: sy, text: t, fontSize: 13, bold: false, color: '#374151', align: 'center' });
+        });
+      } else {
+        const t = loopTxt.textContent?.trim() || '';
+        if (t) labels.push({ x: baseX, y: baseY, text: t, fontSize: 13, bold: false, color: '#374151', align: 'center' });
+      }
+    });
+
+    // Internal divider lines — horizontal loopLines between top and bottom borders
+    lineCoords.forEach(c => {
+      const isHorizontal = Math.abs(c.y1 - c.y2) < 2 && Math.abs(c.x1 - c.x2) > 10;
+      if (!isHorizontal) return;
+      const lineY = (c.y1 + c.y2) / 2;
+      const isTopBorder = Math.abs(lineY - minY) < 2;
+      const isBottomBorder = Math.abs(lineY - maxY) < 2;
+      if (!isTopBorder && !isBottomBorder) {
+        dividerEdges.push({
+          id: `divider-${Math.random()}`,
+          pathD: `M ${c.x1} ${c.y1} L ${c.x2} ${c.y2}`,
+          stroke: isAlt ? '#d97706' : '#9370DB',
+          type: 'structural',
+          dash: [6, 3],
+        });
+      }
+    });
   });
 
-  return { nodes, labels };
+  return { nodes, labels, dividerEdges };
+};
+
+export const parseSequenceStepNumbers = (svgElement: SVGSVGElement): DiagramNode[] => {
+  const stepNodes: DiagramNode[] = [];
+
+  // Mermaid renders step numbers as <text> inside <g> elements with class "sequenceNumber"
+  // or as circles rendered via background rect+text combos
+  svgElement.querySelectorAll<SVGTextElement>('text.sequenceNumber').forEach(el => {
+    const { x: tx, y: ty } = getCumulativeTransform(el, svgElement);
+    const cx = tx + parseFloat(el.getAttribute('x') || '0');
+    const cy = ty + parseFloat(el.getAttribute('y') || '0');
+    const text = el.textContent?.trim() || '';
+    if (!text) return;
+
+    stepNodes.push({
+      id: `stepNum-${Math.random()}`,
+      label: text,
+      type: 'node',
+      shape: 'circle',
+      x: cx,
+      y: cy,
+      width: 20,
+      height: 20,
+      color: '#1e293b',
+      stroke: '#1e293b',
+    });
+  });
+
+  // Also check for circle+text combos (some Mermaid versions render them differently)
+  svgElement.querySelectorAll<SVGGElement>('g').forEach(g => {
+    const circle = g.querySelector<SVGCircleElement>(':scope > circle');
+    const text = g.querySelector<SVGTextElement>(':scope > text');
+    if (!circle || !text) return;
+    const label = text.textContent?.trim() || '';
+    if (!label || isNaN(Number(label))) return;
+
+    const { x: gtx, y: gty } = getCumulativeTransform(g, svgElement);
+    const r = parseFloat(circle.getAttribute('r') || '10');
+    const cx = gtx + parseFloat(circle.getAttribute('cx') || '0');
+    const cy = gty + parseFloat(circle.getAttribute('cy') || '0');
+
+    if (stepNodes.some(n => Math.abs(n.x - cx) < 2 && Math.abs(n.y - cy) < 2)) return;
+
+    stepNodes.push({
+      id: `stepNum-${Math.random()}`,
+      label,
+      type: 'node',
+      shape: 'circle',
+      x: cx,
+      y: cy,
+      width: r * 2,
+      height: r * 2,
+      color: '#1e293b',
+      stroke: '#1e293b',
+    });
+  });
+
+  return stepNodes;
 };
 
 export const parseSequenceMessageLabels = (svgElement: SVGSVGElement): SeqLabel[] => {
@@ -164,13 +299,46 @@ export const parseSequenceEdges = (svgElement: SVGSVGElement, isPremium: boolean
       const ly1 = parseFloat(el.getAttribute('y1') || '0');
       const lx2 = parseFloat(el.getAttribute('x2') || '0');
       const ly2 = parseFloat(el.getAttribute('y2') || '0');
-      const { x: tx, y: ty } = getCumulativeTransform(el, svgElement);
-      d = `M ${lx1 + tx} ${ly1 + ty} L ${lx2 + tx} ${ly2 + ty}`;
+      // Try CTM-based transform first, fall back to manual cumulative
+      try {
+        const ctm = (el as SVGGraphicsElement).getCTM();
+        const svgCtm = svgElement.getCTM();
+        if (ctm && svgCtm) {
+          const inv = svgCtm.inverse();
+          const m = inv.multiply(ctm);
+          d = `M ${lx1 * m.a + m.e} ${ly1 * m.d + m.f} L ${lx2 * m.a + m.e} ${ly2 * m.d + m.f}`;
+        } else {
+          const { x: tx, y: ty } = getCumulativeTransform(el, svgElement);
+          d = `M ${lx1 + tx} ${ly1 + ty} L ${lx2 + tx} ${ly2 + ty}`;
+        }
+      } catch {
+        const { x: tx, y: ty } = getCumulativeTransform(el, svgElement);
+        d = `M ${lx1 + tx} ${ly1 + ty} L ${lx2 + tx} ${ly2 + ty}`;
+      }
     } else if (tagName === 'path') {
-      d = el.getAttribute('d') || "";
+      // Use CTM to handle path coordinate transforms properly
+      try {
+        const ctm = (el as SVGGraphicsElement).getCTM();
+        const svgCtm = svgElement.getCTM();
+        if (ctm && svgCtm) {
+          const inv = svgCtm.inverse();
+          const m = inv.multiply(ctm);
+          // Only apply if there's a non-identity transform (translation)
+          if (Math.abs(m.e) > 0.5 || Math.abs(m.f) > 0.5) {
+            const raw = el.getAttribute('d') || "";
+            d = shiftPathCoords(raw, m.e, m.f);
+          } else {
+            d = el.getAttribute('d') || "";
+          }
+        } else {
+          d = el.getAttribute('d') || "";
+        }
+      } catch {
+        d = el.getAttribute('d') || "";
+      }
     }
 
-    if (d && d.length > 10) {
+    if (d && d.length > 4) {
       const hasArrow = type === 'link' && (
         el.getAttribute('marker-end') != null ||
         el.classList.contains('messageLine0') ||
@@ -187,21 +355,31 @@ export const parseSequenceEdges = (svgElement: SVGSVGElement, isPremium: boolean
   ].join(', ');
   const structSelector = '.actor-line, line[class*="actor-line"]';
 
+  const processedElements = new Set<Element>();
+
   svgElement.querySelectorAll(linkSelector).forEach(el => {
     if (el.tagName.toLowerCase() === 'line') {
       const parent = el.parentElement;
       if (parent) {
-        const hasSiblingPath = parent.querySelector(':scope > path.messageLine0, :scope > path.messageLine1');
-        if (hasSiblingPath) return;
+        // Only skip line if a valid sibling path exists (non-empty d attribute)
+        const sibPath = parent.querySelector<SVGPathElement>(':scope > path.messageLine0, :scope > path.messageLine1');
+        const sibPathValid = sibPath && (sibPath.getAttribute('d') || '').length > 4;
+        if (sibPathValid) return;
         if (parent.querySelector(':scope > rect.loopLine')) return;
       }
     }
+    processedElements.add(el);
     processEdge(el, 'link');
   });
 
-  svgElement.querySelectorAll(structSelector).forEach(el => processEdge(el, 'structural'));
+  svgElement.querySelectorAll(structSelector).forEach(el => {
+    processedElements.add(el);
+    processEdge(el, 'structural');
+  });
 
+  // Fallback: scan all <line> elements not already processed
   svgElement.querySelectorAll('line').forEach(line => {
+    if (processedElements.has(line)) return;
     if (line.classList.contains('loopLine')) return;
     const lx1 = parseFloat(line.getAttribute('x1') || '0');
     const lx2 = parseFloat(line.getAttribute('x2') || '0');
@@ -211,11 +389,22 @@ export const parseSequenceEdges = (svgElement: SVGSVGElement, isPremium: boolean
     const dy = Math.abs(ly2 - ly1);
 
     if (dy > dx * 3 && dy > 50) {
+      // Vertical line — structural (lifeline)
+      processEdge(line, 'structural');
+    } else if (dx > 10 && dy < dx * 0.3) {
+      // Horizontal line — message line missed by class selectors
+      const hasArrow = line.getAttribute('marker-end') != null ||
+        line.classList.contains('messageLine0') ||
+        line.classList.contains('messageLine1');
       const { x: tx, y: ty } = getCumulativeTransform(line, svgElement);
-      const potentialPath = `M ${lx1 + tx} ${ly1 + ty} L ${lx2 + tx} ${ly2 + ty}`;
-      if (!extractedEdges.some(e => e.pathD === potentialPath)) {
-        processEdge(line, 'structural');
-      }
+      extractedEdges.push({
+        id: `edge-${Math.random()}`,
+        pathD: `M ${lx1 + tx} ${ly1 + ty} L ${lx2 + tx} ${ly2 + ty}`,
+        stroke: isPremium ? '#64748b' : '#333',
+        type: 'link',
+        dash: line.classList.contains('messageLine1') ? [3, 3] : undefined,
+        hasArrow,
+      });
     }
   });
 

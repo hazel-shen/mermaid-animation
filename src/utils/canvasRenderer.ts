@@ -22,11 +22,13 @@ export const drawNode = (
   const { x, y, width, height, color, stroke, shape, label } = node;
   const isHovered = node.id === hoveredId;
 
-  if (isHovered) {
+  const isStepNum = node.id.startsWith('stepNum-');
+
+  if (isHovered && !isStepNum) {
     ctx.shadowColor = particleColor;
     ctx.shadowBlur = 25;
     ctx.shadowOffsetY = 0;
-  } else if (premium && node.type !== 'cluster') {
+  } else if (premium && node.type !== 'cluster' && !isStepNum) {
     ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
     ctx.shadowBlur = 10;
     ctx.shadowOffsetY = 4;
@@ -76,16 +78,22 @@ export const drawNode = (
   ctx.shadowOffsetY = 0;
   ctx.setLineDash([]);
 
-  ctx.fillStyle = node.type === 'cluster' ? '#334155' : '#000000';
-  ctx.font = node.type === 'cluster' ? 'bold 11px Inter' : 'bold 14px Inter';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
   if (node.type === 'cluster') {
+    ctx.fillStyle = '#334155';
+    ctx.font = 'bold 11px Inter';
     ctx.textBaseline = 'bottom';
     ctx.fillText(label, x, y - height / 2 - 4);
     ctx.textBaseline = 'middle';
+  } else if (isStepNum) {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${Math.max(9, Math.min(12, width * 0.55))}px Inter`;
+    ctx.fillText(label, x, y);
   } else {
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 14px Inter';
     const lines = label.split('\n');
     const lh = 16;
     const totalH = lines.length * lh;
@@ -248,11 +256,14 @@ export const renderFrame = (
     ctx.shadowBlur = 0;
   }
 
-  // Render normal nodes + notes on top
+  // Render normal nodes + notes on top (step numbers last so they're always visible)
   const normalNodes = nodes
-    .filter(n => n.type !== 'cluster')
+    .filter(n => n.type !== 'cluster' && !n.id.startsWith('stepNum-'))
     .sort((a, _b) => (a.type === 'note' ? 1 : 0));
   normalNodes.forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
+
+  // Step number circles always on top
+  nodes.filter(n => n.id.startsWith('stepNum-')).forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
 
   // Render floating sequence labels
   if (seqLabels.length > 0) {

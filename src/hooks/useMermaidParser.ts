@@ -4,7 +4,7 @@ import { getDiagramType } from '../services/diagramTypes';
 import type { DiagramType } from '../services/diagramTypes';
 
 // Sequence
-import { parseSequenceNodes, parseSequenceEdges, parseSequenceLoopFrames, parseSequenceMessageLabels } from '../services/SequenceParser';
+import { parseSequenceNodes, parseSequenceEdges, parseSequenceLoopFrames, parseSequenceMessageLabels, parseSequenceStepNumbers } from '../services/SequenceParser';
 // Flowchart
 import { parseFlowchartNodes, parseFlowchartEdges } from '../services/FlowchartParser';
 // Class
@@ -95,10 +95,14 @@ export const useMermaidParser = (
       case 'sequence': {
         extractedNodes = parseSequenceNodes(svgElement);
         extractedEdges = parseSequenceEdges(svgElement, premium);
-        const { nodes: loopNodes, labels: loopLabels } = parseSequenceLoopFrames(svgElement);
+        const { nodes: loopNodes, labels: loopLabels, dividerEdges } = parseSequenceLoopFrames(svgElement);
         extractedNodes.push(...loopNodes);
         extractedLabels.push(...loopLabels);
         extractedLabels.push(...parseSequenceMessageLabels(svgElement));
+        extractedEdges.push(...dividerEdges);
+        // Step number circles
+        const stepNodes = parseSequenceStepNumbers(svgElement);
+        extractedNodes.push(...stepNodes);
         break;
       }
 
@@ -190,8 +194,10 @@ export const useMermaidParser = (
     setNodes(extractedNodes);
 
     // Filter out mostly-horizontal structural edges (lifelines noise reduction)
+    // but keep explicitly added divider lines
     const cleanedEdges = extractedEdges.filter(edge => {
       if (edge.type !== 'structural') return true;
+      if (edge.id.startsWith('divider-')) return true;
       const m = edge.pathD.match(/M\s*([\d.e+\-]+)\s+([\d.e+\-]+)\s+L\s*([\d.e+\-]+)\s+([\d.e+\-]+)/i);
       if (m) {
         const dx = Math.abs(parseFloat(m[3]) - parseFloat(m[1]));
