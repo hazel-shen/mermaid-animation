@@ -13,7 +13,13 @@ export type DiagramType =
   | 'generic';
 
 export const getDiagramType = (code: string): DiagramType => {
-  const firstLine = code.trim().split('\n')[0].trim().toLowerCase();
+  const lines = code.trim().split('\n');
+  // Skip %%{init: ...}%% front-matter directives and blank/comment lines
+  const firstMeaningfulLine = lines
+    .map(l => l.trim())
+    .find(l => l.length > 0 && !l.startsWith('%%'))
+    ?.toLowerCase() ?? '';
+  const firstLine = firstMeaningfulLine;
 
   if (/^graph\b|^flowchart\b/.test(firstLine)) return 'flowchart';
   if (/^sequencediagram/.test(firstLine)) return 'sequence';
