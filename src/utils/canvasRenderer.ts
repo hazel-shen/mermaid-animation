@@ -1,4 +1,4 @@
-import type { DiagramNode, DiagramEdge, SeqLabel, Transform } from '../types';
+import type { DiagramNode, DiagramEdge, SeqLabel, Transform, ArrowMarker } from '../types';
 import { Particle } from './particle';
 
 export const drawGrid = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
@@ -125,6 +125,8 @@ export const drawNode = (
     ctx.fillStyle = '#ffffff';
     ctx.font = `bold ${Math.max(9, Math.min(12, width * 0.55))}px Inter`;
     ctx.fillText(label, x, y);
+  } else if (node.classLines && node.classLines.length > 0) {
+    drawClassNode(ctx, node, color, stroke);
   } else {
     ctx.fillStyle = getLuminance(color) < 0.35 ? '#f1f5f9' : '#1e293b';
     ctx.font = 'bold 14px Inter';
@@ -138,97 +140,405 @@ export const drawNode = (
 };
 
 /**
- * Extracts the arrow tip position and approach angle from an SVG path string.
- * Handles M/L (straight lines) and C (cubic bezier, used by Mermaid curve:'basis').
- * For a cubic bezier "C cx1 cy1 cx2 cy2 ex ey", the tangent at the endpoint
- * is from (cx2,cy2) → (ex,ey).
+ * Renders the interior text of a class-diagram node:
+ * bold title row, horizontal divider lines, and member rows.
  */
-const getArrowTip = (pathD: string): { x2: number; y2: number; angle: number } | null => {
-  // Tokenise the path into commands + coordinate groups
-  const segments = pathD.trim().match(/[MLCQTSAZ][^MLCQTSAZ]*/gi);
-  if (!segments || segments.length < 2) return null;
+const drawClassNode = (
+  ctx: CanvasRenderingContext2D,
+  node: DiagramNode,
+  bgColor: string,
+  strokeColor: string,
+) => {
+  const { x, y, width, height, classLines = [] } = node;
 
-  const last = segments[segments.length - 1].trim();
-  const cmd = last[0].toUpperCase();
-  const nums = last.slice(1).trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+  const textColor = getLuminance(bgColor) < 0.35 ? '#f1f5f9' : '#1e293b';
+  const dividerColor = strokeColor;
 
-  // Find the second-to-last endpoint for direction reference
-  const prev = segments[segments.length - 2].trim();
-  const prevCmd = prev[0].toUpperCase();
-  const prevNums = prev.slice(1).trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+  const TITLE_FONT_SIZE = 13;
+  const MEMBER_FONT_SIZE = 11;
+  const LINE_H = 15;
+  const TITLE_H = 18;
+  const DIV_PAD = 4;
+  const H_PAD = 6;
 
-  let x2: number, y2: number, x1: number, y1: number;
+  // ── First pass: measure natural content height ─────────────────────
+  let naturalH = 0;
+  for (const cl of classLines) {
+    if (cl.divider)   naturalH += DIV_PAD * 2 + 1;
+    else if (cl.bold) naturalH += TITLE_H;
+    else              naturalH += LINE_H;
+  }
+
+  // Scale rows so they fill the actual SVG-derived box height exactly.
+  // This keeps text anchored inside the box Mermaid produced, so edges
+  // that terminate at the box boundary stay visually aligned.
+  const scale = naturalH > 0 ? height / naturalH : 1;
+  const scaledLineH  = LINE_H  * scale;
+  const scaledTitleH = TITLE_H * scale;
+  const scaledDivPad = DIV_PAD * scale;
+
+  // ── Second pass: render top-down from the box top edge ────────────
+  let curY = y - height / 2;   // start exactly at top of drawn rect
+
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'left';
+
+  const maxTextWidth = width - H_PAD * 2;
+
+  for (const cl of classLines) {
+    if (cl.divider) {
+      curY += scaledDivPad;
+      ctx.beginPath();
+      ctx.strokeStyle = dividerColor;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([]);
+      ctx.moveTo(x - width / 2, curY);
+      ctx.lineTo(x + width / 2, curY);
+      ctx.stroke();
+      curY += scaledDivPad + 1;
+    } else if (cl.bold) {
+      ctx.fillStyle = textColor;
+      ctx.font = `bold ${TITLE_FONT_SIZE}px Inter, sans-serif`;
+      const truncated = truncateText(ctx, cl.text, maxTextWidth);
+      ctx.textAlign = 'center';
+      ctx.fillText(truncated, x, curY + (scaledTitleH - TITLE_FONT_SIZE) / 2);
+      ctx.textAlign = 'left';
+      curY += scaledTitleH;
+    } else {
+      ctx.fillStyle = textColor;
+      ctx.font = `${MEMBER_FONT_SIZE}px Inter, sans-serif`;
+      const truncated = truncateText(ctx, cl.text, maxTextWidth);
+      ctx.fillText(truncated, x - width / 2 + H_PAD, curY + (scaledLineH - MEMBER_FONT_SIZE) / 2);
+      curY += scaledLineH;
+    }
+  }
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 2;
+};
+
+/** Truncate text with ellipsis so it fits within maxWidth pixels. */
+const truncateText = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string => {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let lo = 0, hi = text.length;
+  const ellipsis = '…';
+  const ellW = ctx.measureText(ellipsis).width;
+  while (lo < hi - 1) {
+    const mid = (lo + hi) >> 1;
+    if (ctx.measureText(text.slice(0, mid)).width + ellW <= maxWidth) lo = mid;
+    else hi = mid;
+  }
+  return text.slice(0, lo) + ellipsis;
+};
+
+// ── Path endpoint extraction ───────────────────────────────────────────────
+
+/** Parse a path segment into its command char and numeric arguments. */
+const parseSegment = (seg: string): { cmd: string; nums: number[] } => {
+  const cmd = seg[0].toUpperCase();
+  const nums = seg.slice(1).trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+  return { cmd, nums };
+};
+
+/** Tokenise a path `d` string into its segments. */
+const tokenisePath = (d: string) =>
+  (d.trim().match(/[MLCQTSAZ][^MLCQTSAZ]*/gi) || []);
+
+/**
+ * Returns the LAST point of the path and the tangent direction approaching it.
+ * angle points FROM the penultimate point TOWARD the endpoint (i.e. the arrow tip angle).
+ */
+const getPathEnd = (pathD: string): { x: number; y: number; angle: number } | null => {
+  const segs = tokenisePath(pathD);
+  if (segs.length < 2) return null;
+
+  const { cmd, nums } = parseSegment(segs[segs.length - 1]);
+  const { cmd: pc, nums: pn } = parseSegment(segs[segs.length - 2]);
+
+  let ex: number, ey: number, dx: number, dy: number;
 
   if (cmd === 'C' && nums.length >= 6) {
-    // C cx1 cy1 cx2 cy2 ex ey  — use last control point as direction source
-    x2 = nums[nums.length - 2];
-    y2 = nums[nums.length - 1];
-    x1 = nums[nums.length - 4]; // second control point
-    y1 = nums[nums.length - 3];
+    ex = nums[nums.length - 2]; ey = nums[nums.length - 1];
+    dx = ex - nums[nums.length - 4]; dy = ey - nums[nums.length - 3];
   } else if (cmd === 'L' && nums.length >= 2) {
-    x2 = nums[nums.length - 2];
-    y2 = nums[nums.length - 1];
-    // direction from previous segment endpoint
-    if (prevCmd === 'C' && prevNums.length >= 6) {
-      x1 = prevNums[prevNums.length - 2];
-      y1 = prevNums[prevNums.length - 1];
-    } else if (prevNums.length >= 2) {
-      x1 = prevNums[prevNums.length - 2];
-      y1 = prevNums[prevNums.length - 1];
-    } else {
-      return null;
-    }
-  } else if (cmd === 'M' && nums.length >= 2 && segments.length >= 2) {
-    // Fallback: treat last M as endpoint
-    x2 = nums[nums.length - 2];
-    y2 = nums[nums.length - 1];
-    if (prevNums.length >= 2) {
-      x1 = prevNums[prevNums.length - 2];
-      y1 = prevNums[prevNums.length - 1];
-    } else {
-      return null;
-    }
+    ex = nums[nums.length - 2]; ey = nums[nums.length - 1];
+    const pEnd = pc === 'C' && pn.length >= 6
+      ? { x: pn[pn.length - 2], y: pn[pn.length - 1] }
+      : pn.length >= 2 ? { x: pn[pn.length - 2], y: pn[pn.length - 1] } : null;
+    if (!pEnd) return null;
+    dx = ex - pEnd.x; dy = ey - pEnd.y;
+  } else if (cmd === 'M' && nums.length >= 2) {
+    ex = nums[nums.length - 2]; ey = nums[nums.length - 1];
+    if (pn.length < 2) return null;
+    dx = ex - pn[pn.length - 2]; dy = ey - pn[pn.length - 1];
   } else {
     return null;
   }
 
-  if (Math.hypot(x2 - x1, y2 - y1) < 0.5) return null;
-  return { x2, y2, angle: Math.atan2(y2 - y1, x2 - x1) };
+  if (Math.hypot(dx, dy) < 0.5) return null;
+  return { x: ex, y: ey, angle: Math.atan2(dy, dx) };
+};
+
+/**
+ * Returns the FIRST point of the path and the tangent direction leaving it
+ * (angle points FROM the start TOWARD the second point — reversed for drawing).
+ */
+const getPathStart = (pathD: string): { x: number; y: number; angle: number } | null => {
+  const segs = tokenisePath(pathD);
+  if (segs.length < 2) return null;
+
+  const { cmd: c0, nums: n0 } = parseSegment(segs[0]!);
+  const { cmd: c1, nums: n1 } = parseSegment(segs[1]!);
+
+  if (c0 !== 'M' || n0.length < 2) return null;
+  const sx = n0[0], sy = n0[1];
+
+  let nx: number, ny: number;
+  if (c1 === 'L' && n1.length >= 2) {
+    nx = n1[0]; ny = n1[1];
+  } else if (c1 === 'C' && n1.length >= 6) {
+    // first control point gives tangent direction
+    nx = n1[0]; ny = n1[1];
+  } else if (n1.length >= 2) {
+    nx = n1[0]; ny = n1[1];
+  } else {
+    return null;
+  }
+
+  const dx = nx - sx, dy = ny - sy;
+  if (Math.hypot(dx, dy) < 0.5) return null;
+  // angle points FROM start toward inside — for a start arrow we reverse
+  return { x: sx, y: sy, angle: Math.atan2(dy, dx) + Math.PI };
+};
+
+// ── Arrow shape drawing ────────────────────────────────────────────────────
+
+const drawArrowMarker = (
+  ctx: CanvasRenderingContext2D,
+  marker: ArrowMarker,
+  x: number,
+  y: number,
+  angle: number,
+  color: string,
+  bgColor: string,
+) => {
+  if (marker === 'none') return;
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([]);
+
+  switch (marker) {
+    case 'extension': {
+      // Hollow equilateral triangle pointing in arrow direction
+      const S = 14, H = S * 0.87;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-H, -S / 2);
+      ctx.lineTo(-H,  S / 2);
+      ctx.closePath();
+      ctx.fillStyle = bgColor;
+      ctx.fill();
+      ctx.stroke();
+      break;
+    }
+    case 'composition': {
+      // Filled diamond
+      const L = 10, W = 6;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-L,  W);
+      ctx.lineTo(-L * 2, 0);
+      ctx.lineTo(-L, -W);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
+    case 'aggregation': {
+      // Hollow diamond
+      const L = 10, W = 6;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-L,  W);
+      ctx.lineTo(-L * 2, 0);
+      ctx.lineTo(-L, -W);
+      ctx.closePath();
+      ctx.fillStyle = bgColor;
+      ctx.fill();
+      ctx.stroke();
+      break;
+    }
+    case 'dependency': {
+      // Open arrow (two lines, no fill)
+      const S = 10;
+      ctx.beginPath();
+      ctx.moveTo(-S * Math.cos(-0.45), -S * Math.sin(-0.45));
+      ctx.lineTo(0, 0);
+      ctx.lineTo(-S * Math.cos(0.45), -S * Math.sin(0.45));
+      ctx.stroke();
+      break;
+    }
+    default: {
+      // Generic filled triangle
+      const size = 10;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-size * Math.cos(-0.4), -size * Math.sin(-0.4));
+      ctx.lineTo(-size * Math.cos(0.4), -size * Math.sin(0.4));
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  ctx.restore();
+};
+
+/** How far (px) to set back the line end so it doesn't protrude through the marker. */
+const markerSetback = (marker: ArrowMarker | undefined): number => {
+  switch (marker) {
+    case 'composition':
+    case 'aggregation': return 20;  // diamond length = L*2 = 20
+    case 'extension':   return 12;  // triangle height ≈ H = 14*0.87
+    case 'dependency':  return 0;   // open arrow, no fill needed
+    default:            return 10;  // generic triangle
+  }
+};
+
+/**
+ * Given a node and an approach direction (unit vector dx,dy pointing FROM outside TOWARD node),
+ * returns the point on the node's rectangular border where that direction exits the node centre.
+ * Used to snap arrow tips precisely onto box edges.
+ */
+const borderPoint = (node: DiagramNode, dx: number, dy: number): { x: number; y: number } => {
+  const hw = node.width  / 2;
+  const hh = node.height / 2;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-6) return { x: node.x, y: node.y };
+  const ux = dx / len, uy = dy / len;
+  // Smallest positive t at which ray (node.x + ux*t, node.y + uy*t) hits a wall
+  const tx = ux !== 0 ? hw / Math.abs(ux) : Infinity;
+  const ty = uy !== 0 ? hh / Math.abs(uy) : Infinity;
+  const t  = Math.min(tx, ty);
+  return { x: node.x + ux * t, y: node.y + uy * t };
+};
+
+/**
+ * Find the node whose bounding box contains or is nearest to (px,py).
+ * Prefers nodes that actually contain the point, then falls back to closest centre.
+ */
+const findNodeAtPoint = (
+  nodes: DiagramNode[],
+  px: number, py: number,
+): DiagramNode | null => {
+  // First: exact hit (point inside box with small tolerance)
+  for (const n of nodes) {
+    if (n.type === 'cluster') continue;
+    const pad = 20;
+    if (
+      px >= n.x - n.width  / 2 - pad && px <= n.x + n.width  / 2 + pad &&
+      py >= n.y - n.height / 2 - pad && py <= n.y + n.height / 2 + pad
+    ) return n;
+  }
+  // Fallback: closest centre within 300px
+  let best: DiagramNode | null = null;
+  let bestD = 300;
+  for (const n of nodes) {
+    if (n.type === 'cluster') continue;
+    const d = Math.hypot(n.x - px, n.y - py);
+    if (d < bestD) { bestD = d; best = n; }
+  }
+  return best;
 };
 
 export const drawEdge = (
   ctx: CanvasRenderingContext2D,
   edge: DiagramEdge,
-  isPremium: boolean
+  isPremium: boolean,
+  nodes: DiagramNode[] = [],
 ) => {
-  const p = new Path2D(edge.pathD);
   const edgeColor = isPremium
     ? (edge.type === 'structural' ? '#cbd5e1' : '#64748b')
     : (edge.type === 'structural' && (!edge.stroke || edge.stroke === 'none') ? '#333' : edge.stroke);
 
+  const markerBg = isPremium ? '#f8fafc' : '#ffffff';
+
+  const rawEnd   = getPathEnd(edge.pathD);
+  const rawStart = getPathStart(edge.pathD);
+
+  // ── Snap endpoints to node borders ──────────────────────────────────────
+  // Approach direction for END  = rawEnd.angle  (path tangent arriving at end)
+  // Approach direction for START = rawStart.angle reversed (tangent leaving start, so flip)
+  let tipEnd   = rawEnd   ? { x: rawEnd.x,   y: rawEnd.y,   angle: rawEnd.angle   } : null;
+  let tipStart = rawStart ? { x: rawStart.x, y: rawStart.y, angle: rawStart.angle } : null;
+
+  if (nodes.length > 0) {
+    if (rawEnd) {
+      const node = findNodeAtPoint(nodes, rawEnd.x, rawEnd.y);
+      if (node) {
+        // direction the line arrives at the node (FROM outside TOWARD centre)
+        const dx = Math.cos(rawEnd.angle), dy = Math.sin(rawEnd.angle);
+        const bp = borderPoint(node, dx, dy);
+        tipEnd = { x: bp.x, y: bp.y, angle: rawEnd.angle };
+      }
+    }
+    if (rawStart) {
+      const node = findNodeAtPoint(nodes, rawStart.x, rawStart.y);
+      if (node) {
+        // rawStart.angle points INTO the path (away from start), so negate for border
+        const dx = -Math.cos(rawStart.angle), dy = -Math.sin(rawStart.angle);
+        const bp = borderPoint(node, dx, dy);
+        tipStart = { x: bp.x, y: bp.y, angle: rawStart.angle };
+      }
+    }
+  }
+
+  // ── Rebuild drawn path with setback so line doesn't protrude through marker ─
+  const segs = tokenisePath(edge.pathD);
+
+  if (tipEnd && segs.length > 0) {
+    const setback = (edge.arrowEnd && edge.arrowEnd !== 'none')
+      ? markerSetback(edge.arrowEnd)
+      : (edge.hasArrow && !edge.arrowStart ? markerSetback('default') : 0);
+    const sbx = tipEnd.x - Math.cos(tipEnd.angle) * setback;
+    const sby = tipEnd.y - Math.sin(tipEnd.angle) * setback;
+    segs[segs.length - 1] = `L ${sbx} ${sby}`;
+  }
+
+  if (tipStart && segs.length > 0) {
+    const setback = (edge.arrowStart && edge.arrowStart !== 'none')
+      ? markerSetback(edge.arrowStart) : 0;
+    // tipStart.angle points INTO path; to set back we go opposite
+    const sbx = tipStart.x + Math.cos(tipStart.angle) * setback;
+    const sby = tipStart.y + Math.sin(tipStart.angle) * setback;
+    segs[0] = `M ${sbx} ${sby}`;
+  }
+
+  const drawnPathD = segs.length > 0 ? segs.join(' ') : edge.pathD;
+
   ctx.strokeStyle = edgeColor;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1.5;
 
   if (edge.dash) ctx.setLineDash(edge.dash);
   else if (edge.type === 'structural') ctx.setLineDash([5, 5]);
   else ctx.setLineDash([]);
 
-  ctx.stroke(p);
+  ctx.stroke(new Path2D(drawnPathD));
+  ctx.setLineDash([]);
 
-  if (edge.hasArrow) {
-    ctx.setLineDash([]);
-    const tip = getArrowTip(edge.pathD);
-    if (tip) {
-      const { x2, y2, angle } = tip;
-      const size = 10;
-      ctx.fillStyle = edgeColor;
-      ctx.beginPath();
-      ctx.moveTo(x2, y2);
-      ctx.lineTo(x2 - size * Math.cos(angle - 0.4), y2 - size * Math.sin(angle - 0.4));
-      ctx.lineTo(x2 - size * Math.cos(angle + 0.4), y2 - size * Math.sin(angle + 0.4));
-      ctx.closePath();
-      ctx.fill();
-    }
+  // ── Arrow markers ────────────────────────────────────────────────────────
+  if (edge.arrowEnd && edge.arrowEnd !== 'none' && tipEnd) {
+    drawArrowMarker(ctx, edge.arrowEnd, tipEnd.x, tipEnd.y, tipEnd.angle, edgeColor, markerBg);
+  } else if (edge.hasArrow && !edge.arrowStart && tipEnd) {
+    drawArrowMarker(ctx, 'default', tipEnd.x, tipEnd.y, tipEnd.angle, edgeColor, markerBg);
+  }
+
+  if (edge.arrowStart && edge.arrowStart !== 'none' && tipStart) {
+    drawArrowMarker(ctx, edge.arrowStart, tipStart.x, tipStart.y, tipStart.angle, edgeColor, markerBg);
   }
 };
 
@@ -270,7 +580,7 @@ export const renderFrame = (
 
   // Render edges (structural first, then link)
   const sortedEdges = [...edges].sort((a, _b) => (a.type === 'structural' ? -1 : 1));
-  sortedEdges.forEach(edge => drawEdge(ctx, edge, isPremium));
+  sortedEdges.forEach(edge => drawEdge(ctx, edge, isPremium, nodes));
   ctx.setLineDash([]);
 
   // Render particles (link edges only, premium mode)

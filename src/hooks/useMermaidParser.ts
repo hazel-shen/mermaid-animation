@@ -8,7 +8,7 @@ import { parseSequenceNodes, parseSequenceEdges, parseSequenceLoopFrames, parseS
 // Flowchart
 import { parseFlowchartNodes, parseFlowchartEdges } from '../services/FlowchartParser';
 // Class
-import { parseClassNodes, parseClassEdges } from '../services/ClassParser';
+import { parseClassNodes, parseClassEdges, parseClassEdgeLabels } from '../services/ClassParser';
 // State
 import { parseStateNodes, parseStateEdges } from '../services/StateParser';
 // ER
@@ -115,6 +115,7 @@ export const useMermaidParser = (
       case 'class': {
         extractedNodes = parseClassNodes(svgElement, premium);
         extractedEdges = parseClassEdges(svgElement, premium);
+        extractedLabels = parseClassEdgeLabels(svgElement, premium);
         // Fallback: if we got no edges, use generic
         if (extractedEdges.length === 0) {
           const gen = parseGeneric(svgElement, premium);
@@ -222,6 +223,13 @@ export const useMermaidParser = (
 
     const type = getDiagramType(code);
     setDiagramType(type);
+
+    // classDiagram: classDef color definitions are not supported by this renderer.
+    if (type === 'class' && /^\s*classDef\s+/m.test(code)) {
+      setErrorMsg("classDiagram 不支援顏色樣式定義（classDef）。\n請移除所有 classDef 行及 class ... style 套用行後再試。");
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const id = 'mermaid-hidden-' + Math.round(Math.random() * 10000);

@@ -1,0 +1,33 @@
+name: Production Deploy
+on:
+  push:
+    branches: ["main"]
+
+# 針對 Node 24 的預防性設定
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write      # 必須有這兩項權限
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      
+      - run: npm install
+      - run: npm run build
+      
+      # 使用官方提供的 Upload 與 Deploy Actions
+      - name: Upload artifact 🚀
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist # 你的 build 產出路徑
+
+      - name: Deploy to GitHub Pages 🌐
+        uses: actions/deploy-pages@v4
