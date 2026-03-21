@@ -86,7 +86,7 @@ describe('parseClassNodes', () => {
   });
 
   it('should skip v1 nodes when getBBox returns zero dimensions', () => {
-    SVGElement.prototype.getBBox = () => mockBBox(0, 0, 0, 0);
+    (SVGElement.prototype as unknown as SVGGraphicsElement).getBBox = () => mockBBox(0, 0, 0, 0);
 
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.classList.add('classGroup');
@@ -246,7 +246,7 @@ describe('parseClassNodes', () => {
   });
 
   it('should skip v2 g.node when getBBox returns zero dimensions', () => {
-    SVGElement.prototype.getBBox = () => mockBBox(0, 0, 0, 0);
+    (SVGElement.prototype as unknown as SVGGraphicsElement).getBBox = () => mockBBox(0, 0, 0, 0);
 
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.classList.add('node');
