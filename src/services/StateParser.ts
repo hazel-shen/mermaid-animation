@@ -99,6 +99,7 @@ export const parseStateEdges = (svgElement: SVGSVGElement, isPremium: boolean): 
       type: 'link',
       dash: dash?.length ? dash : undefined,
       hasArrow: el.getAttribute('marker-end') != null,
+      noSnap: true,
     });
   };
 

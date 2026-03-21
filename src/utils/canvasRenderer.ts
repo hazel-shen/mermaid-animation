@@ -428,14 +428,16 @@ const borderPoint = (node: DiagramNode, dx: number, dy: number): { x: number; y:
 };
 
 /**
- * Find the node whose bounding box contains or is nearest to (px,py).
- * Prefers nodes that actually contain the point, then falls back to closest centre.
+ * Find the node whose bounding box contains (px,py).
+ * When exactOnly=true, only returns a node if the point is inside its bbox (with small padding).
+ * When exactOnly=false (default), also falls back to closest centre within 300px.
  */
-const findNodeAtPoint = (
+export const findNodeAtPoint = (
   nodes: DiagramNode[],
   px: number, py: number,
+  exactOnly = false,
 ): DiagramNode | null => {
-  // First: exact hit (point inside box with small tolerance)
+  // Exact hit (point inside box with small tolerance)
   for (const n of nodes) {
     if (n.type === 'cluster') continue;
     const pad = 20;
@@ -444,9 +446,10 @@ const findNodeAtPoint = (
       py >= n.y - n.height / 2 - pad && py <= n.y + n.height / 2 + pad
     ) return n;
   }
-  // Fallback: closest centre within 300px
+  if (exactOnly) return null;
+  // Fallback: closest centre within 120px (enough for deep-endpoint paths, not for far-away nodes)
   let best: DiagramNode | null = null;
-  let bestD = 300;
+  let bestD = 120;
   for (const n of nodes) {
     if (n.type === 'cluster') continue;
     const d = Math.hypot(n.x - px, n.y - py);
@@ -476,12 +479,12 @@ export const drawEdge = (
   let tipEnd   = rawEnd   ? { x: rawEnd.x,   y: rawEnd.y,   angle: rawEnd.angle   } : null;
   let tipStart = rawStart ? { x: rawStart.x, y: rawStart.y, angle: rawStart.angle } : null;
 
-  if (nodes.length > 0) {
+  if (nodes.length > 0 && !edge.noSnap) {
     if (rawEnd) {
       const node = findNodeAtPoint(nodes, rawEnd.x, rawEnd.y);
       if (node) {
-        // direction the line arrives at the node (FROM outside TOWARD centre)
-        const dx = Math.cos(rawEnd.angle), dy = Math.sin(rawEnd.angle);
+        // Arrow arrives at node: border is the face the path hits, i.e. opposite to travel direction
+        const dx = -Math.cos(rawEnd.angle), dy = -Math.sin(rawEnd.angle);
         const bp = borderPoint(node, dx, dy);
         tipEnd = { x: bp.x, y: bp.y, angle: rawEnd.angle };
       }
@@ -489,7 +492,8 @@ export const drawEdge = (
     if (rawStart) {
       const node = findNodeAtPoint(nodes, rawStart.x, rawStart.y);
       if (node) {
-        // rawStart.angle points INTO the path (away from start), so negate for border
+        // rawStart.angle already has +π applied (points back toward start node).
+        // To get the border face the path exits from, negate again to get exit direction.
         const dx = -Math.cos(rawStart.angle), dy = -Math.sin(rawStart.angle);
         const bp = borderPoint(node, dx, dy);
         tipStart = { x: bp.x, y: bp.y, angle: rawStart.angle };
@@ -614,9 +618,24 @@ export const renderFrame = (
     ctx.shadowBlur = 0;
     seqLabels.forEach(lbl => {
       ctx.font = `${lbl.bold ? 'bold ' : ''}${lbl.fontSize}px Inter, sans-serif`;
-      ctx.fillStyle = lbl.color;
       ctx.textAlign = lbl.align;
-      ctx.textBaseline = 'top';
+      ctx.textBaseline = 'middle';
+
+      if (lbl.bgColor) {
+        const metrics = ctx.measureText(lbl.text);
+        const tw = metrics.width;
+        const th = lbl.fontSize;
+        const padX = 4, padY = 2;
+        let bx = lbl.x;
+        if (lbl.align === 'center') bx -= tw / 2;
+        else if (lbl.align === 'right') bx -= tw;
+        ctx.fillStyle = lbl.bgColor;
+        ctx.beginPath();
+        ctx.roundRect(bx - padX, lbl.y - th / 2 - padY, tw + padX * 2, th + padY * 2, 3);
+        ctx.fill();
+      }
+
+      ctx.fillStyle = lbl.color;
       ctx.fillText(lbl.text, lbl.x, lbl.y);
     });
     ctx.textAlign = 'center';

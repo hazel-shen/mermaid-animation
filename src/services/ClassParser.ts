@@ -257,6 +257,7 @@ export const parseClassEdgeLabels = (svgElement: SVGSVGElement, isPremium: boole
   const labels: SeqLabel[] = [];
   const textColor = isPremium ? '#475569' : '#1e293b';
   const cardColor = isPremium ? '#64748b' : '#334155';
+  const bgColor = isPremium ? 'rgba(248,250,252,0.92)' : 'rgba(255,255,255,0.92)';
 
   // ── Relationship name labels (g.edgeLabel with a transform) ──────────────
   // Each positioned label is a g.edgeLabel with transform="translate(x,y)"
@@ -286,6 +287,7 @@ export const parseClassEdgeLabels = (svgElement: SVGSVGElement, isPremium: boole
       bold: false,
       color: textColor,
       align: 'center',
+      bgColor,
     });
   });
 
@@ -309,6 +311,7 @@ export const parseClassEdgeLabels = (svgElement: SVGSVGElement, isPremium: boole
       bold: false,
       color: cardColor,
       align: 'center',
+      bgColor,
     });
   });
 

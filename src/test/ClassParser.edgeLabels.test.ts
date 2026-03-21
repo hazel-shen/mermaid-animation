@@ -250,6 +250,62 @@ describe('parseClassEdgeLabels', () => {
     expect(labels.length).toBe(0);
   });
 
+  // ── bgColor tests ────────────────────────────────────────────────────────
+
+  it('should include bgColor on relationship labels for non-premium', () => {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.classList.add('edgeLabel');
+    g.setAttribute('transform', 'translate(100, 50)');
+    const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+    fo.setAttribute('width', '60');
+    fo.textContent = 'uses';
+    g.appendChild(fo);
+    svgElement.appendChild(g);
+
+    const labels = parseClassEdgeLabels(svgElement, false);
+
+    expect(labels[0].bgColor).toBe('rgba(255,255,255,0.92)');
+  });
+
+  it('should include bgColor on relationship labels for premium', () => {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.classList.add('edgeLabel');
+    g.setAttribute('transform', 'translate(100, 50)');
+    const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+    fo.setAttribute('width', '60');
+    fo.textContent = 'uses';
+    g.appendChild(fo);
+    svgElement.appendChild(g);
+
+    const labels = parseClassEdgeLabels(svgElement, true);
+
+    expect(labels[0].bgColor).toBe('rgba(248,250,252,0.92)');
+  });
+
+  it('should include bgColor on cardinality labels for non-premium', () => {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.classList.add('edgeTerminals');
+    g.setAttribute('transform', 'translate(80, 120)');
+    g.textContent = '1..*';
+    svgElement.appendChild(g);
+
+    const labels = parseClassEdgeLabels(svgElement, false);
+
+    expect(labels[0].bgColor).toBe('rgba(255,255,255,0.92)');
+  });
+
+  it('should include bgColor on cardinality labels for premium', () => {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.classList.add('edgeTerminals');
+    g.setAttribute('transform', 'translate(80, 120)');
+    g.textContent = '1..*';
+    svgElement.appendChild(g);
+
+    const labels = parseClassEdgeLabels(svgElement, true);
+
+    expect(labels[0].bgColor).toBe('rgba(248,250,252,0.92)');
+  });
+
   it('should return both edgeLabel and edgeTerminals in the same call', () => {
     const gLabel = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     gLabel.classList.add('edgeLabel');

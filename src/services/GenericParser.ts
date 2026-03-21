@@ -62,7 +62,8 @@ export const parseGeneric = (svgElement: SVGSVGElement, isPremium: boolean): Gen
       if (d.length > 10 && !seenPaths.has(d)) {
         const stroke = getComputedStroke(el);
         const fill = getComputedFill(el);
-        const hasArrow = el.getAttribute('marker-end') != null;
+        const hasArrow = el.getAttribute('marker-end') != null ||
+          (window.getComputedStyle(el).markerEnd || '') !== 'none';
 
         if (stroke && !fill) {
           seenPaths.add(d);
@@ -72,6 +73,7 @@ export const parseGeneric = (svgElement: SVGSVGElement, isPremium: boolean): Gen
             stroke: stroke,
             type: 'link',
             hasArrow,
+            noSnap: true,
           });
         }
       }
@@ -85,7 +87,9 @@ export const parseGeneric = (svgElement: SVGSVGElement, isPremium: boolean): Gen
           pathD: d,
           stroke,
           type: 'link',
-          hasArrow: el.getAttribute('marker-end') != null,
+          hasArrow: el.getAttribute('marker-end') != null ||
+            (window.getComputedStyle(el).markerEnd || '') !== 'none',
+          noSnap: true,
         });
       }
     } else if (tag === 'polyline') {
@@ -98,7 +102,9 @@ export const parseGeneric = (svgElement: SVGSVGElement, isPremium: boolean): Gen
           pathD: d,
           stroke,
           type: 'link',
-          hasArrow: el.getAttribute('marker-end') != null,
+          hasArrow: el.getAttribute('marker-end') != null ||
+            (window.getComputedStyle(el).markerEnd || '') !== 'none',
+          noSnap: true,
         });
       }
     } else if (tag === 'rect' || tag === 'circle' || tag === 'ellipse') {

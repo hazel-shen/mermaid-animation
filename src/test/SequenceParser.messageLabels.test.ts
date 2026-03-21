@@ -27,7 +27,7 @@ describe('parseSequenceMessageLabels', () => {
     expect(labels.length).toBe(1);
     expect(labels[0]).toMatchObject({
       x: 100,
-      y: 50,
+      y: 43.5, // 50 - fontSize/2 (13/2) to align baseline with canvas textBaseline='middle'
       text: 'Hello World',
       fontSize: 13,
       bold: false,
@@ -49,7 +49,24 @@ describe('parseSequenceMessageLabels', () => {
     const labels = parseSequenceMessageLabels(svgElement);
 
     expect(labels.length).toBe(1);
-    expect(labels[0].y).toBe(60); // 50 + 10
+    expect(labels[0].y).toBe(53.5); // 50 + 10 - 6.5 (fontSize/2)
+  });
+
+  it('should convert em-based dy to pixels (1em = 13px)', () => {
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.classList.add('messageText');
+    text.setAttribute('x', '100');
+    text.setAttribute('y', '50');
+    text.setAttribute('dy', '1em');
+    text.textContent = 'Em Message';
+
+    svgElement.appendChild(text);
+
+    const labels = parseSequenceMessageLabels(svgElement);
+
+    expect(labels.length).toBe(1);
+    // dy='1em' → 1 * 13 = 13px; y = 50 + 13 - 6.5 = 56.5
+    expect(labels[0].y).toBe(56.5);
   });
 
   it('should skip labels with empty text', () => {
@@ -84,7 +101,7 @@ describe('parseSequenceMessageLabels', () => {
 
     expect(labels.length).toBe(1);
     expect(labels[0].x).toBe(0);
-    expect(labels[0].y).toBe(0);
+    expect(labels[0].y).toBe(-6.5); // 0 - fontSize/2
   });
 
   it('should return empty array for empty SVG', () => {
@@ -110,6 +127,6 @@ describe('parseSequenceMessageLabels', () => {
 
     expect(labels.length).toBe(1);
     expect(labels[0].x).toBe(150); // 50 + 100
-    expect(labels[0].y).toBe(75);  // 25 + 50
+    expect(labels[0].y).toBe(68.5);  // 25 + 50 - 6.5 (fontSize/2)
   });
 });
