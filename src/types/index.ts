@@ -50,6 +50,10 @@ export type DiagramEdge = {
   arrowEnd?: ArrowMarker;
   /** Arrow marker at the START of the path (marker-start) */
   arrowStart?: ArrowMarker;
+  /** Node id that this edge originates from (used to snap arrow to box border) */
+  fromNodeId?: string;
+  /** Node id that this edge points to (used to snap arrow to box border) */
+  toNodeId?: string;
 };
 
 export type SeqLabel = {

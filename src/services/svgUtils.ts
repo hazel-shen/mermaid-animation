@@ -6,10 +6,17 @@ export const getCumulativeTransform = (element: Element, stopAt: Element): { x: 
   while (current && current !== stopAt) {
     const transform = current.getAttribute('transform');
     if (transform) {
-      const match = transform.match(/translate\s*\(\s*([-\d.]+)(?:[ ,]+([-\d.]+))?\s*\)/);
-      if (match) {
-        x += parseFloat(match[1]);
-        y += parseFloat(match[2] || '0');
+      // matrix(a,b,c,d,e,f) — e and f are the translation components
+      const matrixMatch = transform.match(/matrix\s*\(\s*([-\d.e+]+)[\s,]+([-\d.e+]+)[\s,]+([-\d.e+]+)[\s,]+([-\d.e+]+)[\s,]+([-\d.e+]+)[\s,]+([-\d.e+]+)\s*\)/);
+      if (matrixMatch) {
+        x += parseFloat(matrixMatch[5]);
+        y += parseFloat(matrixMatch[6]);
+      } else {
+        const translateMatch = transform.match(/translate\s*\(\s*([-\d.e+]+)(?:[\s,]+([-\d.e+]+))?\s*\)/);
+        if (translateMatch) {
+          x += parseFloat(translateMatch[1]);
+          y += parseFloat(translateMatch[2] || '0');
+        }
       }
     }
     current = current.parentElement as Element;

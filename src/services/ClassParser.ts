@@ -226,7 +226,16 @@ export const parseClassEdges = (svgElement: SVGSVGElement, isPremium: boolean): 
   svgElement.querySelectorAll<SVGPathElement>('path.relation, line.relation').forEach(el => {
     const tag = el.tagName.toLowerCase();
     if (tag === 'path') {
-      addEdge(el, el.getAttribute('d') || '');
+      const rawD = el.getAttribute('d') || '';
+      if (!rawD) return;
+      // Apply cumulative parent transform to the path coordinates.
+      // path.relation sits inside g elements that may have translate transforms.
+      const { x: tx, y: ty } = getCumulativeTransform(el.parentElement as Element, svgElement);
+      const translatedD = (tx !== 0 || ty !== 0)
+        ? rawD.replace(/([-\d.e+]+)\s*,\s*([-\d.e+]+)/g, (_, px, py) =>
+            `${parseFloat(px) + tx},${parseFloat(py) + ty}`)
+        : rawD;
+      addEdge(el, translatedD);
     } else if (tag === 'line') {
       const { x: tx, y: ty } = getCumulativeTransform(el, svgElement);
       const x1 = parseFloat(el.getAttribute('x1') || '0') + tx;

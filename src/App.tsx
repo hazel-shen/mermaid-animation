@@ -95,27 +95,54 @@ const ARCH_CODE = `flowchart TB
     style GCP_DB fill:#4285f4,opacity:0.6`;
 
 const CLASS_CODE = `classDiagram
-    class Animal {
+    class Portfolio {
+        +String owner
+        +float totalValue
+        +updateTotalValue()
+        +getAllocation() Map
+    }
+
+    class Account {
+        +String brokerName
+        +String currency
+        +float balance
+        +deposit(amount)
+    }
+
+    class Asset {
+        <<abstract>>
+        +String symbol
         +String name
-        +int age
-        +makeSound() void
+        +float currentPrice
+        +int quantity
+        +getMarketValue() float
     }
-    class Dog {
-        +String breed
-        +fetch() void
+
+    class ETF {
+        +String expenseRatio
+        +String region
+        +String indexTracked
+        +rebalance()
     }
-    class Cat {
-        +bool indoor
-        +purr() void
+
+    class Cash {
+        +float interestRate
     }
-    class PoliceDog {
-        +String badgeNumber
-        +patrol() void
+
+    class Transaction {
+        +DateTime timestamp
+        +String type
+        +float price
+        +int units
+        +record()
     }
-    Animal <|-- Dog
-    Animal <|-- Cat
-    Dog <|-- PoliceDog
-    Dog "1" --> "*" Cat : chases`;
+
+    %% 關係定義
+    Portfolio "1" *-- "many" Account : manages
+    Account "1" o-- "many" Asset : holds
+    Asset <|-- ETF : inheritance
+    Asset <|-- Cash : inheritance
+    Asset "1" -- "many" Transaction : generates`;
 
 const STATE_CODE = `stateDiagram-v2
     [*] --> Idle

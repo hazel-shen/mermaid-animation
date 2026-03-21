@@ -156,25 +156,29 @@ const drawClassNode = (
 
   const TITLE_FONT_SIZE = 13;
   const MEMBER_FONT_SIZE = 11;
-  const LINE_H = 15;        // row height for member lines
-  const TITLE_H = 18;       // row height for title / annotation rows
-  const DIV_PAD = 4;        // vertical padding around dividers
-  const H_PAD = 6;          // horizontal text padding from edge
+  const LINE_H = 15;
+  const TITLE_H = 18;
+  const DIV_PAD = 4;
+  const H_PAD = 6;
 
-  // ── First pass: measure total content height ───────────────────────
-  let totalContentH = 0;
+  // ── First pass: measure natural content height ─────────────────────
+  let naturalH = 0;
   for (const cl of classLines) {
-    if (cl.divider) {
-      totalContentH += DIV_PAD * 2 + 1;
-    } else if (cl.bold) {
-      totalContentH += TITLE_H;
-    } else {
-      totalContentH += LINE_H;
-    }
+    if (cl.divider)   naturalH += DIV_PAD * 2 + 1;
+    else if (cl.bold) naturalH += TITLE_H;
+    else              naturalH += LINE_H;
   }
 
-  // ── Second pass: render ────────────────────────────────────────────
-  let curY = y - totalContentH / 2;
+  // Scale rows so they fill the actual SVG-derived box height exactly.
+  // This keeps text anchored inside the box Mermaid produced, so edges
+  // that terminate at the box boundary stay visually aligned.
+  const scale = naturalH > 0 ? height / naturalH : 1;
+  const scaledLineH  = LINE_H  * scale;
+  const scaledTitleH = TITLE_H * scale;
+  const scaledDivPad = DIV_PAD * scale;
+
+  // ── Second pass: render top-down from the box top edge ────────────
+  let curY = y - height / 2;   // start exactly at top of drawn rect
 
   ctx.textBaseline = 'top';
   ctx.textAlign = 'left';
@@ -183,7 +187,7 @@ const drawClassNode = (
 
   for (const cl of classLines) {
     if (cl.divider) {
-      curY += DIV_PAD;
+      curY += scaledDivPad;
       ctx.beginPath();
       ctx.strokeStyle = dividerColor;
       ctx.lineWidth = 1;
@@ -191,22 +195,21 @@ const drawClassNode = (
       ctx.moveTo(x - width / 2, curY);
       ctx.lineTo(x + width / 2, curY);
       ctx.stroke();
-      curY += DIV_PAD + 1;
+      curY += scaledDivPad + 1;
     } else if (cl.bold) {
       ctx.fillStyle = textColor;
       ctx.font = `bold ${TITLE_FONT_SIZE}px Inter, sans-serif`;
       const truncated = truncateText(ctx, cl.text, maxTextWidth);
-      // Centre the title
       ctx.textAlign = 'center';
-      ctx.fillText(truncated, x, curY + (TITLE_H - TITLE_FONT_SIZE) / 2);
+      ctx.fillText(truncated, x, curY + (scaledTitleH - TITLE_FONT_SIZE) / 2);
       ctx.textAlign = 'left';
-      curY += TITLE_H;
+      curY += scaledTitleH;
     } else {
       ctx.fillStyle = textColor;
       ctx.font = `${MEMBER_FONT_SIZE}px Inter, sans-serif`;
       const truncated = truncateText(ctx, cl.text, maxTextWidth);
-      ctx.fillText(truncated, x - width / 2 + H_PAD, curY + (LINE_H - MEMBER_FONT_SIZE) / 2);
-      curY += LINE_H;
+      ctx.fillText(truncated, x - width / 2 + H_PAD, curY + (scaledLineH - MEMBER_FONT_SIZE) / 2);
+      curY += scaledLineH;
     }
   }
 
@@ -285,8 +288,8 @@ const getPathStart = (pathD: string): { x: number; y: number; angle: number } | 
   const segs = tokenisePath(pathD);
   if (segs.length < 2) return null;
 
-  const { cmd: c0, nums: n0 } = parseSegment(segs[0]);
-  const { cmd: c1, nums: n1 } = parseSegment(segs[1]);
+  const { cmd: c0, nums: n0 } = parseSegment(segs[0]!);
+  const { cmd: c1, nums: n1 } = parseSegment(segs[1]!);
 
   if (c0 !== 'M' || n0.length < 2) return null;
   const sx = n0[0], sy = n0[1];
@@ -395,18 +398,127 @@ const drawArrowMarker = (
   ctx.restore();
 };
 
+/** How far (px) to set back the line end so it doesn't protrude through the marker. */
+const markerSetback = (marker: ArrowMarker | undefined): number => {
+  switch (marker) {
+    case 'composition':
+    case 'aggregation': return 20;  // diamond length = L*2 = 20
+    case 'extension':   return 12;  // triangle height ≈ H = 14*0.87
+    case 'dependency':  return 0;   // open arrow, no fill needed
+    default:            return 10;  // generic triangle
+  }
+};
+
+/**
+ * Given a node and an approach direction (unit vector dx,dy pointing FROM outside TOWARD node),
+ * returns the point on the node's rectangular border where that direction exits the node centre.
+ * Used to snap arrow tips precisely onto box edges.
+ */
+const borderPoint = (node: DiagramNode, dx: number, dy: number): { x: number; y: number } => {
+  const hw = node.width  / 2;
+  const hh = node.height / 2;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-6) return { x: node.x, y: node.y };
+  const ux = dx / len, uy = dy / len;
+  // Smallest positive t at which ray (node.x + ux*t, node.y + uy*t) hits a wall
+  const tx = ux !== 0 ? hw / Math.abs(ux) : Infinity;
+  const ty = uy !== 0 ? hh / Math.abs(uy) : Infinity;
+  const t  = Math.min(tx, ty);
+  return { x: node.x + ux * t, y: node.y + uy * t };
+};
+
+/**
+ * Find the node whose bounding box contains or is nearest to (px,py).
+ * Prefers nodes that actually contain the point, then falls back to closest centre.
+ */
+const findNodeAtPoint = (
+  nodes: DiagramNode[],
+  px: number, py: number,
+): DiagramNode | null => {
+  // First: exact hit (point inside box with small tolerance)
+  for (const n of nodes) {
+    if (n.type === 'cluster') continue;
+    const pad = 20;
+    if (
+      px >= n.x - n.width  / 2 - pad && px <= n.x + n.width  / 2 + pad &&
+      py >= n.y - n.height / 2 - pad && py <= n.y + n.height / 2 + pad
+    ) return n;
+  }
+  // Fallback: closest centre within 300px
+  let best: DiagramNode | null = null;
+  let bestD = 300;
+  for (const n of nodes) {
+    if (n.type === 'cluster') continue;
+    const d = Math.hypot(n.x - px, n.y - py);
+    if (d < bestD) { bestD = d; best = n; }
+  }
+  return best;
+};
+
 export const drawEdge = (
   ctx: CanvasRenderingContext2D,
   edge: DiagramEdge,
-  isPremium: boolean
+  isPremium: boolean,
+  nodes: DiagramNode[] = [],
 ) => {
-  const p = new Path2D(edge.pathD);
   const edgeColor = isPremium
     ? (edge.type === 'structural' ? '#cbd5e1' : '#64748b')
     : (edge.type === 'structural' && (!edge.stroke || edge.stroke === 'none') ? '#333' : edge.stroke);
 
-  // Background colour used to hollow-out markers (matches canvas background)
   const markerBg = isPremium ? '#f8fafc' : '#ffffff';
+
+  const rawEnd   = getPathEnd(edge.pathD);
+  const rawStart = getPathStart(edge.pathD);
+
+  // ── Snap endpoints to node borders ──────────────────────────────────────
+  // Approach direction for END  = rawEnd.angle  (path tangent arriving at end)
+  // Approach direction for START = rawStart.angle reversed (tangent leaving start, so flip)
+  let tipEnd   = rawEnd   ? { x: rawEnd.x,   y: rawEnd.y,   angle: rawEnd.angle   } : null;
+  let tipStart = rawStart ? { x: rawStart.x, y: rawStart.y, angle: rawStart.angle } : null;
+
+  if (nodes.length > 0) {
+    if (rawEnd) {
+      const node = findNodeAtPoint(nodes, rawEnd.x, rawEnd.y);
+      if (node) {
+        // direction the line arrives at the node (FROM outside TOWARD centre)
+        const dx = Math.cos(rawEnd.angle), dy = Math.sin(rawEnd.angle);
+        const bp = borderPoint(node, dx, dy);
+        tipEnd = { x: bp.x, y: bp.y, angle: rawEnd.angle };
+      }
+    }
+    if (rawStart) {
+      const node = findNodeAtPoint(nodes, rawStart.x, rawStart.y);
+      if (node) {
+        // rawStart.angle points INTO the path (away from start), so negate for border
+        const dx = -Math.cos(rawStart.angle), dy = -Math.sin(rawStart.angle);
+        const bp = borderPoint(node, dx, dy);
+        tipStart = { x: bp.x, y: bp.y, angle: rawStart.angle };
+      }
+    }
+  }
+
+  // ── Rebuild drawn path with setback so line doesn't protrude through marker ─
+  const segs = tokenisePath(edge.pathD);
+
+  if (tipEnd && segs.length > 0) {
+    const setback = (edge.arrowEnd && edge.arrowEnd !== 'none')
+      ? markerSetback(edge.arrowEnd)
+      : (edge.hasArrow && !edge.arrowStart ? markerSetback('default') : 0);
+    const sbx = tipEnd.x - Math.cos(tipEnd.angle) * setback;
+    const sby = tipEnd.y - Math.sin(tipEnd.angle) * setback;
+    segs[segs.length - 1] = `L ${sbx} ${sby}`;
+  }
+
+  if (tipStart && segs.length > 0) {
+    const setback = (edge.arrowStart && edge.arrowStart !== 'none')
+      ? markerSetback(edge.arrowStart) : 0;
+    // tipStart.angle points INTO path; to set back we go opposite
+    const sbx = tipStart.x + Math.cos(tipStart.angle) * setback;
+    const sby = tipStart.y + Math.sin(tipStart.angle) * setback;
+    segs[0] = `M ${sbx} ${sby}`;
+  }
+
+  const drawnPathD = segs.length > 0 ? segs.join(' ') : edge.pathD;
 
   ctx.strokeStyle = edgeColor;
   ctx.lineWidth = 1.5;
@@ -415,23 +527,18 @@ export const drawEdge = (
   else if (edge.type === 'structural') ctx.setLineDash([5, 5]);
   else ctx.setLineDash([]);
 
-  ctx.stroke(p);
+  ctx.stroke(new Path2D(drawnPathD));
   ctx.setLineDash([]);
 
-  // ── Arrow at END of path (marker-end) ──
-  if (edge.arrowEnd && edge.arrowEnd !== 'none') {
-    const tip = getPathEnd(edge.pathD);
-    if (tip) drawArrowMarker(ctx, edge.arrowEnd, tip.x, tip.y, tip.angle, edgeColor, markerBg);
-  } else if (edge.hasArrow && !edge.arrowStart) {
-    // Fallback: generic filled triangle at end
-    const tip = getPathEnd(edge.pathD);
-    if (tip) drawArrowMarker(ctx, 'default', tip.x, tip.y, tip.angle, edgeColor, markerBg);
+  // ── Arrow markers ────────────────────────────────────────────────────────
+  if (edge.arrowEnd && edge.arrowEnd !== 'none' && tipEnd) {
+    drawArrowMarker(ctx, edge.arrowEnd, tipEnd.x, tipEnd.y, tipEnd.angle, edgeColor, markerBg);
+  } else if (edge.hasArrow && !edge.arrowStart && tipEnd) {
+    drawArrowMarker(ctx, 'default', tipEnd.x, tipEnd.y, tipEnd.angle, edgeColor, markerBg);
   }
 
-  // ── Arrow at START of path (marker-start) ──
-  if (edge.arrowStart && edge.arrowStart !== 'none') {
-    const start = getPathStart(edge.pathD);
-    if (start) drawArrowMarker(ctx, edge.arrowStart, start.x, start.y, start.angle, edgeColor, markerBg);
+  if (edge.arrowStart && edge.arrowStart !== 'none' && tipStart) {
+    drawArrowMarker(ctx, edge.arrowStart, tipStart.x, tipStart.y, tipStart.angle, edgeColor, markerBg);
   }
 };
 
@@ -473,7 +580,7 @@ export const renderFrame = (
 
   // Render edges (structural first, then link)
   const sortedEdges = [...edges].sort((a, _b) => (a.type === 'structural' ? -1 : 1));
-  sortedEdges.forEach(edge => drawEdge(ctx, edge, isPremium));
+  sortedEdges.forEach(edge => drawEdge(ctx, edge, isPremium, nodes));
   ctx.setLineDash([]);
 
   // Render particles (link edges only, premium mode)
