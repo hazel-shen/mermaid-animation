@@ -111,7 +111,11 @@ export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolea
     }
 
     if (d && d.length > 10) {
-      const hasArrow = type === 'link' && el.getAttribute('marker-end') != null;
+      const markerAttr = el.getAttribute('marker-end');
+      const hasArrow = type === 'link' && (
+        markerAttr != null ||
+        (window.getComputedStyle(el).markerEnd || '') !== 'none'
+      );
       extractedEdges.push({ id: `edge-${Math.random()}`, pathD: d, stroke, type, dash, hasArrow });
     }
   };

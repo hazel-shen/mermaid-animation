@@ -56,6 +56,7 @@ export const parseErEdges = (svgElement: SVGSVGElement, isPremium: boolean): Dia
       stroke,
       type: 'link',
       hasArrow: el.getAttribute('marker-end') != null,
+      noSnap: true,
     });
   });
 

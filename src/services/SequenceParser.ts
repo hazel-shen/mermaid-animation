@@ -267,12 +267,43 @@ export const parseSequenceStepNumbers = (svgElement: SVGSVGElement): DiagramNode
 export const parseSequenceMessageLabels = (svgElement: SVGSVGElement): SeqLabel[] => {
   const labels: SeqLabel[] = [];
   svgElement.querySelectorAll<SVGTextElement>('text.messageText').forEach(el => {
+    const text = el.textContent?.trim() || '';
+    if (!text) return;
+
+    // Use getBBox() to get the actual rendered bounding box of the text element,
+    // then apply the element's CTM to convert to SVG root coordinates.
+    // This correctly handles dy='1em', dominant-baseline, and all transforms.
+    try {
+      const bbox = el.getBBox();
+      const ctm = el.getCTM();
+      const svgCtm = svgElement.getCTM();
+      if (bbox && ctm && svgCtm) {
+        const inv = svgCtm.inverse();
+        const m = inv.multiply(ctm);
+        // bbox is in local coordinates; transform top-left corner via matrix
+        const bboxCenterX = bbox.x + bbox.width / 2;
+        const bboxCenterY = bbox.y + bbox.height / 2;
+        const cx = m.a * bboxCenterX + m.c * bboxCenterY + m.e;
+        const cy = m.b * bboxCenterX + m.d * bboxCenterY + m.f;
+        const fontSize = 13;
+        labels.push({ x: cx, y: cy, text, fontSize, bold: false, color: '#333', align: 'center' });
+        return;
+      }
+    } catch {
+      // fall through to attribute-based fallback
+    }
+
+    // Fallback: attribute-based positioning
     const { x: tx, y: ty } = getCumulativeTransform(el, svgElement);
     const x = tx + parseFloat(el.getAttribute('x') || '0');
     const y = ty + parseFloat(el.getAttribute('y') || '0');
-    const dy = parseFloat(el.getAttribute('dy') || '0');
-    const text = el.textContent?.trim() || '';
-    if (text) labels.push({ x, y: y + dy, text, fontSize: 13, bold: false, color: '#333', align: 'center' });
+    // dy may be '1em' — use computed style to get actual pixel value
+    const dyAttr = el.getAttribute('dy') || '0';
+    const dyPx = dyAttr.endsWith('em')
+      ? parseFloat(dyAttr) * 13
+      : parseFloat(dyAttr);
+    const fontSize = 13;
+    labels.push({ x, y: y + dyPx - fontSize / 2, text, fontSize, bold: false, color: '#333', align: 'center' });
   });
   return labels;
 };
@@ -339,12 +370,13 @@ export const parseSequenceEdges = (svgElement: SVGSVGElement, isPremium: boolean
     }
 
     if (d && d.length > 4) {
+      const markerAttr = el.getAttribute('marker-end');
       const hasArrow = type === 'link' && (
-        el.getAttribute('marker-end') != null ||
+        markerAttr != null ||
         el.classList.contains('messageLine0') ||
         el.classList.contains('messageLine1')
       );
-      extractedEdges.push({ id: `edge-${Math.random()}`, pathD: d, stroke, type, dash, hasArrow });
+      extractedEdges.push({ id: `edge-${Math.random()}`, pathD: d, stroke, type, dash, hasArrow, noSnap: type === 'link' });
     }
   };
 
@@ -404,6 +436,7 @@ export const parseSequenceEdges = (svgElement: SVGSVGElement, isPremium: boolean
         type: 'link',
         dash: line.classList.contains('messageLine1') ? [3, 3] : undefined,
         hasArrow,
+        noSnap: true,
       });
     }
   });

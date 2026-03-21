@@ -54,6 +54,8 @@ export type DiagramEdge = {
   fromNodeId?: string;
   /** Node id that this edge points to (used to snap arrow to box border) */
   toNodeId?: string;
+  /** Skip node-border snapping for this edge (e.g. sequence message lines) */
+  noSnap?: boolean;
 };
 
 export type SeqLabel = {
@@ -64,6 +66,8 @@ export type SeqLabel = {
   bold: boolean;
   color: string;
   align: CanvasTextAlign;
+  /** Optional background fill drawn behind the label text (e.g. for class-diagram edge labels). */
+  bgColor?: string;
 };
 
 export type Transform = {
