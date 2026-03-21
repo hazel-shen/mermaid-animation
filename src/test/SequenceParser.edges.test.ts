@@ -94,22 +94,6 @@ describe('parseSequenceEdges', () => {
     expect(edges[0].hasArrow).toBe(true);
   });
 
-  it('should parse structural lines', () => {
-    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.classList.add('actor-line');
-    line.setAttribute('x1', '50');
-    line.setAttribute('y1', '10');
-    line.setAttribute('x2', '50');
-    line.setAttribute('y2', '200');
-
-    svgElement.appendChild(line);
-
-    const edges = parseSequenceEdges(svgElement, false);
-
-    expect(edges.length).toBe(1);
-    expect(edges[0].type).toBe('structural');
-  });
-
   it('should skip loop lines', () => {
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     line.classList.add('loopLine');
@@ -198,6 +182,49 @@ describe('parseSequenceEdges', () => {
 
     expect(edges.length).toBe(1);
     expect(edges[0].pathD).toBe('M 10 20 L 100 50');
+  });
+
+  it('should set noSnap=true on messageLine0 link edges', () => {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.classList.add('messageLine0');
+    line.setAttribute('x1', '10');
+    line.setAttribute('y1', '20');
+    line.setAttribute('x2', '100');
+    line.setAttribute('y2', '50');
+    svgElement.appendChild(line);
+
+    const edges = parseSequenceEdges(svgElement, false);
+
+    expect(edges.length).toBe(1);
+    expect(edges[0].noSnap).toBe(true);
+  });
+
+  it('should set noSnap=true on path-based message links', () => {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.classList.add('messageLine0');
+    path.setAttribute('d', 'M 10 20 L 100 50');
+    svgElement.appendChild(path);
+
+    const edges = parseSequenceEdges(svgElement, false);
+
+    expect(edges.length).toBe(1);
+    expect(edges[0].noSnap).toBe(true);
+  });
+
+  it('should NOT set noSnap on structural (actor lifeline) edges', () => {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.classList.add('actor-line');
+    line.setAttribute('x1', '50');
+    line.setAttribute('y1', '10');
+    line.setAttribute('x2', '50');
+    line.setAttribute('y2', '200');
+    svgElement.appendChild(line);
+
+    const edges = parseSequenceEdges(svgElement, false);
+
+    expect(edges.length).toBe(1);
+    expect(edges[0].type).toBe('structural');
+    expect(edges[0].noSnap).toBeFalsy();
   });
 
   it('should return empty array for empty SVG', () => {
