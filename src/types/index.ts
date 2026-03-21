@@ -1,6 +1,14 @@
 // --- 節點類型 ---
 export type NodeType = 'node' | 'cluster' | 'actor' | 'note';
 
+/** A single rendered line inside a class-diagram node box. */
+export type ClassLine = {
+  text: string;
+  /** true = draw a horizontal divider rule before this line group */
+  divider?: boolean;
+  bold?: boolean;
+};
+
 export type DiagramNode = {
   id: string;
   label: string;
@@ -12,10 +20,24 @@ export type DiagramNode = {
   color: string;
   stroke: string;
   shape: 'rect' | 'circle' | 'diamond' | 'cylinder' | 'roundRect' | 'note';
+  /** Present only for class-diagram nodes; carries title + member rows */
+  classLines?: ClassLine[];
 };
 
 // link=訊息線(有粒子), structural=結構線(無粒子)
 export type EdgeType = 'link' | 'structural';
+
+/**
+ * Arrow marker shapes used by class diagrams.
+ * 'none' = no arrowhead drawn on that end.
+ */
+export type ArrowMarker =
+  | 'none'
+  | 'extension'    // hollow triangle (inheritance <|--)
+  | 'composition'  // filled diamond (*--)
+  | 'aggregation'  // hollow diamond (o--)
+  | 'dependency'   // open arrow (-->)
+  | 'default';     // generic filled triangle
 
 export type DiagramEdge = {
   id: string;
@@ -24,6 +46,10 @@ export type DiagramEdge = {
   type: EdgeType;
   dash?: number[];
   hasArrow?: boolean;
+  /** Arrow marker at the END of the path (marker-end) */
+  arrowEnd?: ArrowMarker;
+  /** Arrow marker at the START of the path (marker-start) */
+  arrowStart?: ArrowMarker;
 };
 
 export type SeqLabel = {
