@@ -9,6 +9,9 @@ env:
 
 jobs:
   deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
     runs-on: ubuntu-latest
     permissions:
       pages: write      # 必須有這兩項權限
@@ -27,7 +30,7 @@ jobs:
       - name: Upload artifact 🚀
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./dist # 你的 build 產出路徑
+          path: ./dist # build 產出路徑
 
       - name: Deploy to GitHub Pages 🌐
         uses: actions/deploy-pages@v4
