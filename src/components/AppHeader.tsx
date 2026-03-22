@@ -81,11 +81,11 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       )}
 
       {/* Full header bar */}
-      <header className={`border-b border-gray-200 bg-white/90 backdrop-blur sticky top-0 z-10 min-w-0 transition-all duration-200 ${
+      <header className={`border-b border-gray-200 bg-white/90 backdrop-blur sticky top-0 z-50 min-w-0 transition-all duration-200 ${
         headerOpen ? '' : 'hidden md:hidden'
       }`}>
       {/* Full bar — logo | particle controls | action buttons | collapse toggle */}
-      <div className="px-3 py-2 flex items-center gap-2 min-w-0 overflow-hidden">
+      <div className="px-3 py-2 flex items-center gap-2 min-w-0">
 
         {/* Logo + title */}
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -98,7 +98,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         </div>
 
         {/* Particle controls + action buttons — desktop */}
-        <div className="hidden md:flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+        <div className="hidden md:flex items-center gap-2 min-w-0 flex-1">
 
           {/* Particle controls */}
           {isPremium && (
@@ -218,7 +218,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               </button>
 
               {dropdownOpen && (
-                <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-50 min-w-[120px]">
+                <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-[200] min-w-[120px]">
                   <button
                     onClick={() => handleSelectFormat('mp4')}
                     className={`w-full px-3 py-2 text-xs text-left flex items-center gap-2 hover:bg-orange-50 transition-colors ${selectedFormat === 'mp4' ? 'text-orange-600 font-bold bg-orange-50' : 'text-slate-700'}`}

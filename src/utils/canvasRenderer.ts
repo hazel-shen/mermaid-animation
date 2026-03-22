@@ -57,12 +57,13 @@ export const drawNode = (
   const isHovered = node.id === hoveredId;
 
   const isStepNum = node.id.startsWith('stepNum-');
+  const isActivation = node.id.startsWith('activation-');
 
-  if (isHovered && !isStepNum) {
+  if (isHovered && !isStepNum && !isActivation) {
     ctx.shadowColor = particleColor;
     ctx.shadowBlur = 25;
     ctx.shadowOffsetY = 0;
-  } else if (premium && node.type !== 'cluster' && !isStepNum) {
+  } else if (premium && node.type !== 'cluster' && !isStepNum && !isActivation) {
     ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
     ctx.shadowBlur = 10;
     ctx.shadowOffsetY = 4;
@@ -772,6 +773,7 @@ export interface RenderFrameOptions {
   seqLabels: SeqLabel[];
   isPremium: boolean;
   particleColor: string;
+  particleSpeed: number;
   particleSize: number;
   particleShape: ParticleShape;
   isRecording: boolean;
@@ -807,10 +809,7 @@ export const renderFrame = (
   edges.filter(e => e.type === 'structural').forEach(edge => drawEdge(ctx, edge, isPremium, nodes));
   ctx.setLineDash([]);
 
-  // Activation bars sit on top of lifelines but under message arrows
-  nodes.filter(n => n.id.startsWith('activation-')).forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
-
-  // Link edges (message arrows) on top of activation bars
+  // Link edges (message arrows) on top of lifelines
   edges.filter(e => e.type === 'link').forEach(edge => drawEdge(ctx, edge, isPremium, nodes));
   ctx.setLineDash([]);
 
@@ -895,6 +894,9 @@ export const renderFrame = (
     .filter(n => n.type !== 'cluster' && !n.id.startsWith('stepNum-') && !n.id.startsWith('activation-'))
     .sort((a, _b) => (a.type === 'note' ? 1 : 0));
   normalNodes.forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
+
+  // Activation bars sit on top of actor boxes but under text labels
+  nodes.filter(n => n.id.startsWith('activation-')).forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
 
   // Step number circles always on top
   nodes.filter(n => n.id.startsWith('stepNum-')).forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));

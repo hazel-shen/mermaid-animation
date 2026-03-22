@@ -15,7 +15,7 @@ interface UseMediaRecorderReturn {
   ) => void;
 }
 
-const DURATION_MS = 3000;
+const DURATION_MS = 4000;
 
 function getDiagramTransform(
   canvasRef: React.RefObject<HTMLCanvasElement | null>,
@@ -50,14 +50,18 @@ export const useMediaRecorder = (): UseMediaRecorderReturn => {
     setIsRecording(true);
 
     if (format === 'gif') {
-      // GIF: 1280×720 @8fps for 3s = 24 frames
+      // GIF: 1280×720 @8fps for 4s = 32 frames
       // rgb444 quantizer is ~2x faster than rgb565 with negligible quality diff for flat vector art
       // palette is computed once from frame 1 and reused — safe because Mermaid palette is static
       const GIF_W = 1280;
       const GIF_H = 720;
-      const GIF_FPS = 8;
+      const GIF_FPS = 15;
       const FRAME_DELAY = Math.round(100 / GIF_FPS); // gifenc uses centiseconds
       const totalFrames = Math.round((DURATION_MS / 1000) * GIF_FPS);
+      // TARGET_TICKS_PER_SEC / GIF_FPS = ticks per frame, keeping speed fps-independent
+      const TARGET_TICKS_PER_SEC = 60;
+      const ticksPerGifFrame = TARGET_TICKS_PER_SEC / GIF_FPS;
+      let tickAccumulator = 0;
 
       const gifCanvas = document.createElement('canvas');
       gifCanvas.width = GIF_W;
@@ -70,6 +74,16 @@ export const useMediaRecorder = (): UseMediaRecorderReturn => {
       const encoder = GIFEncoder();
       let framesCaptured = 0;
       let sharedPalette: number[][] | null = null;
+
+      // Clone particles so GIF rendering is independent of the live main-loop particles
+      const gifParticles = opts.particles.map(p => {
+        const clone = Object.create(Object.getPrototypeOf(p));
+        clone.progress = p.progress;
+        clone.speed = p.speed;
+        clone.pathElement = p.pathElement;
+        return clone;
+      });
+      const gifOpts = { ...opts, particles: gifParticles };
 
       const captureNextFrame = () => {
         if (framesCaptured >= totalFrames) {
@@ -86,8 +100,13 @@ export const useMediaRecorder = (): UseMediaRecorderReturn => {
           return;
         }
 
-        if (opts.isPremium) opts.particles.forEach(p => p.update(1));
-        renderFrame(gifCtx, GIF_W, GIF_H, gifTr, gifOffset, true, opts);
+        if (gifOpts.isPremium) {
+          tickAccumulator += ticksPerGifFrame * gifOpts.particleSpeed;
+          const ticks = Math.floor(tickAccumulator);
+          tickAccumulator -= ticks;
+          for (let t = 0; t < ticks; t++) gifParticles.forEach(p => p.update(1));
+        }
+        renderFrame(gifCtx, GIF_W, GIF_H, gifTr, gifOffset, true, gifOpts);
 
         const { data } = gifCtx.getImageData(0, 0, GIF_W, GIF_H);
 
@@ -125,6 +144,8 @@ export const useMediaRecorder = (): UseMediaRecorderReturn => {
 
       let rafId: number;
       const drawHDFrame = () => {
+        // Do NOT call p.update() here — the main animation loop already advances particles.
+        // Calling update() again here would double the speed during recording.
         renderFrame(ssCtx, SS_W, SS_H, scaledSsTr, ssOffset, true, opts);
         outCtx.clearRect(0, 0, HD_W, HD_H);
         outCtx.drawImage(ssCanvas, 0, 0, HD_W, HD_H);
@@ -133,7 +154,8 @@ export const useMediaRecorder = (): UseMediaRecorderReturn => {
       drawHDFrame();
 
       const stream = (outCanvas as any).captureStream(60);
-      const mp4Types = ['video/mp4;codecs=h264,mp4a.40.2', 'video/mp4;codecs=avc1', 'video/mp4'];
+      // Prefer avc1 (H.264) MP4 — broadest playback support. Fall back to WebM.
+      const mp4Types = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
       const mimeType = mp4Types.find(t => MediaRecorder.isTypeSupported(t)) ?? 'video/webm';
       const ext = mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
       const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 12_000_000 });

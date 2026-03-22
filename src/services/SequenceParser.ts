@@ -92,7 +92,23 @@ export const parseSequenceNodes = (svgElement: SVGSVGElement): DiagramNode[] => 
     extractedNodes.push({ id: `note-${Math.random()}`, label, type: 'note', shape: 'note', x: cx, y: cy, width: w, height: h, color: '#fff5ad', stroke: '#aaaa33' });
   });
 
-  // 4. Background rect blocks (rect rgb(...) sections)
+  // 4. Activation bars (active lifeline segments from activate/deactivate)
+  // Mermaid renders activation bars as rect.activation0, rect.activation1, etc.
+  svgElement.querySelectorAll<SVGRectElement>('rect[class^="activation"], rect[class*=" activation"]').forEach(rect => {
+    const { cx, cy, w, h } = getRectGeom(rect, svgElement);
+    if (w <= 0 || h <= 0) return;
+    extractedNodes.push({
+      id: `activation-${Math.random()}`,
+      label: '',
+      type: 'node',
+      shape: 'rect',
+      x: cx, y: cy, width: w, height: h,
+      color: 'rgba(167, 139, 250, 0.25)',
+      stroke: '#7c3aed',
+    });
+  });
+
+  // 5. Background rect blocks (rect rgb(...) sections)
   svgElement.querySelectorAll<SVGRectElement>('rect.rect').forEach(rect => {
     const { cx, cy, w, h } = getRectGeom(rect, svgElement);
     if (w <= 0 || h <= 0) return;
