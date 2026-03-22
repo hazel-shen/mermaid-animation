@@ -17,7 +17,7 @@ Check the site [here](https://www.hazelshen.me/mermaid-animation/)
 
 ## Key Features
 
-- **Multi-Diagram Support**: Renders Sequence Diagrams, Flowcharts, and Architecture Diagrams from a single Mermaid source.
+- **Multi-Diagram Support**: Renders Sequence, Flowchart, Class, ER, State, Gantt, GitGraph, Mindmap, and Pie diagrams from a single Mermaid source.
 - **Particle Animation Engine**: Automatically traces diagram paths and overlays smooth, real-time particle flows using the Canvas API at 60 FPS.
 - **Live Tuning Controls**: Adjust particle speed and color on the fly without re-rendering the diagram.
 - **Export / Draft Mode**: Switch between a polished Export mode (with glow effects and grid) and a clean Draft mode for quick iteration.
@@ -28,9 +28,10 @@ Check the site [here](https://www.hazelshen.me/mermaid-animation/)
 ## Tech Stack
 
 - **Framework**: React 19 (Client-side Rendering)
-- **Build Tooling**: Vite 6
+- **Build Tooling**: Vite 7
 - **Styling Engine**: Tailwind CSS v4 (Theme-driven via CSS variables)
-- **Diagramming**: Mermaid.js
+- **Diagramming**: Mermaid.js v10 (loaded via CDN)
+- **GIF Export**: gifenc
 - **Iconography**: Lucide-React
 - **Hosting**: GitHub Pages (Static Hosting)
 
@@ -65,19 +66,20 @@ Conclusion: Because the application lacks a Node.js server-side decoder to proce
 src/
 ├── App.tsx                        ← Orchestrates all layers
 ├── types/
-│   └── index.ts                   ← Shared types (DiagramNode, DiagramEdge, SeqLabel, Transform…)
+│   ├── index.ts                   ← Shared types (DiagramNode, DiagramEdge, SeqLabel, Transform…)
+│   └── gifenc.d.ts                ← Type declarations for gifenc
 ├── utils/
 │   ├── particle.ts                ← Particle class
 │   ├── colorUtils.ts              ← hexToRgba utility function
 │   └── canvasRenderer.ts          ← drawGrid / drawNode / drawEdge / renderFrame (pure functions)
 ├── services/
 │   ├── svgUtils.ts                ← getCumulativeTransform (shared SVG helper)
-│   ├── SequenceParser.ts          ← Sequence diagram parser (nodes / edges / labels / loopFrames)
-│   └── FlowchartParser.ts         ← Flowchart parser (nodes / edges)
+│   ├── diagramTypes.ts            ← Diagram type detection
+│   ├── GenericParser.ts           ← Fallback parser for unsupported diagram types
+│   └── [Diagram]Parser.ts         ← Per-type parsers (Sequence / Flowchart / Class / ER / State / Gantt / GitGraph / Mindmap / Pie)
 ├── hooks/
 │   ├── useMermaidParser.ts        ← Mermaid script loading + render + SVG parsing
 │   ├── useCanvasTransform.ts      ← Pan / Zoom / Fit / Hover collision detection
-│   ├── useCanvasResize.ts         ← Syncs canvas buffer with container via ResizeObserver
 │   ├── useParticleSystem.ts       ← Generates Particle array based on edges
 │   ├── useMediaRecorder.ts        ← 2× supersampling video recording + download
 │   └── useEditorResize.ts         ← Sidebar width adjustment/resizing
