@@ -268,6 +268,13 @@ const getPathEnd = (pathD: string): { x: number; y: number; angle: number } | nu
       : pn.length >= 2 ? { x: pn[pn.length - 2], y: pn[pn.length - 1] } : null;
     if (!pEnd) return null;
     dx = ex - pEnd.x; dy = ey - pEnd.y;
+    // For very short L tips (e.g. self-loop arrow cap), fall back to the
+    // preceding C segment's own exit tangent (last control point → endpoint).
+    if (Math.hypot(dx, dy) < 0.5 && pc === 'C' && pn.length >= 6) {
+      dx = pn[pn.length - 2] - pn[pn.length - 4];
+      dy = pn[pn.length - 1] - pn[pn.length - 3];
+      ex = pn[pn.length - 2]; ey = pn[pn.length - 1];
+    }
   } else if (cmd === 'M' && nums.length >= 2) {
     ex = nums[nums.length - 2]; ey = nums[nums.length - 1];
     if (pn.length < 2) return null;
@@ -504,22 +511,35 @@ export const drawEdge = (
   // ── Rebuild drawn path with setback so line doesn't protrude through marker ─
   const segs = tokenisePath(edge.pathD);
 
+  // For nearly-horizontal lines snap y so floating-point noise in the angle
+  // doesn't tilt the drawn segment (especially sequence diagram arrows).
+  const isNearlyHorizontal = rawStart && rawEnd &&
+    Math.abs(rawEnd.y - rawStart.y) < 1.5;
+
   if (tipEnd && segs.length > 0) {
     const setback = (edge.arrowEnd && edge.arrowEnd !== 'none')
       ? markerSetback(edge.arrowEnd)
       : (edge.hasArrow && !edge.arrowStart ? markerSetback('default') : 0);
-    const sbx = tipEnd.x - Math.cos(tipEnd.angle) * setback;
-    const sby = tipEnd.y - Math.sin(tipEnd.angle) * setback;
-    segs[segs.length - 1] = `L ${sbx} ${sby}`;
+    if (setback > 0) {
+      const sbx = tipEnd.x - Math.cos(tipEnd.angle) * setback;
+      const sby = isNearlyHorizontal ? tipEnd.y : tipEnd.y - Math.sin(tipEnd.angle) * setback;
+      // Only rewrite last segment when it's a simple L (straight tip); preserve curves.
+      const lastSeg = segs[segs.length - 1]!;
+      if (lastSeg.trimStart().toUpperCase().startsWith('L')) {
+        segs[segs.length - 1] = `L ${sbx} ${sby}`;
+      }
+    }
   }
 
   if (tipStart && segs.length > 0) {
     const setback = (edge.arrowStart && edge.arrowStart !== 'none')
       ? markerSetback(edge.arrowStart) : 0;
-    // tipStart.angle points INTO path; to set back we go opposite
-    const sbx = tipStart.x + Math.cos(tipStart.angle) * setback;
-    const sby = tipStart.y + Math.sin(tipStart.angle) * setback;
-    segs[0] = `M ${sbx} ${sby}`;
+    if (setback > 0) {
+      // tipStart.angle points INTO path; to set back we go opposite
+      const sbx = tipStart.x + Math.cos(tipStart.angle) * setback;
+      const sby = isNearlyHorizontal ? tipStart.y : tipStart.y + Math.sin(tipStart.angle) * setback;
+      segs[0] = `M ${sbx} ${sby}`;
+    }
   }
 
   const drawnPathD = segs.length > 0 ? segs.join(' ') : edge.pathD;

@@ -198,6 +198,7 @@ export const parseSequenceLoopFrames = (
           stroke: isAlt ? '#d97706' : '#9370DB',
           type: 'structural',
           dash: [6, 3],
+          noSnap: true,
         });
       }
     });
@@ -330,14 +331,22 @@ export const parseSequenceEdges = (svgElement: SVGSVGElement, isPremium: boolean
       const ly1 = parseFloat(el.getAttribute('y1') || '0');
       const lx2 = parseFloat(el.getAttribute('x2') || '0');
       const ly2 = parseFloat(el.getAttribute('y2') || '0');
-      // Try CTM-based transform first, fall back to manual cumulative
+      // Use matrixTransform per-point so each endpoint is correctly mapped
+      // regardless of activation bar offsets or mixed transforms.
       try {
         const ctm = (el as SVGGraphicsElement).getCTM();
         const svgCtm = svgElement.getCTM();
         if (ctm && svgCtm) {
           const inv = svgCtm.inverse();
           const m = inv.multiply(ctm);
-          d = `M ${lx1 * m.a + m.e} ${ly1 * m.d + m.f} L ${lx2 * m.a + m.e} ${ly2 * m.d + m.f}`;
+          const svgEl = svgElement as SVGSVGElement;
+          const pt1 = svgEl.createSVGPoint();
+          pt1.x = lx1; pt1.y = ly1;
+          const pt2 = svgEl.createSVGPoint();
+          pt2.x = lx2; pt2.y = ly2;
+          const p1 = pt1.matrixTransform(m);
+          const p2 = pt2.matrixTransform(m);
+          d = `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
         } else {
           const { x: tx, y: ty } = getCumulativeTransform(el, svgElement);
           d = `M ${lx1 + tx} ${ly1 + ty} L ${lx2 + tx} ${ly2 + ty}`;
