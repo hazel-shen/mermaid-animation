@@ -12,11 +12,15 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
 
     if (!isNode && !isCluster && !isNote) return;
 
-    const rect = g.querySelector('rect, circle, polygon, path') as SVGGraphicsElement;
-    if (!rect) return;
+    // Prefer shape-specific elements; polygon/ellipse must take priority over rect.
+    const polygon  = g.querySelector<SVGPolygonElement>('polygon');
+    const ellipse  = g.querySelector<SVGEllipseElement>('ellipse');
+    const svgCircle = g.querySelector<SVGCircleElement>('circle');
+    const shapeEl  = (polygon || svgCircle || ellipse || g.querySelector('rect, path')) as SVGGraphicsElement;
+    if (!shapeEl) return;
 
-    const { x: totalTx, y: totalTy } = getCumulativeTransform(rect, svgElement);
-    const bbox = rect.getBBox();
+    const { x: totalTx, y: totalTy } = getCumulativeTransform(shapeEl, svgElement);
+    const bbox = shapeEl.getBBox();
     const finalX = totalTx + bbox.x + bbox.width / 2;
     const finalY = totalTy + bbox.y + bbox.height / 2;
     const width = bbox.width;
@@ -27,15 +31,37 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
     let stroke = isPremium ? '#94a3b8' : '#333';
     let type: DiagramNode['type'] = 'node';
 
-    const style = window.getComputedStyle(rect);
+    // Use the visible shape element for colour (not always shapeEl for cylinder)
+    const colorEl = g.querySelector('rect, polygon, circle, ellipse, path') as Element | null;
+    const style = window.getComputedStyle(colorEl || shapeEl);
     if (style.fill && style.fill !== 'none' && style.fill !== 'rgb(0, 0, 0)') color = style.fill;
     if (style.stroke && style.stroke !== 'none') stroke = style.stroke;
 
-    const tagName = rect.tagName.toLowerCase();
-    if (tagName === 'circle') shape = 'circle';
-    else if (tagName === 'polygon') shape = 'diamond';
-    else if (tagName === 'rect') shape = 'roundRect';
-    else if (tagName === 'path') shape = 'roundRect';
+    const tagName = shapeEl.tagName.toLowerCase();
+
+    // Cylinder: [(text)] — Mermaid renders with an <ellipse> for the top cap
+    if (ellipse && !svgCircle) {
+      shape = 'cylinder';
+    } else if (tagName === 'circle') {
+      shape = 'circle';
+    } else if (tagName === 'polygon') {
+      // Count point pairs: 4 = diamond {}, 6 = hexagon {{}}
+      const nums = (shapeEl.getAttribute('points') || '')
+        .replace(/,/g, ' ').trim().split(/\s+/).filter(Boolean);
+      shape = Math.floor(nums.length / 2) <= 4 ? 'diamond' : 'hexagon';
+    } else if (tagName === 'rect') {
+      const rx = parseFloat((shapeEl as SVGRectElement).getAttribute('rx') || '0');
+      if (rx >= height * 0.45) {
+        shape = 'stadium';          // ([text]) — fully rounded ends
+      } else if (rx >= 4) {
+        shape = 'roundRect';        // (text) — moderately rounded
+      } else {
+        shape = 'rect';             // [text] — sharp corners
+      }
+    } else {
+      // path fallback — treat as roundRect
+      shape = 'roundRect';
+    }
 
     let label = "";
     const textElement = g.querySelector('text');

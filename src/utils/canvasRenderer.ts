@@ -150,7 +150,11 @@ export const drawNode = (
     ctx.lineTo(x + width / 2, y + height / 2);
     ctx.lineTo(x - width / 2, y + height / 2);
     ctx.closePath();
+  } else if (shape === 'rect') {
+    // Sharp-cornered rectangle ([text])
+    ctx.rect(x - width / 2, y - height / 2, width, height);
   } else {
+    // roundRect and everything else
     const r = node.type === 'cluster' ? 16 : 4;
     ctx.roundRect(x - width / 2, y - height / 2, width, height, r);
   }
