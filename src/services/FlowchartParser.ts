@@ -1,4 +1,4 @@
-import type { DiagramNode, DiagramEdge, EdgeType } from '../types';
+import type { DiagramNode, DiagramEdge, EdgeType, SeqLabel } from '../types';
 import { getCumulativeTransform } from './svgUtils';
 import { hexToRgba } from '../utils/colorUtils';
 
@@ -127,4 +127,36 @@ export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolea
   svgElement.querySelectorAll(structSelector).forEach(el => processEdge(el, 'structural'));
 
   return extractedEdges;
+};
+
+export const parseFlowchartEdgeLabels = (svgElement: SVGSVGElement): SeqLabel[] => {
+  const labels: SeqLabel[] = [];
+
+  svgElement.querySelectorAll<SVGGElement>('g.edgeLabel').forEach(g => {
+    // Text may be in a <text> or inside a <foreignObject> div
+    let text = '';
+    const fo = g.querySelector('foreignObject');
+    if (fo) {
+      text = (fo.textContent || '').trim();
+    } else {
+      const txt = g.querySelector('text');
+      if (txt) text = (txt.textContent || '').trim();
+    }
+    if (!text) return;
+
+    try {
+      const bbox = (g as SVGGraphicsElement).getBBox();
+      const ctm  = (g as SVGGraphicsElement).getCTM();
+      const svgCtm = svgElement.getCTM();
+      if (!ctm || !svgCtm) return;
+      const m = svgCtm.inverse().multiply(ctm);
+      const cx = m.a * (bbox.x + bbox.width  / 2) + m.c * (bbox.y + bbox.height / 2) + m.e;
+      const cy = m.b * (bbox.x + bbox.width  / 2) + m.d * (bbox.y + bbox.height / 2) + m.f;
+      labels.push({ x: cx, y: cy, text, fontSize: 12, bold: false, color: '#374151', align: 'center', bgColor: '#ffffff' });
+    } catch {
+      // skip if getBBox fails
+    }
+  });
+
+  return labels;
 };

@@ -6,7 +6,7 @@ import type { DiagramType } from '../services/diagramTypes';
 // Sequence
 import { parseSequenceNodes, parseSequenceEdges, parseSequenceLoopFrames, parseSequenceMessageLabels, parseSequenceStepNumbers } from '../services/SequenceParser';
 // Flowchart
-import { parseFlowchartNodes, parseFlowchartEdges } from '../services/FlowchartParser';
+import { parseFlowchartNodes, parseFlowchartEdges, parseFlowchartEdgeLabels } from '../services/FlowchartParser';
 // Class
 import { parseClassNodes, parseClassEdges, parseClassEdgeLabels } from '../services/ClassParser';
 // State
@@ -109,6 +109,7 @@ export const useMermaidParser = (
       case 'flowchart': {
         extractedNodes = parseFlowchartNodes(svgElement, premium);
         extractedEdges = parseFlowchartEdges(svgElement, premium);
+        extractedLabels = parseFlowchartEdgeLabels(svgElement);
         break;
       }
 

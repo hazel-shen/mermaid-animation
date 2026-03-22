@@ -19,7 +19,7 @@ export type DiagramNode = {
   height: number;
   color: string;
   stroke: string;
-  shape: 'rect' | 'circle' | 'diamond' | 'cylinder' | 'roundRect' | 'note';
+  shape: 'rect' | 'circle' | 'diamond' | 'hexagon' | 'cylinder' | 'stadium' | 'subroutine' | 'roundRect' | 'note';
   /** Present only for class-diagram nodes; carries title + member rows */
   classLines?: ClassLine[];
 };

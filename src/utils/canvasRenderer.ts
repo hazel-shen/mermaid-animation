@@ -82,11 +82,66 @@ export const drawNode = (
   if (shape === 'circle') {
     ctx.arc(x, y, width / 2, 0, Math.PI * 2);
   } else if (shape === 'diamond') {
-    ctx.moveTo(x, y - height / 2);
-    ctx.lineTo(x + width / 2, y);
-    ctx.lineTo(x, y + height / 2);
-    ctx.lineTo(x - width / 2, y);
+    // Measure the longest label line and expand the drawn diamond so text never
+    // touches the border. Only the visual shape grows — edge endpoints are
+    // unchanged (they still connect at the SVG-derived x,y).
+    ctx.font = 'bold 14px Inter';
+    const longestLine = label.split('\n').reduce(
+      (best, l) => ctx.measureText(l).width > ctx.measureText(best).width ? l : best, ''
+    );
+    const PAD = 32; // minimum clear space (px) each side of text
+    const neededW = ctx.measureText(longestLine).width + PAD * 2;
+    const dw = Math.max(0, neededW - width);
+    const dh = height > 0 ? dw * (height / width) : dw;
+    const dW = width  + dw;
+    const dH = height + dh;
+    ctx.moveTo(x, y - dH / 2);
+    ctx.lineTo(x + dW / 2, y);
+    ctx.lineTo(x, y + dH / 2);
+    ctx.lineTo(x - dW / 2, y);
     ctx.closePath();
+  } else if (shape === 'hexagon') {
+    // Horizontal hexagon (Mermaid {{...}} syntax): pointed left & right tips,
+    // flat top & bottom edges. Expand width if text is too long.
+    ctx.font = 'bold 14px Inter';
+    const longestHex = label.split('\n').reduce(
+      (best, l) => ctx.measureText(l).width > ctx.measureText(best).width ? l : best, ''
+    );
+    const HEX_PAD = 20;
+    const neededHexW = ctx.measureText(longestHex).width + HEX_PAD * 2 + height; // +height for the two tips
+    const hW = Math.max(width, neededHexW);
+    const hH = height;
+    const tip = hH / 2; // horizontal tip indent (matches Mermaid's polygon geometry)
+    const hw = hW / 2, hh = hH / 2;
+    ctx.moveTo(x - hw + tip, y - hh);
+    ctx.lineTo(x + hw - tip, y - hh);
+    ctx.lineTo(x + hw,       y);
+    ctx.lineTo(x + hw - tip, y + hh);
+    ctx.lineTo(x - hw + tip, y + hh);
+    ctx.lineTo(x - hw,       y);
+    ctx.closePath();
+  } else if (shape === 'stadium') {
+    // Stadium / pill shape: rect with fully rounded left and right ends
+    const r = height / 2;
+    ctx.roundRect(x - width / 2, y - height / 2, width, height, r);
+  } else if (shape === 'cylinder') {
+    // Cylinder: two elliptical caps connected by vertical sides.
+    // ry = vertical radius of the ellipse caps; body height shrinks accordingly.
+    const rx = width / 2;
+    const ry = Math.max(6, height * 0.15);
+    const topCy = y - height / 2 + ry;   // centre of top ellipse
+    const botCy = y + height / 2 - ry;   // centre of bottom ellipse
+    // Left side down, bottom ellipse, right side up, top ellipse (back half)
+    ctx.moveTo(x - rx, topCy);
+    ctx.lineTo(x - rx, botCy);
+    ctx.ellipse(x, botCy, rx, ry, 0, Math.PI, 0, false); // bottom cap
+    ctx.lineTo(x + rx, topCy);
+    ctx.ellipse(x, topCy, rx, ry, 0, 0, Math.PI, false); // top cap (back)
+    ctx.closePath();
+  } else if (shape === 'subroutine') {
+    // Subroutine: rect with inner vertical lines near left and right edges
+    const r = 4;
+    ctx.roundRect(x - width / 2, y - height / 2, width, height, r);
   } else if (shape === 'note') {
     const fold = 10;
     ctx.moveTo(x - width / 2, y - height / 2);
@@ -101,6 +156,31 @@ export const drawNode = (
   }
   ctx.fill();
   ctx.stroke();
+
+  // Subroutine: draw inner vertical lines after fill+stroke
+  if (shape === 'subroutine') {
+    const inset = 8;
+    const top = y - height / 2;
+    const bot = y + height / 2;
+    ctx.beginPath();
+    ctx.moveTo(x - width / 2 + inset, top);
+    ctx.lineTo(x - width / 2 + inset, bot);
+    ctx.moveTo(x + width / 2 - inset, top);
+    ctx.lineTo(x + width / 2 - inset, bot);
+    ctx.stroke();
+  }
+
+  // Cylinder: redraw top ellipse on top of fill so the front rim is visible
+  if (shape === 'cylinder') {
+    const rx = width / 2;
+    const ry = Math.max(6, height * 0.15);
+    const topCy = y - height / 2 + ry;
+    ctx.beginPath();
+    ctx.ellipse(x, topCy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.stroke();
+  }
 
   if (isHovered) {
     ctx.lineWidth = 2;
@@ -129,13 +209,126 @@ export const drawNode = (
     drawClassNode(ctx, node, color, stroke);
   } else {
     ctx.fillStyle = getLuminance(color) < 0.35 ? '#f1f5f9' : '#1e293b';
-    ctx.font = 'bold 14px Inter';
     const lines = label.split('\n');
     const lh = 16;
     const totalH = lines.length * lh;
-    lines.forEach((line, i) => {
-      ctx.fillText(line, x, y - totalH / 2 + i * lh + lh / 2);
-    });
+
+    if (shape === 'diamond') {
+      // Recompute expanded diamond dimensions (must match shape-drawing logic above).
+      ctx.font = 'bold 14px Inter';
+      const longestLine = lines.reduce(
+        (best, l) => ctx.measureText(l).width > ctx.measureText(best).width ? l : best, ''
+      );
+      const DRAW_PAD = 32;
+      const neededW = ctx.measureText(longestLine).width + DRAW_PAD * 2;
+      const dw = Math.max(0, neededW - width);
+      const dh = height > 0 ? dw * (height / width) : dw;
+      const dW = width  + dw;
+      const dH = height + dh;
+
+      // Diamond interior narrows toward top/bottom. Find a font size where every
+      // line fits inside the expanded diamond at its vertical position.
+      let fontSize = 14;
+      const hw = dW / 2;
+      const hh = dH / 2;
+      const TEXT_PAD = 8;
+      for (let fs = 14; fs >= 8; fs--) {
+        ctx.font = `bold ${fs}px Inter`;
+        let fits = true;
+        lines.forEach((line, i) => {
+          const lineY = -totalH / 2 + i * lh + lh / 2;
+          const availW = Math.max(0, hw * (1 - Math.abs(lineY) / hh) - TEXT_PAD) * 2;
+          if (ctx.measureText(line).width > availW) fits = false;
+        });
+        if (fits) { fontSize = fs; break; }
+      }
+      ctx.font = `bold ${fontSize}px Inter`;
+      lines.forEach((line, i) => {
+        ctx.fillText(line, x, y - totalH / 2 + i * lh + lh / 2);
+      });
+    } else if (shape === 'hexagon') {
+      // Hexagon: usable flat interior = hW - 2*tip, uniform across the full height.
+      ctx.font = 'bold 14px Inter';
+      const longestHex = lines.reduce(
+        (best, l) => ctx.measureText(l).width > ctx.measureText(best).width ? l : best, ''
+      );
+      const HEX_PAD = 20;
+      const neededHexW = ctx.measureText(longestHex).width + HEX_PAD * 2 + height;
+      const hW = Math.max(width, neededHexW);
+      const tip = height / 2;
+      const flatW = hW - tip * 2; // usable width in the flat centre band
+      let fontSize = 14;
+      for (let fs = 14; fs >= 8; fs--) {
+        ctx.font = `bold ${fs}px Inter`;
+        const allFit = lines.every(l => ctx.measureText(l).width <= flatW - 8);
+        if (allFit) { fontSize = fs; break; }
+      }
+      ctx.font = `bold ${fontSize}px Inter`;
+      lines.forEach((line, i) => {
+        ctx.fillText(line, x, y - totalH / 2 + i * lh + lh / 2);
+      });
+    } else if (shape === 'note') {
+      // Notes: left-aligned text with padding, regular (not bold) weight
+      const PAD_X = 10;
+      const maxW = width - PAD_X * 2;
+      ctx.font = '12px Inter';
+      // Measure actual line height from font
+      const actualLh = 15;
+      const actualTotalH = lines.length * actualLh;
+      const startY = y - actualTotalH / 2 + actualLh / 2;
+      ctx.textAlign = 'left';
+      lines.forEach((line, i) => {
+        // Truncate if still too wide (rare for notes since Mermaid wraps them)
+        let drawn = line;
+        if (ctx.measureText(drawn).width > maxW) {
+          while (drawn.length > 1 && ctx.measureText(drawn + '…').width > maxW)
+            drawn = drawn.slice(0, -1);
+          drawn += '…';
+        }
+        ctx.fillText(drawn, x - width / 2 + PAD_X, startY + i * actualLh);
+      });
+      ctx.textAlign = 'center';
+    } else {
+      // roundRect / stadium / subroutine / cylinder / default:
+      // Word-wrap each source line so text never overflows the node width.
+      const PAD_X = shape === 'stadium' ? height / 2 + 8 : 12;
+      const maxW = width - PAD_X * 2;
+      ctx.font = 'bold 14px Inter';
+
+      // Build final wrapped lines from each source line
+      const wrappedLines: { text: string; bold: boolean }[] = [];
+      for (const srcLine of lines) {
+        // Detect bold markdown: **text**
+        const isBold = srcLine.startsWith('**') && srcLine.endsWith('**');
+        const cleanLine = isBold ? srcLine.slice(2, -2) : srcLine;
+        ctx.font = isBold ? 'bold 14px Inter' : '13px Inter';
+
+        if (ctx.measureText(cleanLine).width <= maxW) {
+          wrappedLines.push({ text: cleanLine, bold: isBold });
+        } else {
+          // Word-wrap by splitting on spaces
+          const words = cleanLine.split(' ');
+          let current = '';
+          for (const word of words) {
+            const test = current ? current + ' ' + word : word;
+            if (ctx.measureText(test).width > maxW && current) {
+              wrappedLines.push({ text: current, bold: isBold });
+              current = word;
+            } else {
+              current = test;
+            }
+          }
+          if (current) wrappedLines.push({ text: current, bold: isBold });
+        }
+      }
+
+      const wLh = 16;
+      const wTotalH = wrappedLines.length * wLh;
+      wrappedLines.forEach(({ text: wText, bold }, i) => {
+        ctx.font = bold ? 'bold 14px Inter' : '13px Inter';
+        ctx.fillText(wText, x, y - wTotalH / 2 + i * wLh + wLh / 2);
+      });
+    }
   }
 };
 
@@ -606,9 +799,15 @@ export const renderFrame = (
   const clusterNodes = nodes.filter(n => n.type === 'cluster');
   clusterNodes.forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
 
-  // Render edges (structural first, then link)
-  const sortedEdges = [...edges].sort((a, _b) => (a.type === 'structural' ? -1 : 1));
-  sortedEdges.forEach(edge => drawEdge(ctx, edge, isPremium, nodes));
+  // Structural edges (lifelines) first
+  edges.filter(e => e.type === 'structural').forEach(edge => drawEdge(ctx, edge, isPremium, nodes));
+  ctx.setLineDash([]);
+
+  // Activation bars sit on top of lifelines but under message arrows
+  nodes.filter(n => n.id.startsWith('activation-')).forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
+
+  // Link edges (message arrows) on top of activation bars
+  edges.filter(e => e.type === 'link').forEach(edge => drawEdge(ctx, edge, isPremium, nodes));
   ctx.setLineDash([]);
 
   // Render particles (link edges only, premium mode)
@@ -689,7 +888,7 @@ export const renderFrame = (
 
   // Render normal nodes + notes on top (step numbers last so they're always visible)
   const normalNodes = nodes
-    .filter(n => n.type !== 'cluster' && !n.id.startsWith('stepNum-'))
+    .filter(n => n.type !== 'cluster' && !n.id.startsWith('stepNum-') && !n.id.startsWith('activation-'))
     .sort((a, _b) => (a.type === 'note' ? 1 : 0));
   normalNodes.forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
 
