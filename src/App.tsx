@@ -12,6 +12,7 @@ import { useMediaRecorder } from './hooks/useMediaRecorder';
 import { useEditorResize } from './hooks/useEditorResize';
 
 import { renderFrame } from './utils/canvasRenderer';
+import type { ParticleShape } from './utils/canvasRenderer';
 
 // --- 預設代碼 ---
 const SEQUENCE_CODE = `sequenceDiagram
@@ -256,8 +257,10 @@ const CanvasDiagram = () => {
   const [selectedSample, setSelectedSample] = useState('sequence');
   const [code, setCode] = useState(SEQUENCE_CODE);
   const [isPremium, setIsPremium] = useState(true);
-  const [particleColor, setParticleColor] = useState('#6366f1');
+  const [particleColor, setParticleColor] = useState('#2ea4ff');
   const [particleSpeed, setParticleSpeed] = useState(1);
+  const [particleSize, setParticleSize] = useState(3);
+  const [particleShape, setParticleShape] = useState<ParticleShape>('circle');
   const [isControlBarOpen, setIsControlBarOpen] = useState(true);
   const [isEditorOpen, setIsEditorOpen] = useState(true);
   const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
@@ -335,6 +338,8 @@ const CanvasDiagram = () => {
         seqLabels,
         isPremium,
         particleColor,
+        particleSize,
+        particleShape,
         isRecording,
         hoveredNodeId: hoveredNodeIdRef.current,
       });
@@ -345,17 +350,17 @@ const CanvasDiagram = () => {
     render();
     return () => cancelAnimationFrame(rafId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, particles, seqLabels, isPremium, isRecording, particleColor, particleSpeed, transformState]);
+  }, [nodes, edges, particles, seqLabels, isPremium, isRecording, particleColor, particleSpeed, particleSize, particleShape, transformState]);
 
   // --- Download handler ---
   const handleDownload = useCallback((format: import('./hooks/useMediaRecorder').DownloadFormat) => {
     startDownload(
       canvasRef,
       diagramSizeRef,
-      { nodes, edges, particles, seqLabels, isPremium, particleColor, isRecording, hoveredNodeId: hoveredNodeIdRef.current },
+      { nodes, edges, particles, seqLabels, isPremium, particleColor, particleSize, particleShape, isRecording, hoveredNodeId: hoveredNodeIdRef.current },
       format
     );
-  }, [startDownload, nodes, edges, particles, seqLabels, isPremium, particleColor, isRecording, diagramSizeRef]);
+  }, [startDownload, nodes, edges, particles, seqLabels, isPremium, particleColor, particleSize, particleShape, isRecording, diagramSizeRef]);
 
   // --- Mouse event wrappers (bind hoveredNodeIdRef) ---
   const onMouseMove = useCallback(
@@ -381,11 +386,15 @@ const CanvasDiagram = () => {
         isRecording={isRecording}
         particleSpeed={particleSpeed}
         particleColor={particleColor}
+        particleSize={particleSize}
+        particleShape={particleShape}
         onTogglePremium={() => setIsPremium(v => !v)}
         onRefresh={renderMermaidToData}
         onDownload={handleDownload}
         onParticleSpeedChange={setParticleSpeed}
         onParticleColorChange={setParticleColor}
+        onParticleSizeChange={setParticleSize}
+        onParticleShapeChange={setParticleShape}
       />
 
       <MobileDrawer
@@ -395,6 +404,8 @@ const CanvasDiagram = () => {
         isRecording={isRecording}
         particleSpeed={particleSpeed}
         particleColor={particleColor}
+        particleSize={particleSize}
+        particleShape={particleShape}
         onClose={() => setIsControlBarOpen(false)}
         onToggle={() => setIsControlBarOpen(v => !v)}
         onTogglePremium={() => setIsPremium(v => !v)}
@@ -402,6 +413,8 @@ const CanvasDiagram = () => {
         onDownload={handleDownload}
         onParticleSpeedChange={setParticleSpeed}
         onParticleColorChange={setParticleColor}
+        onParticleSizeChange={setParticleSize}
+        onParticleShapeChange={setParticleShape}
       />
 
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
