@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
-import { GIFEncoder, quantize, applyPalette } from 'gifenc';
 import type { RenderFrameOptions } from '../utils/canvasRenderer';
 import { renderFrame } from '../utils/canvasRenderer';
+import GifWorker from '../workers/gif.worker?worker';
 
 export type DownloadFormat = 'mp4' | 'gif';
 
@@ -50,73 +50,62 @@ export const useMediaRecorder = (): UseMediaRecorderReturn => {
     setIsRecording(true);
 
     if (format === 'gif') {
-      // GIF: 1280×720 @8fps for 4s = 32 frames
-      // rgb444 quantizer is ~2x faster than rgb565 with negligible quality diff for flat vector art
-      // palette is computed once from frame 1 and reused — safe because Mermaid palette is static
-      const GIF_W = 1280;
-      const GIF_H = 720;
+      // GIF via Web Worker + Transferable Objects (zero-copy frame shipping):
+      // Main thread renders frames with willReadFrequently canvas → getImageData →
+      // transfers the ArrayBuffer to gif.worker.ts (gifenc) → worker posts back
+      // the finished GIF buffer (also transferred, zero-copy).
+      const GIF_W = 960;
+      const GIF_H = 540;
       const GIF_FPS = 15;
-      const FRAME_DELAY = Math.round(100 / GIF_FPS); // gifenc uses centiseconds
       const totalFrames = Math.round((DURATION_MS / 1000) * GIF_FPS);
-      // TARGET_TICKS_PER_SEC / GIF_FPS = ticks per frame, keeping speed fps-independent
-      const TARGET_TICKS_PER_SEC = 60;
-      const ticksPerGifFrame = TARGET_TICKS_PER_SEC / GIF_FPS;
-      let tickAccumulator = 0;
 
       const gifCanvas = document.createElement('canvas');
       gifCanvas.width = GIF_W;
       gifCanvas.height = GIF_H;
-      // willReadFrequently keeps getImageData on CPU path (avoids GPU readback stall)
+      // willReadFrequently keeps getImageData on the CPU path — avoids GPU readback stall
       const gifCtx = gifCanvas.getContext('2d', { willReadFrequently: true })!;
 
       const { tr: gifTr, offset: gifOffset } = getDiagramTransform(canvasRef, diagramSizeRef, GIF_W, GIF_H, 48);
 
-      const encoder = GIFEncoder();
-      let framesCaptured = 0;
-      let sharedPalette: number[][] | null = null;
+      const worker = new GifWorker();
+      worker.postMessage({ type: 'init', width: GIF_W, height: GIF_H, fps: GIF_FPS });
 
-      // Clone particles so GIF rendering is independent of the live main-loop particles
-      const gifParticles = opts.particles.map(p => {
-        const clone = Object.create(Object.getPrototypeOf(p));
-        clone.progress = p.progress;
-        clone.speed = p.speed;
-        clone.pathElement = p.pathElement;
-        return clone;
-      });
-      const gifOpts = { ...opts, particles: gifParticles };
+      worker.onmessage = (e: MessageEvent<{ type: 'done'; buffer: ArrayBuffer }>) => {
+        worker.terminate();
+        const blob = new Blob([e.data.buffer], { type: 'image/gif' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'flowmotion.gif';
+        a.click();
+        URL.revokeObjectURL(url);
+        setIsRecording(false);
+      };
+
+      let framesCaptured = 0;
+      const gifOpts = { ...opts, isPremium: true };
+
+      // Particles run at ~60 ticks/s on the main loop. GIF captures at GIF_FPS,
+      // so each captured frame must advance particles by (60 / GIF_FPS) ticks
+      // to keep the apparent speed identical to the live canvas.
+      const TICK_MULTIPLIER = 60 / GIF_FPS;
 
       const captureNextFrame = () => {
         if (framesCaptured >= totalFrames) {
-          encoder.finish();
-          const bytes = encoder.bytes() as BlobPart;
-          const blob = new Blob([bytes], { type: 'image/gif' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'flowmotion.gif';
-          a.click();
-          URL.revokeObjectURL(url);
-          setIsRecording(false);
+          worker.postMessage({ type: 'finish' });
           return;
         }
 
-        if (gifOpts.isPremium) {
-          tickAccumulator += ticksPerGifFrame * gifOpts.particleSpeed;
-          const ticks = Math.floor(tickAccumulator);
-          tickAccumulator -= ticks;
-          for (let t = 0; t < ticks; t++) gifParticles.forEach(p => p.update(1));
-        }
+        gifOpts.particles.forEach(p => p.update(TICK_MULTIPLIER));
         renderFrame(gifCtx, GIF_W, GIF_H, gifTr, gifOffset, true, gifOpts);
 
-        const { data } = gifCtx.getImageData(0, 0, GIF_W, GIF_H);
-
-        if (!sharedPalette) {
-          sharedPalette = quantize(data, 256, { format: 'rgb444' });
-        }
-        const index = applyPalette(data, sharedPalette, 'rgb444');
-        encoder.writeFrame(index, GIF_W, GIF_H, { palette: sharedPalette, delay: FRAME_DELAY });
+        // Transfer the pixel buffer — the ArrayBuffer moves to the Worker (zero-copy).
+        // getImageData always returns a fresh buffer so this is safe to transfer.
+        const imageData = gifCtx.getImageData(0, 0, GIF_W, GIF_H);
+        worker.postMessage({ type: 'frame', data: imageData.data.buffer }, [imageData.data.buffer]);
 
         framesCaptured++;
+        // yield to event loop between frames so the UI stays responsive
         setTimeout(captureNextFrame, 0);
       };
 
@@ -143,10 +132,11 @@ export const useMediaRecorder = (): UseMediaRecorderReturn => {
       const scaledSsTr = { x: ssTr.x * SS, y: ssTr.y * SS, scale: ssTr.scale * SS };
 
       let rafId: number;
+      const mp4Opts = { ...opts, isPremium: true };
       const drawHDFrame = () => {
         // Do NOT call p.update() here — the main animation loop already advances particles.
         // Calling update() again here would double the speed during recording.
-        renderFrame(ssCtx, SS_W, SS_H, scaledSsTr, ssOffset, true, opts);
+        renderFrame(ssCtx, SS_W, SS_H, scaledSsTr, ssOffset, true, mp4Opts);
         outCtx.clearRect(0, 0, HD_W, HD_H);
         outCtx.drawImage(ssCanvas, 0, 0, HD_W, HD_H);
         rafId = requestAnimationFrame(drawHDFrame);
