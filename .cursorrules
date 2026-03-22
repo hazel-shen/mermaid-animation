@@ -1,0 +1,18 @@
+# Mermaid Animation: AI Development Rules
+
+## 1. Token Saving & Efficiency
+- **Conciseness**: Respond with minimal conversational filler. Provide only the DIFF or the specific function being modified.
+- **No Boilerplate**: Do not re-generate the entire file for minor changes. Use "// ... existing code ..." to omit unchanged sections.
+- **Context Awareness**: Do not trigger a full codebase search automatically. If you determine that searching the entire codebase (@Codebase) is essential, you MUST ask for my explicit approval first and briefly explain which directories you plan to scan.
+
+## 2. Tech Stack Specifics
+- **Tailwind CSS v4**: This project uses Tailwind v4. It is CSS-driven. DO NOT suggest changes to `tailwind.config.js`. Use CSS variables in global CSS files for theming.
+- **React 19**: Use modern React 19 patterns. Avoid deprecated hooks or lifecycle methods.
+- **Canvas Performance**: Always prioritize 60 FPS performance. In `useParticleSystem.ts` and `canvasRenderer.ts`, avoid object allocation (e.g., `new Object()` or `[].map()`) inside the `requestAnimationFrame` loop. Use pre-allocated buffers or pools if necessary.
+
+## 3. Domain Logic (Mermaid & SVG)
+- **Coordinate Mapping**: We use `getCumulativeTransform` from `svgUtils.ts` to map nested SVG elements to Canvas coordinates. Always respect this mapping logic when adding new rendering features.
+- **Idempotency**: All build and deployment scripts (e.g., `npm run deploy`) must remain idempotent. Ensure modifications do not leave orphaned files in the `dist` directory.
+
+## 4. Communication Style
+- **SRE Perspective**: When suggesting terminal commands or scripts, prioritize stability and observability.

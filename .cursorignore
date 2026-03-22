@@ -1,0 +1,19 @@
+# 繼承基礎排除
+node_modules/
+.git/
+
+# --- Critical Exclusion ---
+# 避免 Cursor Indexing 讀取到 Vite build 出來的檔案
+dist/
+build/
+
+# --- Project Specific ---
+# 這些檔案雖然存在，但不需要 AI 去「理解」它們的內容
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+*.ico
+
+# --- Documentation Artifacts ---
+# 如果你有大量的展示用 json 或數據，建議也排除
+# examples/*.json

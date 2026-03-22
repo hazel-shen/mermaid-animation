@@ -1,6 +1,17 @@
 import React, { useState } from 'react';
-import { Video, RefreshCw, SlidersHorizontal, X, Gauge, Palette } from 'lucide-react';
+import { Video, RefreshCw, SlidersHorizontal, X, Gauge, Palette, Maximize2, Shapes } from 'lucide-react';
 import type { DownloadFormat } from '../hooks/useMediaRecorder';
+import type { ParticleShape } from '../utils/canvasRenderer';
+
+const SHAPE_OPTIONS: { value: ParticleShape; label: string }[] = [
+  { value: 'circle',   label: '● 圓形' },
+  { value: 'square',   label: '■ 方形' },
+  { value: 'diamond',  label: '◆ 菱形' },
+  { value: 'triangle', label: '▲ 三角' },
+  { value: 'star',     label: '★ 星形' },
+  { value: 'heart',    label: '♥ 愛心' },
+  { value: 'hat',      label: '🎩 帽子' },
+];
 
 interface MobileDrawerProps {
   isOpen: boolean;
@@ -9,6 +20,8 @@ interface MobileDrawerProps {
   isRecording: boolean;
   particleSpeed: number;
   particleColor: string;
+  particleSize: number;
+  particleShape: ParticleShape;
   onClose: () => void;
   onToggle: () => void;
   onTogglePremium: () => void;
@@ -16,6 +29,8 @@ interface MobileDrawerProps {
   onDownload: (format: DownloadFormat) => void;
   onParticleSpeedChange: (value: number) => void;
   onParticleColorChange: (value: string) => void;
+  onParticleSizeChange: (value: number) => void;
+  onParticleShapeChange: (value: ParticleShape) => void;
 }
 
 export const MobileDrawerFAB: React.FC<Pick<MobileDrawerProps, 'isOpen' | 'onToggle'>> = ({ isOpen, onToggle }) => (
@@ -43,6 +58,8 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
   isRecording,
   particleSpeed,
   particleColor,
+  particleSize,
+  particleShape,
   onClose,
   onToggle,
   onTogglePremium,
@@ -50,6 +67,8 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
   onDownload,
   onParticleSpeedChange,
   onParticleColorChange,
+  onParticleSizeChange,
+  onParticleShapeChange,
 }) => {
   const [selectedFormat, setSelectedFormat] = useState<DownloadFormat>('gif');
 
@@ -96,14 +115,48 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                 <span className="text-xs text-slate-400 w-7 text-right tabular-nums">{particleSpeed.toFixed(1)}</span>
               </label>
               <label className="flex items-center gap-3 text-sm text-slate-600 cursor-pointer">
+                <Maximize2 size={16} className="text-slate-400 flex-shrink-0" />
+                <span className="font-medium w-14">大小</span>
+                <input
+                  type="range" min="1" max="10" step="0.5"
+                  value={particleSize}
+                  onChange={e => onParticleSizeChange(parseFloat(e.target.value))}
+                  className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                />
+                <span className="text-xs text-slate-400 w-7 text-right tabular-nums">{particleSize.toFixed(1)}</span>
+              </label>
+              <div className="flex items-center gap-3 text-sm text-slate-600">
+                <Shapes size={16} className="text-slate-400 flex-shrink-0" />
+                <span className="font-medium w-14">形狀</span>
+                <select
+                  value={particleShape}
+                  onChange={e => onParticleShapeChange(e.target.value as ParticleShape)}
+                  className="flex-1 h-9 rounded-lg border border-gray-200 bg-white text-sm text-slate-700 px-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                >
+                  {SHAPE_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+              <label className="flex items-center gap-3 text-sm text-slate-600 cursor-pointer">
                 <Palette size={16} className="text-slate-400 flex-shrink-0" />
                 <span className="font-medium w-14">粒子色</span>
                 <input
                   type="color" value={particleColor}
                   onChange={e => onParticleColorChange(e.target.value)}
-                  className="w-9 h-9 rounded-lg overflow-hidden border border-gray-200 p-0.5 bg-white cursor-pointer"
+                  className="w-6 h-6 rounded overflow-hidden border border-gray-200 p-0.5 bg-white cursor-pointer flex-shrink-0"
                 />
-                <span className="text-xs text-slate-400 font-mono">{particleColor}</span>
+                <input
+                  type="text"
+                  value={particleColor}
+                  onChange={e => {
+                    const v = e.target.value;
+                    if (/^#[0-9a-fA-F]{6}$/.test(v)) onParticleColorChange(v);
+                  }}
+                  maxLength={7}
+                  spellCheck={false}
+                  className="w-20 h-8 px-2 rounded-lg border border-gray-200 text-sm font-mono text-slate-600 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
               </label>
             </div>
           )}
