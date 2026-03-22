@@ -58,6 +58,6 @@ self.onmessage = (e: MessageEvent<WorkerInMsg>) => {
     // so we can transfer it back to the main thread (zero-copy)
     const src = encoder.bytes() as Uint8Array;
     const buf = src.buffer.slice(src.byteOffset, src.byteOffset + src.byteLength) as ArrayBuffer;
-    self.postMessage({ type: 'done', buffer: buf }, [buf]);
+    self.postMessage({ type: 'done', buffer: buf }, { transfer: [buf] });
   }
 };

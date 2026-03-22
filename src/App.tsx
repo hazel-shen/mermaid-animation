@@ -338,6 +338,7 @@ const CanvasDiagram = () => {
         seqLabels,
         isPremium,
         particleColor,
+        particleSpeed,
         particleSize,
         particleShape,
         isRecording,
@@ -357,7 +358,7 @@ const CanvasDiagram = () => {
     startDownload(
       canvasRef,
       diagramSizeRef,
-      { nodes, edges, particles, seqLabels, isPremium, particleColor, particleSize, particleShape, isRecording, hoveredNodeId: hoveredNodeIdRef.current },
+      { nodes, edges, particles, seqLabels, isPremium, particleColor, particleSpeed, particleSize, particleShape, isRecording, hoveredNodeId: hoveredNodeIdRef.current },
       format
     );
   }, [startDownload, nodes, edges, particles, seqLabels, isPremium, particleColor, particleSize, particleShape, isRecording, diagramSizeRef]);
