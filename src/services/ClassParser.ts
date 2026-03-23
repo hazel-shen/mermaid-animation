@@ -9,7 +9,7 @@
  */
 import type { DiagramNode, DiagramEdge, ClassLine, SeqLabel, ArrowMarker } from '../types';
 import { getCumulativeTransform } from './svgUtils';
-import { extractComputedColors, rectCenter, nextId } from '../utils/parser-base';
+import { extractComputedColors, rectCenter, nextId, applyTranslateToPathD } from '../utils/parser-base';
 
 /** Returns true if the element is a descendant of a <defs> or <marker> element. */
 const isInsideDefs = (el: Element): boolean => {
@@ -218,14 +218,9 @@ export const parseClassEdges = (svgElement: SVGSVGElement, isPremium: boolean): 
     if (tag === 'path') {
       const rawD = el.getAttribute('d') || '';
       if (!rawD) return;
-      // Apply cumulative parent transform to the path coordinates.
-      // path.relation sits inside g elements that may have translate transforms.
-      const { x: tx, y: ty } = getCumulativeTransform(el.parentElement as Element, svgElement);
-      const translatedD = (tx !== 0 || ty !== 0)
-        ? rawD.replace(/([-\d.e+]+)\s*,\s*([-\d.e+]+)/g, (_, px, py) =>
-            `${parseFloat(px) + tx},${parseFloat(py) + ty}`)
-        : rawD;
-      addEdge(el, translatedD);
+      // Apply cumulative transform for el itself (includes its own + all ancestors).
+      const { x: tx, y: ty } = getCumulativeTransform(el, svgElement);
+      addEdge(el, applyTranslateToPathD(rawD, tx, ty));
     } else if (tag === 'line') {
       const { x: tx, y: ty } = getCumulativeTransform(el, svgElement);
       const x1 = parseFloat(el.getAttribute('x1') || '0') + tx;

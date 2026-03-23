@@ -631,7 +631,8 @@ const getPathStart = (pathD: string): { x: number; y: number; angle: number } | 
 
   const dx = nx - sx, dy = ny - sy;
   if (Math.hypot(dx, dy) < 0.5) return null;
-  // angle points FROM start toward inside — for a start arrow we reverse
+  // angle + π so that drawArrowMarker's local -x axis points along the path
+  // direction (toward the destination), placing the marker body outside the source box.
   return { x: sx, y: sy, angle: Math.atan2(dy, dx) + Math.PI };
 };
 
@@ -779,13 +780,25 @@ export const drawEdge = (
   const rawEnd   = getPathEnd(edge.pathD);
   const rawStart = getPathStart(edge.pathD);
 
-  // Use raw SVG path endpoints directly — Mermaid already places them correctly.
-  // Border-snapping is skipped for flowchart edges because the basis curve's
-  // control points don't update with the snapped position, causing visible gaps.
-  const tipEnd   = rawEnd   ? { x: rawEnd.x,   y: rawEnd.y,   angle: rawEnd.angle   } : null;
-  const tipStart = rawStart ? { x: rawStart.x, y: rawStart.y, angle: rawStart.angle } : null;
+  const tipEnd   = rawEnd   ? { ...rawEnd } : null;
+  const tipStart = rawStart ? { ...rawStart } : null;
+
+  // ── Snap markers to box border ────────────────────────────────────────────
+  // Mermaid SVG paths end/start a few pixels short of the box border (the gap
+  // left for SVG marker rendering). Push the tip outward toward the box so the
+  // canvas marker sits flush against the border.
+  const MARKER_OVERHANG = 15;
+  if (tipEnd && (edge.arrowEnd && edge.arrowEnd !== 'none')) {
+    tipEnd.x += Math.cos(tipEnd.angle) * MARKER_OVERHANG;
+    tipEnd.y += Math.sin(tipEnd.angle) * MARKER_OVERHANG;
+  }
+  if (tipStart && (edge.arrowStart && edge.arrowStart !== 'none')) {
+    tipStart.x += Math.cos(tipStart.angle) * MARKER_OVERHANG;
+    tipStart.y += Math.sin(tipStart.angle) * MARKER_OVERHANG;
+  }
 
   // ── Setback: shorten drawn path so the line stops just before the arrowhead ─
+  // For generic flowchart arrows (hasArrow only), keep the original setback logic.
   const segs = tokenisePath(edge.pathD);
 
   const isNearlyHorizontal = rawStart && rawEnd &&
@@ -809,8 +822,10 @@ export const drawEdge = (
     const setback = (edge.arrowStart && edge.arrowStart !== 'none')
       ? markerSetback(edge.arrowStart) : 0;
     if (setback > 0) {
-      const sbx = tipStart.x + Math.cos(tipStart.angle) * setback;
-      const sby = isNearlyHorizontal ? tipStart.y : tipStart.y + Math.sin(tipStart.angle) * setback;
+      // tipStart.angle points BACK toward the source box (atan2 + π).
+      // Push M in the opposite direction (into the path) to leave room for the marker.
+      const sbx = tipStart.x - Math.cos(tipStart.angle) * setback;
+      const sby = isNearlyHorizontal ? tipStart.y : tipStart.y - Math.sin(tipStart.angle) * setback;
       segs[0] = `M ${sbx} ${sby}`;
     }
   }

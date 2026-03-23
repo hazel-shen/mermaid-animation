@@ -140,6 +140,95 @@ export const extractEdgeStyle = (
   return { stroke, dash };
 };
 
+// ─── Pattern H: applyTranslateToPathD ────────────────────────────────────────
+
+/**
+ * Applies a (tx, ty) translation to every coordinate pair in a SVG path `d`
+ * string. Handles all absolute path commands (M, L, C, S, Q, T, A, H, V, Z)
+ * by tokenising the string — far more robust than a simple comma-pair regex
+ * which misses space-separated coordinates and arc parameters.
+ *
+ * Only absolute commands are emitted; relative commands (lowercase) are passed
+ * through unchanged because they are offsets — translation does not affect them.
+ */
+export const applyTranslateToPathD = (d: string, tx: number, ty: number): string => {
+  if (tx === 0 && ty === 0) return d;
+
+  // Tokenise: split on command letters, keeping the letter as a token.
+  const tokens = d.match(/[MmLlCcSsQqTtAaHhVvZz]|[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?/g);
+  if (!tokens) return d;
+
+  const out: string[] = [];
+  let i = 0;
+  const n = (offset = 0) => parseFloat(tokens[i + offset]);
+
+  while (i < tokens.length) {
+    const cmd = tokens[i];
+    i++;
+
+    switch (cmd) {
+      case 'M': case 'L': case 'T': {
+        out.push(cmd);
+        while (i < tokens.length && !/[A-Za-z]/.test(tokens[i])) {
+          out.push(`${n() + tx},${n(1) + ty}`);
+          i += 2;
+        }
+        break;
+      }
+      case 'C': {
+        out.push(cmd);
+        while (i < tokens.length && !/[A-Za-z]/.test(tokens[i])) {
+          out.push(`${n() + tx},${n(1) + ty} ${n(2) + tx},${n(3) + ty} ${n(4) + tx},${n(5) + ty}`);
+          i += 6;
+        }
+        break;
+      }
+      case 'S': case 'Q': {
+        out.push(cmd);
+        while (i < tokens.length && !/[A-Za-z]/.test(tokens[i])) {
+          out.push(`${n() + tx},${n(1) + ty} ${n(2) + tx},${n(3) + ty}`);
+          i += 4;
+        }
+        break;
+      }
+      case 'A': {
+        out.push(cmd);
+        while (i < tokens.length && !/[A-Za-z]/.test(tokens[i])) {
+          // arc: rx ry x-rotation large-arc-flag sweep-flag x y
+          out.push(`${n()} ${n(1)} ${n(2)} ${n(3)} ${n(4)} ${n(5) + tx},${n(6) + ty}`);
+          i += 7;
+        }
+        break;
+      }
+      case 'H': {
+        out.push(cmd);
+        while (i < tokens.length && !/[A-Za-z]/.test(tokens[i])) {
+          out.push(`${n() + tx}`);
+          i += 1;
+        }
+        break;
+      }
+      case 'V': {
+        out.push(cmd);
+        while (i < tokens.length && !/[A-Za-z]/.test(tokens[i])) {
+          out.push(`${n() + ty}`);
+          i += 1;
+        }
+        break;
+      }
+      default:
+        // Relative commands (lowercase) and Z — pass through as-is
+        out.push(cmd);
+        while (i < tokens.length && !/[A-Za-z]/.test(tokens[i])) {
+          out.push(tokens[i]);
+          i++;
+        }
+    }
+  }
+
+  return out.join(' ');
+};
+
 // ─── Pattern G: nextId ───────────────────────────────────────────────────────
 
 /**

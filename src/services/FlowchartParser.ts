@@ -20,8 +20,15 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
     const shapeEl   = (polygon || svgCircle || ellipse || g.querySelector('rect, path')) as SVGGraphicsElement;
     if (!shapeEl) return;
 
-    const { x: totalTx, y: totalTy } = getCumulativeTransform(shapeEl, svgElement);
-    const bbox = shapeEl.getBBox();
+    // For cylinder nodes (ellipse + rect combo), the ellipse is only the top cap —
+    // use the rect's bbox for the full height/position instead.
+    const cylinderRect = (ellipse && !svgCircle)
+      ? g.querySelector<SVGRectElement>('rect')
+      : null;
+    const bboxEl = (cylinderRect || shapeEl) as SVGGraphicsElement;
+
+    const { x: totalTx, y: totalTy } = getCumulativeTransform(bboxEl, svgElement);
+    const bbox = bboxEl.getBBox();
     const finalX = totalTx + bbox.x + bbox.width / 2;
     const finalY = totalTy + bbox.y + bbox.height / 2;
     const width = bbox.width;
