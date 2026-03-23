@@ -1,5 +1,6 @@
 import type { DiagramNode, DiagramEdge, EdgeType, SeqLabel } from '../types';
 import { getCumulativeTransform } from './svgUtils';
+import { lineToPathD } from '../utils/parser-base';
 import { hexToRgba } from '../utils/colorUtils';
 
 export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolean): DiagramNode[] => {
@@ -126,12 +127,7 @@ export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolea
 
     const tagName = el.tagName.toLowerCase();
     if (tagName === 'line') {
-      const lx1 = parseFloat(el.getAttribute('x1') || '0');
-      const ly1 = parseFloat(el.getAttribute('y1') || '0');
-      const lx2 = parseFloat(el.getAttribute('x2') || '0');
-      const ly2 = parseFloat(el.getAttribute('y2') || '0');
-      const { x: tx, y: ty } = getCumulativeTransform(el, svgElement);
-      d = `M ${lx1 + tx} ${ly1 + ty} L ${lx2 + tx} ${ly2 + ty}`;
+      d = lineToPathD(el, svgElement);
     } else if (tagName === 'path') {
       d = el.getAttribute('d') || "";
     }

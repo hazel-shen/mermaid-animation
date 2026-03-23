@@ -6,6 +6,7 @@
  */
 import type { DiagramNode, DiagramEdge } from '../types';
 import { getCumulativeTransform } from './svgUtils';
+import { extractComputedColors } from '../utils/parser-base';
 
 export const parsePieNodes = (svgElement: SVGSVGElement): DiagramNode[] => {
   const nodes: DiagramNode[] = [];
@@ -21,9 +22,7 @@ export const parsePieNodes = (svgElement: SVGSVGElement): DiagramNode[] => {
       const cx = tx + bbox.x + bbox.width / 2;
       const cy = ty + bbox.y + bbox.height / 2;
 
-      const style = window.getComputedStyle(path);
-      const color = (style.fill && style.fill !== 'none') ? style.fill : '#818cf8';
-      const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : '#fff';
+      const { color, stroke } = extractComputedColors(path, { color: '#818cf8', stroke: '#fff' });
 
       // Try to get the label from sibling text
       const parentG = path.parentElement;

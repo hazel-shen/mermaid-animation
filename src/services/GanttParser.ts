@@ -8,6 +8,7 @@
  */
 import type { DiagramNode, DiagramEdge } from '../types';
 import { getCumulativeTransform } from './svgUtils';
+import { lineToPathD, extractComputedColors } from '../utils/parser-base';
 
 const BAR_CLASSES = ['task', 'taskText', 'done', 'active', 'crit'];
 
@@ -29,9 +30,7 @@ export const parseGanttNodes = (svgElement: SVGSVGElement): DiagramNode[] => {
       const cx = tx + bbox.x + bbox.width / 2;
       const cy = ty + bbox.y + bbox.height / 2;
 
-      const style = window.getComputedStyle(rect);
-      const color = (style.fill && style.fill !== 'none') ? style.fill : '#60a5fa';
-      const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : '#2563eb';
+      const { color, stroke } = extractComputedColors(rect, { color: '#60a5fa', stroke: '#2563eb' });
 
       // Try to find adjacent text label
       const parentG = rect.parentElement;
@@ -87,12 +86,7 @@ export const parseGanttEdges = (svgElement: SVGSVGElement, isPremium: boolean): 
 
   // Grid / tick lines as structural
   svgElement.querySelectorAll<SVGLineElement>('line.tick, line.grid, line[class*="tick"]').forEach(line => {
-    const { x: tx, y: ty } = getCumulativeTransform(line, svgElement);
-    const x1 = parseFloat(line.getAttribute('x1') || '0') + tx;
-    const y1 = parseFloat(line.getAttribute('y1') || '0') + ty;
-    const x2 = parseFloat(line.getAttribute('x2') || '0') + tx;
-    const y2 = parseFloat(line.getAttribute('y2') || '0') + ty;
-    const d = `M ${x1} ${y1} L ${x2} ${y2}`;
+    const d = lineToPathD(line, svgElement);
     edges.push({
       id: `gantt-tick-${Math.random()}`,
       pathD: d,

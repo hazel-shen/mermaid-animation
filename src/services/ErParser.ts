@@ -5,6 +5,7 @@
  */
 import type { DiagramNode, DiagramEdge } from '../types';
 import { getCumulativeTransform } from './svgUtils';
+import { extractComputedColors, extractComputedStroke } from '../utils/parser-base';
 
 export const parseErNodes = (svgElement: SVGSVGElement, isPremium: boolean): DiagramNode[] => {
   const nodes: DiagramNode[] = [];
@@ -22,9 +23,10 @@ export const parseErNodes = (svgElement: SVGSVGElement, isPremium: boolean): Dia
       const cx = tx + bbox.x + bbox.width / 2;
       const cy = ty + bbox.y + bbox.height / 2;
 
-      const style = window.getComputedStyle(rect);
-      const color = (style.fill && style.fill !== 'none') ? style.fill : (isPremium ? '#f0fdf4' : '#dcfce7');
-      const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : '#16a34a';
+      const { color, stroke } = extractComputedColors(rect, {
+        color: isPremium ? '#f0fdf4' : '#dcfce7',
+        stroke: '#16a34a',
+      });
 
       let label = '';
       const txt = g.querySelector<SVGTextElement>('text');
@@ -47,8 +49,7 @@ export const parseErEdges = (svgElement: SVGSVGElement, isPremium: boolean): Dia
     const d = el.getAttribute('d') || '';
     if (!d || d.length <= 10) return;
 
-    const style = window.getComputedStyle(el);
-    const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : (isPremium ? '#94a3b8' : '#333');
+    const stroke = extractComputedStroke(el, isPremium ? '#94a3b8' : '#333');
 
     edges.push({
       id: `er-edge-${Math.random()}`,

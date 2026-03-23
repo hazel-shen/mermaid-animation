@@ -4,6 +4,7 @@
  */
 import type { DiagramNode, DiagramEdge } from '../types';
 import { getCumulativeTransform } from './svgUtils';
+import { lineToPathD } from '../utils/parser-base';
 
 const SKIP_TAGS = new Set(['defs', 'marker', 'symbol', 'style', 'title', 'desc', 'clippath', 'lineargradient', 'radialgradient', 'filter', 'fegaussianblur', 'feflood', 'feblend', 'fecomposite']);
 
@@ -23,14 +24,6 @@ const getComputedStroke = (el: Element): string | null => {
   return null;
 };
 
-const buildPathFromLine = (el: Element, svgElement: SVGSVGElement): string => {
-  const { x: tx, y: ty } = getCumulativeTransform(el, svgElement);
-  const x1 = parseFloat(el.getAttribute('x1') || '0') + tx;
-  const y1 = parseFloat(el.getAttribute('y1') || '0') + ty;
-  const x2 = parseFloat(el.getAttribute('x2') || '0') + tx;
-  const y2 = parseFloat(el.getAttribute('y2') || '0') + ty;
-  return `M ${x1} ${y1} L ${x2} ${y2}`;
-};
 
 const buildPathFromPolyline = (el: Element, svgElement: SVGSVGElement): string => {
   const { x: tx, y: ty } = getCumulativeTransform(el, svgElement);
@@ -78,7 +71,7 @@ export const parseGeneric = (svgElement: SVGSVGElement, isPremium: boolean): Gen
         }
       }
     } else if (tag === 'line') {
-      const d = buildPathFromLine(el, svgElement);
+      const d = lineToPathD(el, svgElement);
       if (d && !seenPaths.has(d)) {
         const stroke = getComputedStroke(el) || (isPremium ? '#94a3b8' : '#333');
         seenPaths.add(d);

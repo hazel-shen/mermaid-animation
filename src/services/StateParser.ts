@@ -4,6 +4,7 @@
  */
 import type { DiagramNode, DiagramEdge } from '../types';
 import { getCumulativeTransform } from './svgUtils';
+import { extractComputedColors } from '../utils/parser-base';
 
 export const parseStateNodes = (svgElement: SVGSVGElement, isPremium: boolean): DiagramNode[] => {
   const nodes: DiagramNode[] = [];
@@ -21,9 +22,10 @@ export const parseStateNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
       const cx = tx + bbox.x + bbox.width / 2;
       const cy = ty + bbox.y + bbox.height / 2;
 
-      const style = window.getComputedStyle(rect);
-      const color = (style.fill && style.fill !== 'none') ? style.fill : (isPremium ? '#eff6ff' : '#dbeafe');
-      const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : (isPremium ? '#3b82f6' : '#2563eb');
+      const { color, stroke } = extractComputedColors(rect, {
+        color: isPremium ? '#eff6ff' : '#dbeafe',
+        stroke: isPremium ? '#3b82f6' : '#2563eb',
+      });
 
       let label = '';
       const txt = g.querySelector<SVGTextElement>('text');

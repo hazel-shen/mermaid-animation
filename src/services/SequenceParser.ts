@@ -1,5 +1,6 @@
 import type { DiagramNode, DiagramEdge, SeqLabel, EdgeType } from '../types';
 import { getCumulativeTransform } from './svgUtils';
+import { lineToPathD, extractComputedColors } from '../utils/parser-base';
 
 /** Shift all absolute coordinates in an SVG path d-string by (tx, ty). */
 const shiftPathCoords = (raw: string, tx: number, ty: number): string => {
@@ -48,9 +49,7 @@ export const parseSequenceNodes = (svgElement: SVGSVGElement): DiagramNode[] => 
       const txt = parentG.querySelector<SVGTextElement>('text');
       if (txt) label = txt.textContent?.trim() || label;
     }
-    const style = window.getComputedStyle(rect);
-    const color = (style.fill && style.fill !== 'none') ? style.fill : '#ECECFF';
-    const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : '#9370DB';
+    const { color, stroke } = extractComputedColors(rect, { color: '#ECECFF', stroke: '#9370DB' });
     extractedNodes.push({ id: `actor-${Math.random()}`, label, type: 'actor', shape: 'roundRect', x: cx, y: cy, width: w, height: h, color, stroke });
   });
 
@@ -453,10 +452,9 @@ export const parseSequenceEdges = (svgElement: SVGSVGElement, isPremium: boolean
       const hasArrow = line.getAttribute('marker-end') != null ||
         line.classList.contains('messageLine0') ||
         line.classList.contains('messageLine1');
-      const { x: tx, y: ty } = getCumulativeTransform(line, svgElement);
       extractedEdges.push({
         id: `edge-${Math.random()}`,
-        pathD: `M ${lx1 + tx} ${ly1 + ty} L ${lx2 + tx} ${ly2 + ty}`,
+        pathD: lineToPathD(line, svgElement),
         stroke: isPremium ? '#64748b' : '#333',
         type: 'link',
         dash: line.classList.contains('messageLine1') ? [3, 3] : undefined,

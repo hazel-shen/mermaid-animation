@@ -9,6 +9,7 @@
  */
 import type { DiagramNode, DiagramEdge, ClassLine, SeqLabel, ArrowMarker } from '../types';
 import { getCumulativeTransform } from './svgUtils';
+import { extractComputedColors } from '../utils/parser-base';
 
 /** Returns true if the element is a descendant of a <defs> or <marker> element. */
 const isInsideDefs = (el: Element): boolean => {
@@ -46,9 +47,10 @@ export const parseClassNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
       const cx = tx + bbox.x + bbox.width / 2;
       const cy = ty + bbox.y + bbox.height / 2;
 
-      const style = window.getComputedStyle(rect);
-      const color = (style.fill && style.fill !== 'none') ? style.fill : (isPremium ? '#f8fafc' : '#fff');
-      const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : (isPremium ? '#94a3b8' : '#333');
+      const { color, stroke } = extractComputedColors(rect, {
+        color: isPremium ? '#f8fafc' : '#fff',
+        stroke: isPremium ? '#94a3b8' : '#333',
+      });
 
       // ── Extract class lines (title + dividers + members) ─────────────────
       // Mermaid v2 class node (g.label) structure:
@@ -140,9 +142,10 @@ export const parseClassNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
         const cx = tx + bbox.x + bbox.width / 2;
         const cy = ty + bbox.y + bbox.height / 2;
 
-        const style = window.getComputedStyle(rect);
-        const color = (style.fill && style.fill !== 'none') ? style.fill : (isPremium ? '#f8fafc' : '#fff');
-        const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : (isPremium ? '#94a3b8' : '#333');
+        const { color, stroke } = extractComputedColors(rect, {
+          color: isPremium ? '#f8fafc' : '#fff',
+          stroke: isPremium ? '#94a3b8' : '#333',
+        });
 
         let label = '';
         const texts = g.querySelectorAll<SVGTextElement>('text');

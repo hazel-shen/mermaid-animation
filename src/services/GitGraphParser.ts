@@ -6,6 +6,7 @@
  */
 import type { DiagramNode, DiagramEdge } from '../types';
 import { getCumulativeTransform } from './svgUtils';
+import { lineToPathD, extractComputedColors, extractComputedStroke } from '../utils/parser-base';
 
 export const parseGitGraphNodes = (svgElement: SVGSVGElement, isPremium: boolean): DiagramNode[] => {
   const nodes: DiagramNode[] = [];
@@ -17,9 +18,10 @@ export const parseGitGraphNodes = (svgElement: SVGSVGElement, isPremium: boolean
     const cx = tx + parseFloat(circle.getAttribute('cx') || '0');
     const cy = ty + parseFloat(circle.getAttribute('cy') || '0');
 
-    const style = window.getComputedStyle(circle);
-    const color = (style.fill && style.fill !== 'none') ? style.fill : (isPremium ? '#6366f1' : '#4f46e5');
-    const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : '#312e81';
+    const { color, stroke } = extractComputedColors(circle, {
+      color: isPremium ? '#6366f1' : '#4f46e5',
+      stroke: '#312e81',
+    });
 
     // Try to get commit label
     let label = '';
@@ -84,8 +86,7 @@ export const parseGitGraphEdges = (svgElement: SVGSVGElement, isPremium: boolean
     const d = path.getAttribute('d') || '';
     if (!d || d.length <= 5) return;
 
-    const style = window.getComputedStyle(path);
-    const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : (isPremium ? '#818cf8' : '#6366f1');
+    const stroke = extractComputedStroke(path, isPremium ? '#818cf8' : '#6366f1');
 
     edges.push({
       id: `git-edge-${Math.random()}`,
@@ -98,15 +99,8 @@ export const parseGitGraphEdges = (svgElement: SVGSVGElement, isPremium: boolean
 
   // Also grab lines connecting commits
   svgElement.querySelectorAll<SVGLineElement>('line[class*="branch"], line.commit-line').forEach(line => {
-    const { x: tx, y: ty } = getCumulativeTransform(line, svgElement);
-    const x1 = parseFloat(line.getAttribute('x1') || '0') + tx;
-    const y1 = parseFloat(line.getAttribute('y1') || '0') + ty;
-    const x2 = parseFloat(line.getAttribute('x2') || '0') + tx;
-    const y2 = parseFloat(line.getAttribute('y2') || '0') + ty;
-    const d = `M ${x1} ${y1} L ${x2} ${y2}`;
-    const style = window.getComputedStyle(line);
-    const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : (isPremium ? '#818cf8' : '#6366f1');
-    edges.push({ id: `git-line-${Math.random()}`, pathD: d, stroke, type: 'link' });
+    const stroke = extractComputedStroke(line, isPremium ? '#818cf8' : '#6366f1');
+    edges.push({ id: `git-line-${Math.random()}`, pathD: lineToPathD(line, svgElement), stroke, type: 'link' });
   });
 
   return edges;
