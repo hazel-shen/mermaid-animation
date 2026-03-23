@@ -209,19 +209,9 @@ export const drawNode = (
     const r = height / 2;
     ctx.roundRect(x - width / 2, y - height / 2, width, height, r);
   } else if (shape === 'cylinder') {
-    // Cylinder: two elliptical caps connected by vertical sides.
-    // ry = vertical radius of the ellipse caps; body height shrinks accordingly.
-    const rx = width / 2;
-    const ry = Math.max(6, height * 0.15);
-    const topCy = y - height / 2 + ry;   // centre of top ellipse
-    const botCy = y + height / 2 - ry;   // centre of bottom ellipse
-    // Left side down, bottom ellipse, right side up, top ellipse (back half)
-    ctx.moveTo(x - rx, topCy);
-    ctx.lineTo(x - rx, botCy);
-    ctx.ellipse(x, botCy, rx, ry, 0, Math.PI, 0, false); // bottom cap
-    ctx.lineTo(x + rx, topCy);
-    ctx.ellipse(x, topCy, rx, ry, 0, 0, Math.PI, false); // top cap (back)
-    ctx.closePath();
+    // Cylinder is fully painted in the post-fill block below; draw a no-op path
+    // here so ctx.fill()/ctx.stroke() don't leave unwanted artefacts.
+    ctx.rect(0, 0, 0, 0);
   } else if (shape === 'subroutine') {
     // Subroutine: rect with inner vertical lines near left and right edges
     const r = 4;
@@ -258,11 +248,50 @@ export const drawNode = (
     ctx.stroke();
   }
 
-  // Cylinder: redraw top ellipse on top of fill so the front rim is visible
+  // Cylinder: two full ellipses (top cap + bottom cap) with a filled rect body.
+  // Ellipse ry is ~20% of height to match a realistic database drum shape.
   if (shape === 'cylinder') {
     const rx = width / 2;
-    const ry = Math.max(6, height * 0.15);
-    const topCy = y - height / 2 + ry;
+    const ry = Math.max(6, height * 0.20);
+    const top = y - height / 2;
+    const bot = y + height / 2;
+    const topCy = top + ry;
+    const botCy = bot - ry;
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = stroke;
+    ctx.fillStyle = color;
+
+    // 1. Body: filled rect between the two ellipse centres (no stroke on sides yet)
+    ctx.fillRect(x - rx, topCy, width, botCy - topCy);
+
+    // 2. Bottom ellipse: only the lower half arc is stroked with the border colour;
+    //    the upper half arc is stroked with the fill colour so it is invisible
+    //    against the cylinder body.
+    ctx.beginPath();
+    ctx.ellipse(x, botCy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Lower half arc (0 → π, screen-down direction): visible border
+    ctx.beginPath();
+    ctx.ellipse(x, botCy, rx, ry, 0, 0, Math.PI);
+    ctx.strokeStyle = stroke;
+    ctx.stroke();
+    // Upper half arc (π → 2π, screen-up direction): hidden by matching fill colour
+    ctx.beginPath();
+    ctx.ellipse(x, botCy, rx, ry, 0, Math.PI, Math.PI * 2);
+    ctx.strokeStyle = color;
+    ctx.stroke();
+    ctx.strokeStyle = stroke;
+
+    // 3. Side outlines (left and right vertical lines)
+    ctx.beginPath();
+    ctx.moveTo(x - rx, topCy);
+    ctx.lineTo(x - rx, botCy);
+    ctx.moveTo(x + rx, topCy);
+    ctx.lineTo(x + rx, botCy);
+    ctx.stroke();
+
+    // 4. Top ellipse — drawn last so it sits on top of body & bottom cap
     ctx.beginPath();
     ctx.ellipse(x, topCy, rx, ry, 0, 0, Math.PI * 2);
     ctx.fillStyle = color;
@@ -549,12 +578,18 @@ const getPathEnd = (pathD: string): { x: number; y: number; angle: number } | nu
       : pn.length >= 2 ? { x: pn[pn.length - 2], y: pn[pn.length - 1] } : null;
     if (!pEnd) return null;
     dx = ex - pEnd.x; dy = ey - pEnd.y;
-    // For very short L tips (e.g. self-loop arrow cap), fall back to the
-    // preceding C segment's own exit tangent (last control point → endpoint).
-    if (Math.hypot(dx, dy) < 0.5 && pc === 'C' && pn.length >= 6) {
-      dx = pn[pn.length - 2] - pn[pn.length - 4];
-      dy = pn[pn.length - 1] - pn[pn.length - 3];
-      ex = pn[pn.length - 2]; ey = pn[pn.length - 1];
+    if (pc === 'C' && pn.length >= 6) {
+      // Use the preceding C segment's exit tangent (last ctrl pt → C endpoint) as the
+      // angle when the L cap is degenerate (< 0.5 px — self-loop or collapsed tip).
+      // Do NOT override for valid L tips that merely curve slightly backward; those
+      // are legitimate arrow endpoints at the target node.
+      const cDx = pn[pn.length - 2] - pn[pn.length - 4];
+      const cDy = pn[pn.length - 1] - pn[pn.length - 3];
+      const lLen = Math.hypot(dx, dy);
+      if (lLen < 0.5) {
+        dx = cDx; dy = cDy;
+        ex = pn[pn.length - 2]; ey = pn[pn.length - 1];
+      }
     }
   } else if (cmd === 'M' && nums.length >= 2) {
     ex = nums[nums.length - 2]; ey = nums[nums.length - 1];
@@ -697,23 +732,6 @@ const markerSetback = (marker: ArrowMarker | undefined): number => {
   }
 };
 
-/**
- * Given a node and an approach direction (unit vector dx,dy pointing FROM outside TOWARD node),
- * returns the point on the node's rectangular border where that direction exits the node centre.
- * Used to snap arrow tips precisely onto box edges.
- */
-const borderPoint = (node: DiagramNode, dx: number, dy: number): { x: number; y: number } => {
-  const hw = node.width  / 2;
-  const hh = node.height / 2;
-  const len = Math.hypot(dx, dy);
-  if (len < 1e-6) return { x: node.x, y: node.y };
-  const ux = dx / len, uy = dy / len;
-  // Smallest positive t at which ray (node.x + ux*t, node.y + uy*t) hits a wall
-  const tx = ux !== 0 ? hw / Math.abs(ux) : Infinity;
-  const ty = uy !== 0 ? hh / Math.abs(uy) : Infinity;
-  const t  = Math.min(tx, ty);
-  return { x: node.x + ux * t, y: node.y + uy * t };
-};
 
 /**
  * Find the node whose bounding box contains (px,py).
@@ -750,7 +768,7 @@ export const drawEdge = (
   ctx: CanvasRenderingContext2D,
   edge: DiagramEdge,
   isPremium: boolean,
-  nodes: DiagramNode[] = [],
+  _nodes: DiagramNode[] = [],
 ) => {
   const edgeColor = isPremium
     ? (edge.type === 'structural' ? '#cbd5e1' : '#64748b')
@@ -761,39 +779,15 @@ export const drawEdge = (
   const rawEnd   = getPathEnd(edge.pathD);
   const rawStart = getPathStart(edge.pathD);
 
-  // ── Snap endpoints to node borders ──────────────────────────────────────
-  // Approach direction for END  = rawEnd.angle  (path tangent arriving at end)
-  // Approach direction for START = rawStart.angle reversed (tangent leaving start, so flip)
-  let tipEnd   = rawEnd   ? { x: rawEnd.x,   y: rawEnd.y,   angle: rawEnd.angle   } : null;
-  let tipStart = rawStart ? { x: rawStart.x, y: rawStart.y, angle: rawStart.angle } : null;
+  // Use raw SVG path endpoints directly — Mermaid already places them correctly.
+  // Border-snapping is skipped for flowchart edges because the basis curve's
+  // control points don't update with the snapped position, causing visible gaps.
+  const tipEnd   = rawEnd   ? { x: rawEnd.x,   y: rawEnd.y,   angle: rawEnd.angle   } : null;
+  const tipStart = rawStart ? { x: rawStart.x, y: rawStart.y, angle: rawStart.angle } : null;
 
-  if (nodes.length > 0 && !edge.noSnap) {
-    if (rawEnd) {
-      const node = findNodeAtPoint(nodes, rawEnd.x, rawEnd.y);
-      if (node) {
-        // Arrow arrives at node: border is the face the path hits, i.e. opposite to travel direction
-        const dx = -Math.cos(rawEnd.angle), dy = -Math.sin(rawEnd.angle);
-        const bp = borderPoint(node, dx, dy);
-        tipEnd = { x: bp.x, y: bp.y, angle: rawEnd.angle };
-      }
-    }
-    if (rawStart) {
-      const node = findNodeAtPoint(nodes, rawStart.x, rawStart.y);
-      if (node) {
-        // rawStart.angle already has +π applied (points back toward start node).
-        // To get the border face the path exits from, negate again to get exit direction.
-        const dx = -Math.cos(rawStart.angle), dy = -Math.sin(rawStart.angle);
-        const bp = borderPoint(node, dx, dy);
-        tipStart = { x: bp.x, y: bp.y, angle: rawStart.angle };
-      }
-    }
-  }
-
-  // ── Rebuild drawn path with setback so line doesn't protrude through marker ─
+  // ── Setback: shorten drawn path so the line stops just before the arrowhead ─
   const segs = tokenisePath(edge.pathD);
 
-  // For nearly-horizontal lines snap y so floating-point noise in the angle
-  // doesn't tilt the drawn segment (especially sequence diagram arrows).
   const isNearlyHorizontal = rawStart && rawEnd &&
     Math.abs(rawEnd.y - rawStart.y) < 1.5;
 
@@ -804,7 +798,6 @@ export const drawEdge = (
     if (setback > 0) {
       const sbx = tipEnd.x - Math.cos(tipEnd.angle) * setback;
       const sby = isNearlyHorizontal ? tipEnd.y : tipEnd.y - Math.sin(tipEnd.angle) * setback;
-      // Only rewrite last segment when it's a simple L (straight tip); preserve curves.
       const lastSeg = segs[segs.length - 1]!;
       if (lastSeg.trimStart().toUpperCase().startsWith('L')) {
         segs[segs.length - 1] = `L ${sbx} ${sby}`;
@@ -816,7 +809,6 @@ export const drawEdge = (
     const setback = (edge.arrowStart && edge.arrowStart !== 'none')
       ? markerSetback(edge.arrowStart) : 0;
     if (setback > 0) {
-      // tipStart.angle points INTO path; to set back we go opposite
       const sbx = tipStart.x + Math.cos(tipStart.angle) * setback;
       const sby = isNearlyHorizontal ? tipStart.y : tipStart.y + Math.sin(tipStart.angle) * setback;
       segs[0] = `M ${sbx} ${sby}`;

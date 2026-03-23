@@ -14,10 +14,10 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
     if (!isNode && !isCluster && !isNote) return;
 
     // Prefer shape-specific elements; polygon/ellipse must take priority over rect.
-    const polygon  = g.querySelector<SVGPolygonElement>('polygon');
-    const ellipse  = g.querySelector<SVGEllipseElement>('ellipse');
+    const polygon   = g.querySelector<SVGPolygonElement>('polygon');
+    const ellipse   = g.querySelector<SVGEllipseElement>('ellipse');
     const svgCircle = g.querySelector<SVGCircleElement>('circle');
-    const shapeEl  = (polygon || svgCircle || ellipse || g.querySelector('rect, path')) as SVGGraphicsElement;
+    const shapeEl   = (polygon || svgCircle || ellipse || g.querySelector('rect, path')) as SVGGraphicsElement;
     if (!shapeEl) return;
 
     const { x: totalTx, y: totalTy } = getCumulativeTransform(shapeEl, svgElement);
@@ -40,8 +40,13 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
 
     const tagName = shapeEl.tagName.toLowerCase();
 
-    // Cylinder: [(text)] — Mermaid renders with an <ellipse> for the top cap
-    if (ellipse && !svgCircle) {
+    // Cylinder [(text)]: Mermaid v10 renders as a single <path> with elliptical arc
+    // commands (M...a...a...l...a...l — no separate ellipse element).
+    // Detect by checking the path d attribute contains multiple arc ('a') commands.
+    const isCylinderPath = tagName === 'path' &&
+      ((shapeEl.getAttribute('d') || '').match(/\ba\b/gi) || []).length >= 2;
+
+    if (isCylinderPath || (ellipse && !svgCircle)) {
       shape = 'cylinder';
     } else if (tagName === 'circle') {
       shape = 'circle';
@@ -124,11 +129,10 @@ export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolea
     }
 
     if (d && d.length > 10) {
-      const markerAttr = el.getAttribute('marker-end');
-      const hasArrow = type === 'link' && (
-        markerAttr != null ||
-        (window.getComputedStyle(el).markerEnd || '') !== 'none'
-      );
+      const markerAttr = el.getAttribute('marker-end') || window.getComputedStyle(el).markerEnd || '';
+      // Only treat as arrow if the marker is a genuine arrowhead (not a circle/cross marker).
+      const isNonArrowMarker = /circle|cross/i.test(markerAttr);
+      const hasArrow = type === 'link' && markerAttr !== '' && markerAttr !== 'none' && !isNonArrowMarker;
       extractedEdges.push({ id: nextId('edge'), pathD: d, stroke, type, dash, hasArrow });
     }
   };
