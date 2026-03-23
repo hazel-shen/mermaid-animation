@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { parseClassNodes } from '../services/ClassParser';
-import { resetIdCounter } from '../utils/parser-base';
+import { parseClassNodes } from '../../services/ClassParser';
+import { resetIdCounter } from '../../utils/parser-base';
 
 /**
  * jsdom does not implement SVGElement.getBBox(), so we mock it globally.

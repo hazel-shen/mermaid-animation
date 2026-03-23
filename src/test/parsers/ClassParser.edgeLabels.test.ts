@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { parseClassEdgeLabels } from '../services/ClassParser';
-import { resetIdCounter } from '../utils/parser-base';
+import { parseClassEdgeLabels } from '../../services/ClassParser';
+import { resetIdCounter } from '../../utils/parser-base';
 
 describe('parseClassEdgeLabels', () => {
   let svgElement: SVGSVGElement;

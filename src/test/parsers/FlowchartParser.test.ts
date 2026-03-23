@@ -3,8 +3,8 @@ import {
   parseFlowchartNodes,
   parseFlowchartEdges,
   parseFlowchartEdgeLabels,
-} from '../services/FlowchartParser';
-import { resetIdCounter } from '../utils/parser-base';
+} from '../../services/FlowchartParser';
+import { resetIdCounter } from '../../utils/parser-base';
 
 // jsdom does not implement getBBox — mock it globally per test suite.
 // Default bbox: 100 × 50, so width > 0 and height > 0 checks pass.

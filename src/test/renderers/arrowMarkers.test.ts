@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { markerSetback, drawArrowMarker } from '../utils/arrowMarkers';
-import type { ArrowMarker } from '../types';
+import { markerSetback, drawArrowMarker } from '../../utils/arrowMarkers';
+import type { ArrowMarker } from '../../types';
 
 // ── markerSetback ─────────────────────────────────────────────────────────────
 

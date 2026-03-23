@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { truncateText, drawClassNode } from '../utils/drawClassNode';
-import type { DiagramNode } from '../types';
+import { truncateText, drawClassNode } from '../../utils/drawClassNode';
+import type { DiagramNode } from '../../types';
 
 // Canvas mock — measureText returns 8px per character
 const makeCtx = (charWidth = 8) => {

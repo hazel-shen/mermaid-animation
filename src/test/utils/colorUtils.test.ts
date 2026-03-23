@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getLuminance } from '../utils/colorUtils';
+import { getLuminance } from '../../utils/colorUtils';
 
 describe('getLuminance', () => {
   // ── Edge cases ────────────────────────────────────────────────────────────

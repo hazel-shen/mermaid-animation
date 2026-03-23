@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSegment, tokenisePath, getPathEnd, getPathStart } from '../utils/pathUtils';
+import { parseSegment, tokenisePath, getPathEnd, getPathStart } from '../../utils/pathUtils';
 
 describe('parseSegment', () => {
   it('parses a Move command', () => {

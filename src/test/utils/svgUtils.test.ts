@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { getCumulativeTransform } from '../services/svgUtils';
+import { getCumulativeTransform } from '../../services/svgUtils';
 
 describe('getCumulativeTransform', () => {
   let svg: SVGSVGElement;

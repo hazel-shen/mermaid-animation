@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { parseSequenceEdges } from '../services/SequenceParser';
+import { parseSequenceEdges } from '../../services/SequenceParser';
 
 describe('parseSequenceEdges', () => {
   let svgElement: SVGSVGElement;

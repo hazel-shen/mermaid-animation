@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getDiagramType } from '../services/diagramTypes';
+import { getDiagramType } from '../../services/diagramTypes';
 
 describe('getDiagramType', () => {
   // ── Known diagram types ───────────────────────────────────────────────────

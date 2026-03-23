@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { parseGeneric } from '../services/GenericParser';
+import { parseGeneric } from '../../services/GenericParser';
 
 // jsdom returns empty strings for computed SVG fill/stroke.
 // GenericParser falls back to getAttribute, so we use setAttribute in tests.

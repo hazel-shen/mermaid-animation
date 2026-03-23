@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { parseSequenceMessageLabels } from '../services/SequenceParser';
+import { parseSequenceMessageLabels } from '../../services/SequenceParser';
 
 describe('parseSequenceMessageLabels', () => {
   let svgElement: SVGSVGElement;

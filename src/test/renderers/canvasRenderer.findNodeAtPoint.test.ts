@@ -16,8 +16,8 @@
  * When exactOnly=true the fallback is skipped entirely (bbox only).
  */
 import { describe, it, expect } from 'vitest';
-import { findNodeAtPoint } from '../utils/canvasRenderer';
-import type { DiagramNode } from '../types';
+import { findNodeAtPoint } from '../../utils/canvasRenderer';
+import type { DiagramNode } from '../../types';
 
 const makeNode = (
   overrides: Partial<DiagramNode> & { x: number; y: number; width: number; height: number }

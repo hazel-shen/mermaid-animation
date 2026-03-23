@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { parseWedgePath, parsePieNodes, parsePieEdges, parsePieLabels } from '../services/PieParser';
-import { resetIdCounter } from '../utils/parser-base';
+import { parseWedgePath, parsePieNodes, parsePieEdges, parsePieLabels } from '../../services/PieParser';
+import { resetIdCounter } from '../../utils/parser-base';
 
 const NS = 'http://www.w3.org/2000/svg';
 const el = <T extends SVGElement>(tag: string) => document.createElementNS(NS, tag) as T;

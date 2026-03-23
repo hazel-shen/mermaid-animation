@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { parseSequenceNodes } from '../services/SequenceParser';
-import { resetIdCounter } from '../utils/parser-base';
+import { parseSequenceNodes } from '../../services/SequenceParser';
+import { resetIdCounter } from '../../utils/parser-base';
 
 describe('parseSequenceNodes', () => {
   let svgElement: SVGSVGElement;
