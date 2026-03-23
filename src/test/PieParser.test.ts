@@ -12,8 +12,6 @@ const mockBBox = (x = 0, y = 0, w = 60, h = 16): DOMRect =>
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('parseWedgePath', () => {
-  const ID = { tx: 0, ty: 0, sx: 1, sy: 1 }; // identity transform
-
   it('returns null for empty string', () => {
     expect(parseWedgePath('', 0, 0, 1, 1)).toBeNull();
   });
