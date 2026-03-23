@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   parseFlowchartNodes,
   parseFlowchartEdges,
   parseFlowchartEdgeLabels,
 } from '../services/FlowchartParser';
+import { resetIdCounter } from '../utils/parser-base';
 
 // jsdom does not implement getBBox — mock it globally per test suite.
 // Default bbox: 100 × 50, so width > 0 and height > 0 checks pass.
@@ -19,6 +20,7 @@ describe('parseFlowchartNodes', () => {
   let svgElement: SVGSVGElement;
 
   beforeEach(() => {
+    resetIdCounter();
     svgElement = makeSvg();
     document.body.appendChild(svgElement);
     Object.defineProperty(SVGElement.prototype, 'getBBox', {
@@ -231,6 +233,7 @@ describe('parseFlowchartEdges', () => {
   let svgElement: SVGSVGElement;
 
   beforeEach(() => {
+    resetIdCounter();
     svgElement = makeSvg();
     document.body.appendChild(svgElement);
   });
@@ -314,6 +317,30 @@ describe('parseFlowchartEdges', () => {
     // jsdom returns empty computed stroke → uses fallback
     const [edge] = parseFlowchartEdges(svgElement, true);
     expect(edge.stroke).toBe('#94a3b8');
+  });
+
+  it('uses non-premium stroke fallback when isPremium=false', () => {
+    const g = el('g'); g.classList.add('edgePath');
+    const path = el<SVGPathElement>('path');
+    path.setAttribute('d', 'M 10 10 L 100 100');
+    g.appendChild(path); svgElement.appendChild(g);
+    const [edge] = parseFlowchartEdges(svgElement, false);
+    expect(edge.stroke).toBe('#333');
+  });
+
+  it('parses dash pattern from strokeDasharray', () => {
+    vi.spyOn(window, 'getComputedStyle').mockReturnValue({
+      stroke: 'none',
+      strokeDasharray: '8, 4',
+      markerEnd: 'none',
+    } as unknown as CSSStyleDeclaration);
+    const g = el('g'); g.classList.add('edgePath');
+    const path = el<SVGPathElement>('path');
+    path.setAttribute('d', 'M 10 10 L 100 100');
+    g.appendChild(path); svgElement.appendChild(g);
+    const [edge] = parseFlowchartEdges(svgElement, false);
+    expect(edge.dash).toEqual([8, 4]);
+    vi.restoreAllMocks();
   });
 });
 

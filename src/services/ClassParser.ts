@@ -9,7 +9,7 @@
  */
 import type { DiagramNode, DiagramEdge, ClassLine, SeqLabel, ArrowMarker } from '../types';
 import { getCumulativeTransform } from './svgUtils';
-import { extractComputedColors } from '../utils/parser-base';
+import { extractComputedColors, rectCenter, nextId } from '../utils/parser-base';
 
 /** Returns true if the element is a descendant of a <defs> or <marker> element. */
 const isInsideDefs = (el: Element): boolean => {
@@ -36,16 +36,9 @@ export const parseClassNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
                  g.querySelector<SVGRectElement>('rect');
     if (!rect) return;
 
-    try {
-      // transform="translate(cx, cy)" gives us the centre of the node directly
-      const { x: tx, y: ty } = getCumulativeTransform(g, svgElement);
-      const bbox = rect.getBBox();
-      if (bbox.width <= 0 || bbox.height <= 0) return;
-
-      // In v2, the rect has x="-w/2", y="-h/2" (origin at centre), so:
-      //   absolute centre = tx + 0 = tx  (bbox.x + bbox.width/2 == 0)
-      const cx = tx + bbox.x + bbox.width / 2;
-      const cy = ty + bbox.y + bbox.height / 2;
+    const geom = rectCenter(rect, svgElement);
+    if (geom) {
+      const { cx, cy } = geom;
 
       const { color, stroke } = extractComputedColors(rect, {
         color: isPremium ? '#f8fafc' : '#fff',
@@ -107,7 +100,7 @@ export const parseClassNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
         if (texts.length > 0) label = texts[0].textContent?.trim() || '';
       }
 
-      const nodeId = g.id || `class-v2-${Math.random()}`;
+      const nodeId = g.id || nextId('class-v2');
       if (!seenIds.has(nodeId)) {
         seenIds.add(nodeId);
         nodes.push({
@@ -116,14 +109,14 @@ export const parseClassNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
           type: 'node',
           shape: 'rect',
           x: cx, y: cy,
-          width: bbox.width,
-          height: bbox.height,
+          width: geom.width,
+          height: geom.height,
           color,
           stroke,
           classLines: classLines.length > 0 ? classLines : undefined,
         });
       }
-    } catch { /* getBBox can fail on hidden elements */ }
+    }
   });
 
   // ── v1 renderer: g.classGroup (legacy classDiagram renderer) ─────────────
@@ -134,14 +127,8 @@ export const parseClassNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
       const rect = g.querySelector<SVGRectElement>('rect');
       if (!rect) return;
 
-      try {
-        const { x: tx, y: ty } = getCumulativeTransform(rect, svgElement);
-        const bbox = rect.getBBox();
-        if (bbox.width <= 0 || bbox.height <= 0) return;
-
-        const cx = tx + bbox.x + bbox.width / 2;
-        const cy = ty + bbox.y + bbox.height / 2;
-
+      const geom = rectCenter(rect, svgElement);
+      if (geom) {
         const { color, stroke } = extractComputedColors(rect, {
           color: isPremium ? '#f8fafc' : '#fff',
           stroke: isPremium ? '#94a3b8' : '#333',
@@ -151,7 +138,7 @@ export const parseClassNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
         const texts = g.querySelectorAll<SVGTextElement>('text');
         if (texts.length > 0) label = texts[0].textContent?.trim() || '';
 
-        const nodeId = g.id || `class-v1-${Math.random()}`;
+        const nodeId = g.id || nextId('class-v1');
         if (!seenIds.has(nodeId)) {
           seenIds.add(nodeId);
           nodes.push({
@@ -159,14 +146,14 @@ export const parseClassNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
             label,
             type: 'node',
             shape: 'rect',
-            x: cx, y: cy,
-            width: bbox.width,
-            height: bbox.height,
+            x: geom.cx, y: geom.cy,
+            width: geom.width,
+            height: geom.height,
             color,
             stroke,
           });
         }
-      } catch { /* getBBox can fail */ }
+      }
     });
   }
 
@@ -215,7 +202,7 @@ export const parseClassEdges = (svgElement: SVGSVGElement, isPremium: boolean): 
     const hasArrow = arrowEnd !== 'none' || arrowStart !== 'none';
 
     edges.push({
-      id: `class-edge-${Math.random()}`,
+      id: nextId('class-edge'),
       pathD: d,
       stroke,
       type: 'link',

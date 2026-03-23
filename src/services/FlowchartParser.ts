@@ -1,6 +1,6 @@
 import type { DiagramNode, DiagramEdge, EdgeType, SeqLabel } from '../types';
 import { getCumulativeTransform } from './svgUtils';
-import { lineToPathD } from '../utils/parser-base';
+import { lineToPathD, extractEdgeStyle, nextId } from '../utils/parser-base';
 import { hexToRgba } from '../utils/colorUtils';
 
 export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolean): DiagramNode[] => {
@@ -99,7 +99,7 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
     }
 
     if (width > 0 && height > 0) {
-      const nodeId = g.id || `node-${Math.random()}`;
+      const nodeId = g.id || nextId('node');
       if (!extractedNodes.some(n => n.id === nodeId)) {
         extractedNodes.push({ id: nodeId, label, type, x: finalX, y: finalY, width, height, color, stroke, shape });
       }
@@ -113,17 +113,8 @@ export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolea
   const extractedEdges: DiagramEdge[] = [];
 
   const processEdge = (el: Element, type: EdgeType) => {
+    const { stroke, dash } = extractEdgeStyle(el, isPremium);
     let d = "";
-    let stroke = isPremium ? '#94a3b8' : '#333';
-    let dash: number[] | undefined = undefined;
-
-    const style = window.getComputedStyle(el);
-    if (style.stroke && style.stroke !== 'none') stroke = style.stroke;
-
-    if (style.strokeDasharray && style.strokeDasharray !== 'none') {
-      const dashValues = style.strokeDasharray.split(',').map(n => parseFloat(n));
-      if (dashValues.some(v => v > 0)) dash = dashValues;
-    }
 
     const tagName = el.tagName.toLowerCase();
     if (tagName === 'line') {
@@ -138,7 +129,7 @@ export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolea
         markerAttr != null ||
         (window.getComputedStyle(el).markerEnd || '') !== 'none'
       );
-      extractedEdges.push({ id: `edge-${Math.random()}`, pathD: d, stroke, type, dash, hasArrow });
+      extractedEdges.push({ id: nextId('edge'), pathD: d, stroke, type, dash, hasArrow });
     }
   };
 
