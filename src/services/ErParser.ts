@@ -4,7 +4,7 @@
  * ER diagrams have entity boxes and relation paths connecting them.
  */
 import type { DiagramNode, DiagramEdge } from '../types';
-import { getCumulativeTransform } from './svgUtils';
+import { extractComputedColors, extractComputedStroke, rectCenter, nextId } from '../utils/parser-base';
 
 export const parseErNodes = (svgElement: SVGSVGElement, isPremium: boolean): DiagramNode[] => {
   const nodes: DiagramNode[] = [];
@@ -14,27 +14,22 @@ export const parseErNodes = (svgElement: SVGSVGElement, isPremium: boolean): Dia
     const rect = g.querySelector<SVGRectElement>('rect');
     if (!rect) return;
 
-    try {
-      const { x: tx, y: ty } = getCumulativeTransform(rect, svgElement);
-      const bbox = rect.getBBox();
-      if (bbox.width <= 0 || bbox.height <= 0) return;
+    const geom = rectCenter(rect, svgElement);
+    if (!geom) return;
 
-      const cx = tx + bbox.x + bbox.width / 2;
-      const cy = ty + bbox.y + bbox.height / 2;
+    const { color, stroke } = extractComputedColors(rect, {
+      color: isPremium ? '#f0fdf4' : '#dcfce7',
+      stroke: '#16a34a',
+    });
 
-      const style = window.getComputedStyle(rect);
-      const color = (style.fill && style.fill !== 'none') ? style.fill : (isPremium ? '#f0fdf4' : '#dcfce7');
-      const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : '#16a34a';
+    let label = '';
+    const txt = g.querySelector<SVGTextElement>('text');
+    if (txt) label = txt.textContent?.trim() || '';
 
-      let label = '';
-      const txt = g.querySelector<SVGTextElement>('text');
-      if (txt) label = txt.textContent?.trim() || '';
-
-      const nodeId = g.id || `er-entity-${Math.random()}`;
-      if (!nodes.some(n => n.id === nodeId)) {
-        nodes.push({ id: nodeId, label, type: 'node', shape: 'rect', x: cx, y: cy, width: bbox.width, height: bbox.height, color, stroke });
-      }
-    } catch { /* getBBox can fail */ }
+    const nodeId = g.id || nextId('er-entity');
+    if (!nodes.some(n => n.id === nodeId)) {
+      nodes.push({ id: nodeId, label, type: 'node', shape: 'rect', x: geom.cx, y: geom.cy, width: geom.width, height: geom.height, color, stroke });
+    }
   });
 
   return nodes;
@@ -47,11 +42,10 @@ export const parseErEdges = (svgElement: SVGSVGElement, isPremium: boolean): Dia
     const d = el.getAttribute('d') || '';
     if (!d || d.length <= 10) return;
 
-    const style = window.getComputedStyle(el);
-    const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : (isPremium ? '#94a3b8' : '#333');
+    const stroke = extractComputedStroke(el, isPremium ? '#94a3b8' : '#333');
 
     edges.push({
-      id: `er-edge-${Math.random()}`,
+      id: nextId('er-edge'),
       pathD: d,
       stroke,
       type: 'link',

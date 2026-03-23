@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { parseClassEdges } from '../services/ClassParser';
+import { resetIdCounter } from '../utils/parser-base';
 
 describe('parseClassEdges', () => {
   let svgElement: SVGSVGElement;
 
   beforeEach(() => {
+    resetIdCounter();
     svgElement = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     document.body.appendChild(svgElement);
   });

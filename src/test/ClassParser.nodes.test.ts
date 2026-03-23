@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { parseClassNodes } from '../services/ClassParser';
+import { resetIdCounter } from '../utils/parser-base';
 
 /**
  * jsdom does not implement SVGElement.getBBox(), so we mock it globally.
@@ -12,6 +13,7 @@ describe('parseClassNodes', () => {
   let svgElement: SVGSVGElement;
 
   beforeEach(() => {
+    resetIdCounter();
     svgElement = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     document.body.appendChild(svgElement);
     // jsdom does not implement getBBox — define it so dimension checks pass

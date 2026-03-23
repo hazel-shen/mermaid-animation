@@ -1,5 +1,6 @@
 import type { DiagramNode, DiagramEdge, EdgeType, SeqLabel } from '../types';
 import { getCumulativeTransform } from './svgUtils';
+import { lineToPathD, extractEdgeStyle, nextId } from '../utils/parser-base';
 import { hexToRgba } from '../utils/colorUtils';
 
 export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolean): DiagramNode[] => {
@@ -98,7 +99,7 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
     }
 
     if (width > 0 && height > 0) {
-      const nodeId = g.id || `node-${Math.random()}`;
+      const nodeId = g.id || nextId('node');
       if (!extractedNodes.some(n => n.id === nodeId)) {
         extractedNodes.push({ id: nodeId, label, type, x: finalX, y: finalY, width, height, color, stroke, shape });
       }
@@ -112,26 +113,12 @@ export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolea
   const extractedEdges: DiagramEdge[] = [];
 
   const processEdge = (el: Element, type: EdgeType) => {
+    const { stroke, dash } = extractEdgeStyle(el, isPremium);
     let d = "";
-    let stroke = isPremium ? '#94a3b8' : '#333';
-    let dash: number[] | undefined = undefined;
-
-    const style = window.getComputedStyle(el);
-    if (style.stroke && style.stroke !== 'none') stroke = style.stroke;
-
-    if (style.strokeDasharray && style.strokeDasharray !== 'none') {
-      const dashValues = style.strokeDasharray.split(',').map(n => parseFloat(n));
-      if (dashValues.some(v => v > 0)) dash = dashValues;
-    }
 
     const tagName = el.tagName.toLowerCase();
     if (tagName === 'line') {
-      const lx1 = parseFloat(el.getAttribute('x1') || '0');
-      const ly1 = parseFloat(el.getAttribute('y1') || '0');
-      const lx2 = parseFloat(el.getAttribute('x2') || '0');
-      const ly2 = parseFloat(el.getAttribute('y2') || '0');
-      const { x: tx, y: ty } = getCumulativeTransform(el, svgElement);
-      d = `M ${lx1 + tx} ${ly1 + ty} L ${lx2 + tx} ${ly2 + ty}`;
+      d = lineToPathD(el, svgElement);
     } else if (tagName === 'path') {
       d = el.getAttribute('d') || "";
     }
@@ -142,7 +129,7 @@ export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolea
         markerAttr != null ||
         (window.getComputedStyle(el).markerEnd || '') !== 'none'
       );
-      extractedEdges.push({ id: `edge-${Math.random()}`, pathD: d, stroke, type, dash, hasArrow });
+      extractedEdges.push({ id: nextId('edge'), pathD: d, stroke, type, dash, hasArrow });
     }
   };
 

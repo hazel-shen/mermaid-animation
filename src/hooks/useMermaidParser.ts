@@ -16,7 +16,7 @@ import { parseErNodes, parseErEdges } from '../services/ErParser';
 // Gantt / Timeline
 import { parseGanttNodes, parseGanttEdges } from '../services/GanttParser';
 // Pie
-import { parsePieNodes, parsePieEdges } from '../services/PieParser';
+import { parsePieNodes, parsePieEdges, parsePieLabels } from '../services/PieParser';
 // Mindmap
 import { parseMindmapNodes, parseMindmapEdges } from '../services/MindmapParser';
 // Git Graph
@@ -158,6 +158,7 @@ export const useMermaidParser = (
       case 'pie': {
         extractedNodes = parsePieNodes(svgElement);
         extractedEdges = parsePieEdges(svgElement);
+        extractedLabels = parsePieLabels(svgElement);
         break;
       }
 

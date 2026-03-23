@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { parseSequenceNodes } from '../services/SequenceParser';
+import { resetIdCounter } from '../utils/parser-base';
 
 describe('parseSequenceNodes', () => {
   let svgElement: SVGSVGElement;
 
   beforeEach(() => {
+    resetIdCounter();
     svgElement = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     document.body.appendChild(svgElement);
   });
@@ -174,6 +176,45 @@ describe('parseSequenceNodes', () => {
     const nodes = parseSequenceNodes(svgElement);
 
     expect(nodes.length).toBe(0);
+  });
+
+  it('should fall back to name attribute when parent has no <text>', () => {
+    // parentLabel(rect) returns '' → falls back to rect.getAttribute('name')
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.classList.add('actor');
+    rect.setAttribute('width', '100');
+    rect.setAttribute('height', '50');
+    rect.setAttribute('name', 'Charlie');
+    svgElement.appendChild(rect); // no parent <g> with <text>
+
+    const nodes = parseSequenceNodes(svgElement);
+
+    expect(nodes.length).toBe(1);
+    expect(nodes[0].label).toBe('Charlie');
+  });
+
+  it('should parse activation bars', () => {
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('class', 'activation0');
+    rect.setAttribute('x', '50');
+    rect.setAttribute('y', '100');
+    rect.setAttribute('width', '20');
+    rect.setAttribute('height', '60');
+    svgElement.appendChild(rect);
+
+    const nodes = parseSequenceNodes(svgElement);
+
+    expect(nodes.length).toBe(1);
+    expect(nodes[0]).toMatchObject({
+      type: 'node',
+      shape: 'rect',
+      x: 60,
+      y: 130,
+      width: 20,
+      height: 60,
+      color: 'rgba(167, 139, 250, 0.25)',
+      stroke: '#7c3aed',
+    });
   });
 
   it('should return empty array for empty SVG', () => {

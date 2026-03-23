@@ -7,7 +7,7 @@
  * - Grid / tick lines are captured as structural edges.
  */
 import type { DiagramNode, DiagramEdge } from '../types';
-import { getCumulativeTransform } from './svgUtils';
+import { lineToPathD, extractComputedColors, rectCenter, parentLabel, nextId } from '../utils/parser-base';
 
 const BAR_CLASSES = ['task', 'taskText', 'done', 'active', 'crit'];
 
@@ -20,37 +20,23 @@ export const parseGanttNodes = (svgElement: SVGSVGElement): DiagramNode[] => {
 
   svgElement.querySelectorAll<SVGRectElement>('rect').forEach(rect => {
     if (!isTaskRect(rect)) return;
-    try {
-      const { x: tx, y: ty } = getCumulativeTransform(rect, svgElement);
-      const bbox = rect.getBBox();
-      if (bbox.width < 5 || bbox.height < 5) return;
-      if (bbox.width > 5000 || bbox.height > 500) return;
+    const geom = rectCenter(rect, svgElement);
+    if (!geom) return;
+    if (geom.width < 5 || geom.height < 5) return;
+    if (geom.width > 5000 || geom.height > 500) return;
 
-      const cx = tx + bbox.x + bbox.width / 2;
-      const cy = ty + bbox.y + bbox.height / 2;
+    const { color, stroke } = extractComputedColors(rect, { color: '#60a5fa', stroke: '#2563eb' });
+    const label = parentLabel(rect);
 
-      const style = window.getComputedStyle(rect);
-      const color = (style.fill && style.fill !== 'none') ? style.fill : '#60a5fa';
-      const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : '#2563eb';
-
-      // Try to find adjacent text label
-      const parentG = rect.parentElement;
-      let label = '';
-      if (parentG) {
-        const txt = parentG.querySelector<SVGTextElement>('text');
-        if (txt) label = txt.textContent?.trim() || '';
-      }
-
-      nodes.push({
-        id: `gantt-bar-${Math.random()}`,
-        label,
-        type: 'node',
-        shape: 'roundRect',
-        x: cx, y: cy,
-        width: bbox.width, height: bbox.height,
-        color, stroke,
-      });
-    } catch { /* getBBox can fail */ }
+    nodes.push({
+      id: nextId('gantt-bar'),
+      label,
+      type: 'node',
+      shape: 'roundRect',
+      x: geom.cx, y: geom.cy,
+      width: geom.width, height: geom.height,
+      color, stroke,
+    });
   });
 
   return nodes;
@@ -62,39 +48,32 @@ export const parseGanttEdges = (svgElement: SVGSVGElement, isPremium: boolean): 
   // Generate particle-flow paths along the top of each task bar
   svgElement.querySelectorAll<SVGRectElement>('rect').forEach(rect => {
     if (!isTaskRect(rect)) return;
-    try {
-      const { x: tx, y: ty } = getCumulativeTransform(rect, svgElement);
-      const bbox = rect.getBBox();
-      if (bbox.width < 20 || bbox.height < 5) return;
-      if (bbox.width > 5000) return;
+    const geom = rectCenter(rect, svgElement);
+    if (!geom) return;
+    if (geom.width < 20 || geom.height < 5) return;
+    if (geom.width > 5000) return;
 
-      const x1 = tx + bbox.x;
-      const x2 = tx + bbox.x + bbox.width;
-      const y = ty + bbox.y + bbox.height * 0.3;
+    const x1 = geom.cx - geom.width / 2;
+    const x2 = geom.cx + geom.width / 2;
+    const y = geom.cy - geom.height / 2 + geom.height * 0.3;
 
-      const style = window.getComputedStyle(rect);
-      const stroke = (style.fill && style.fill !== 'none') ? style.fill : '#60a5fa';
+    const style = window.getComputedStyle(rect);
+    const stroke = (style.fill && style.fill !== 'none') ? style.fill : '#60a5fa';
 
-      edges.push({
-        id: `gantt-flow-${Math.random()}`,
-        pathD: `M ${x1} ${y} L ${x2} ${y}`,
-        stroke,
-        type: 'link',
-        hasArrow: false,
-      });
-    } catch { /* getBBox can fail */ }
+    edges.push({
+      id: nextId('gantt-flow'),
+      pathD: `M ${x1} ${y} L ${x2} ${y}`,
+      stroke,
+      type: 'link',
+      hasArrow: false,
+    });
   });
 
   // Grid / tick lines as structural
   svgElement.querySelectorAll<SVGLineElement>('line.tick, line.grid, line[class*="tick"]').forEach(line => {
-    const { x: tx, y: ty } = getCumulativeTransform(line, svgElement);
-    const x1 = parseFloat(line.getAttribute('x1') || '0') + tx;
-    const y1 = parseFloat(line.getAttribute('y1') || '0') + ty;
-    const x2 = parseFloat(line.getAttribute('x2') || '0') + tx;
-    const y2 = parseFloat(line.getAttribute('y2') || '0') + ty;
-    const d = `M ${x1} ${y1} L ${x2} ${y2}`;
+    const d = lineToPathD(line, svgElement);
     edges.push({
-      id: `gantt-tick-${Math.random()}`,
+      id: nextId('gantt-tick'),
       pathD: d,
       stroke: isPremium ? '#e2e8f0' : '#ddd',
       type: 'structural',

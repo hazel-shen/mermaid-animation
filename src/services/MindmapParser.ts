@@ -5,7 +5,7 @@
  * The parser captures both the node shapes and the connecting paths.
  */
 import type { DiagramNode, DiagramEdge } from '../types';
-import { getCumulativeTransform } from './svgUtils';
+import { lineToPathD, extractComputedColors, extractComputedStroke, rectCenter, nextId } from '../utils/parser-base';
 
 export const parseMindmapNodes = (svgElement: SVGSVGElement, isPremium: boolean): DiagramNode[] => {
   const nodes: DiagramNode[] = [];
@@ -15,33 +15,28 @@ export const parseMindmapNodes = (svgElement: SVGSVGElement, isPremium: boolean)
     const shapeEl = g.querySelector<SVGGraphicsElement>('rect, circle, ellipse, polygon');
     if (!shapeEl) return;
 
-    try {
-      const bbox = shapeEl.getBBox();
-      const { x: tx, y: ty } = getCumulativeTransform(shapeEl, svgElement);
-      if (bbox.width <= 0 || bbox.height <= 0) return;
+    const geom = rectCenter(shapeEl, svgElement);
+    if (!geom) return;
 
-      const cx = tx + bbox.x + bbox.width / 2;
-      const cy = ty + bbox.y + bbox.height / 2;
+    const { color, stroke } = extractComputedColors(shapeEl, {
+      color: isPremium ? '#ede9fe' : '#ddd6fe',
+      stroke: '#7c3aed',
+    });
+    const tag = shapeEl.tagName.toLowerCase();
 
-      const style = window.getComputedStyle(shapeEl);
-      const color = (style.fill && style.fill !== 'none') ? style.fill : (isPremium ? '#ede9fe' : '#ddd6fe');
-      const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : '#7c3aed';
-      const tag = shapeEl.tagName.toLowerCase();
+    let label = '';
+    const txt = g.querySelector<SVGTextElement>('text');
+    if (txt) label = txt.textContent?.trim() || '';
 
-      let label = '';
-      const txt = g.querySelector<SVGTextElement>('text');
-      if (txt) label = txt.textContent?.trim() || '';
-
-      nodes.push({
-        id: g.id || `mindmap-${Math.random()}`,
-        label,
-        type: 'node',
-        shape: tag === 'circle' || tag === 'ellipse' ? 'circle' : 'roundRect',
-        x: cx, y: cy,
-        width: bbox.width, height: bbox.height,
-        color, stroke,
-      });
-    } catch { /* getBBox can fail */ }
+    nodes.push({
+      id: g.id || nextId('mindmap'),
+      label,
+      type: 'node',
+      shape: tag === 'circle' || tag === 'ellipse' ? 'circle' : 'roundRect',
+      x: geom.cx, y: geom.cy,
+      width: geom.width, height: geom.height,
+      color, stroke,
+    });
   });
 
   return nodes;
@@ -54,11 +49,10 @@ export const parseMindmapEdges = (svgElement: SVGSVGElement, isPremium: boolean)
     const d = path.getAttribute('d') || '';
     if (!d || d.length <= 5) return;
 
-    const style = window.getComputedStyle(path);
-    const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : (isPremium ? '#a78bfa' : '#7c3aed');
+    const stroke = extractComputedStroke(path, isPremium ? '#a78bfa' : '#7c3aed');
 
     edges.push({
-      id: `mindmap-edge-${Math.random()}`,
+      id: nextId('mindmap-edge'),
       pathD: d,
       stroke,
       type: 'link',
@@ -68,16 +62,14 @@ export const parseMindmapEdges = (svgElement: SVGSVGElement, isPremium: boolean)
 
   // Generic lines as fallback
   svgElement.querySelectorAll<SVGLineElement>('line').forEach(line => {
-    const { x: tx, y: ty } = getCumulativeTransform(line, svgElement);
-    const x1 = parseFloat(line.getAttribute('x1') || '0') + tx;
-    const y1 = parseFloat(line.getAttribute('y1') || '0') + ty;
-    const x2 = parseFloat(line.getAttribute('x2') || '0') + tx;
-    const y2 = parseFloat(line.getAttribute('y2') || '0') + ty;
-    const len = Math.hypot(x2 - x1, y2 - y1);
-    if (len < 10) return;
-    const style = window.getComputedStyle(line);
-    const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : (isPremium ? '#a78bfa' : '#7c3aed');
-    edges.push({ id: `mindmap-line-${Math.random()}`, pathD: `M ${x1} ${y1} L ${x2} ${y2}`, stroke, type: 'link' });
+    // Length check uses raw attributes — translation does not change line length.
+    const rawX1 = parseFloat(line.getAttribute('x1') || '0');
+    const rawY1 = parseFloat(line.getAttribute('y1') || '0');
+    const rawX2 = parseFloat(line.getAttribute('x2') || '0');
+    const rawY2 = parseFloat(line.getAttribute('y2') || '0');
+    if (Math.hypot(rawX2 - rawX1, rawY2 - rawY1) < 10) return;
+    const stroke = extractComputedStroke(line, isPremium ? '#a78bfa' : '#7c3aed');
+    edges.push({ id: nextId('mindmap-line'), pathD: lineToPathD(line, svgElement), stroke, type: 'link' });
   });
 
   return edges;

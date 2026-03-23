@@ -46,6 +46,83 @@ const getLuminance = (colorStr: string): number => {
   return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
 };
 
+/**
+ * Draws a single pie wedge sector.
+ * Uses the pieWedge geometry (center, radius, startAngle, endAngle) stored on
+ * the node rather than the generic bbox x/y/width/height.
+ *
+ * Mermaid generates arcs where the large-arc-flag encodes whether a wedge spans
+ * more than 180°. We detect this by checking if the shorter arc vs the stored
+ * bounding box span indicates a large arc — but since we have the start and end
+ * angles we simply always draw the counter-clockwise arc that matches the visual
+ * output (d3 pie layout goes clockwise, so we use anticlockwise=false).
+ *
+ * Label (percentage) is rendered at the visual centroid of the sector.
+ */
+const drawPieWedge = (
+  ctx: CanvasRenderingContext2D,
+  node: DiagramNode,
+  premium: boolean,
+  hoveredId: string | null,
+  particleColor: string,
+) => {
+  const wedge = node.pieWedge;
+  if (!wedge) return;
+
+  const { cx, cy, radius, startAngle, endAngle } = wedge;
+  const isHovered = node.id === hoveredId;
+
+  let sweep = endAngle - startAngle;
+  if (sweep <= 0) sweep += Math.PI * 2;
+
+  // On hover, offset the wedge outward from the center ("explode" effect)
+  const EXPLODE = 8;
+  const midAngle = startAngle + sweep / 2;
+  const snapCx = Math.round((cx + (isHovered ? Math.cos(midAngle) * EXPLODE : 0)) * 2) / 2;
+  const snapCy = Math.round((cy + (isHovered ? Math.sin(midAngle) * EXPLODE : 0)) * 2) / 2;
+
+  if (isHovered) {
+    ctx.shadowColor = particleColor;
+    ctx.shadowBlur = 24;
+  } else if (premium) {
+    ctx.shadowColor = 'rgba(0,0,0,0.12)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 2;
+  } else {
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(snapCx, snapCy);
+  ctx.arc(snapCx, snapCy, radius, startAngle, endAngle, false);
+  ctx.closePath();
+
+  ctx.fillStyle = node.color;
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+
+  ctx.strokeStyle = isHovered ? particleColor : node.stroke;
+  ctx.lineWidth = isHovered ? 3 : 2;
+  ctx.stroke();
+
+  // Percentage label at visual centroid (midAngle, 60% of radius)
+  if (node.label) {
+    const lx = snapCx + Math.cos(midAngle) * radius * 0.6;
+    const ly = snapCy + Math.sin(midAngle) * radius * 0.6;
+    ctx.fillStyle = getLuminance(node.color) < 0.35 ? '#f1f5f9' : '#1e293b';
+    ctx.font = `bold ${Math.max(10, Math.min(14, radius * 0.14))}px Inter`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(node.label, lx, ly);
+  }
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+};
+
 export const drawNode = (
   ctx: CanvasRenderingContext2D,
   node: DiagramNode,
@@ -70,6 +147,12 @@ export const drawNode = (
   } else {
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
+  }
+
+  // Pie wedges are handled by a dedicated early-return path
+  if (shape === 'pie') {
+    drawPieWedge(ctx, node, premium, hoveredId, particleColor);
+    return;
   }
 
   ctx.fillStyle = color;

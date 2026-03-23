@@ -1,5 +1,6 @@
 import type { DiagramNode, DiagramEdge, SeqLabel, EdgeType } from '../types';
 import { getCumulativeTransform } from './svgUtils';
+import { lineToPathD, extractComputedColors, parentLabel, extractEdgeStyle, nextId } from '../utils/parser-base';
 
 /** Shift all absolute coordinates in an SVG path d-string by (tx, ty). */
 const shiftPathCoords = (raw: string, tx: number, ty: number): string => {
@@ -43,15 +44,9 @@ export const parseSequenceNodes = (svgElement: SVGSVGElement): DiagramNode[] => 
     if (extractedNodes.some(n => Math.abs(n.x - cx) < 1 && Math.abs(n.y - cy) < 1)) return;
 
     let label = rect.getAttribute('name') || '';
-    const parentG = rect.parentElement;
-    if (parentG) {
-      const txt = parentG.querySelector<SVGTextElement>('text');
-      if (txt) label = txt.textContent?.trim() || label;
-    }
-    const style = window.getComputedStyle(rect);
-    const color = (style.fill && style.fill !== 'none') ? style.fill : '#ECECFF';
-    const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : '#9370DB';
-    extractedNodes.push({ id: `actor-${Math.random()}`, label, type: 'actor', shape: 'roundRect', x: cx, y: cy, width: w, height: h, color, stroke });
+    label = parentLabel(rect) || label;
+    const { color, stroke } = extractComputedColors(rect, { color: '#ECECFF', stroke: '#9370DB' });
+    extractedNodes.push({ id: nextId('actor'), label, type: 'actor', shape: 'roundRect', x: cx, y: cy, width: w, height: h, color, stroke });
   });
 
   // 2. Actor-man (人形符號)
@@ -76,20 +71,15 @@ export const parseSequenceNodes = (svgElement: SVGSVGElement): DiagramNode[] => 
     const txt = g.querySelector<SVGTextElement>('text');
     if (txt) label = txt.textContent?.trim() || label;
 
-    extractedNodes.push({ id: g.id || `actor-man-${Math.random()}`, label, type: 'actor', shape: 'circle', x: cx, y: cy, width: bw, height: bh, color: '#ECECFF', stroke: '#9370DB' });
+    extractedNodes.push({ id: g.id || nextId('actor-man'), label, type: 'actor', shape: 'circle', x: cx, y: cy, width: bw, height: bh, color: '#ECECFF', stroke: '#9370DB' });
   });
 
   // 3. Note boxes
   svgElement.querySelectorAll<SVGRectElement>('rect.note').forEach(rect => {
     const { cx, cy, w, h } = getRectGeom(rect, svgElement);
     if (w <= 0 || h <= 0) return;
-    let label = '';
-    const parentG = rect.parentElement;
-    if (parentG) {
-      const txt = parentG.querySelector<SVGTextElement>('text');
-      if (txt) label = txt.textContent?.trim() || '';
-    }
-    extractedNodes.push({ id: `note-${Math.random()}`, label, type: 'note', shape: 'note', x: cx, y: cy, width: w, height: h, color: '#fff5ad', stroke: '#aaaa33' });
+    const label = parentLabel(rect);
+    extractedNodes.push({ id: nextId('note'), label, type: 'note', shape: 'note', x: cx, y: cy, width: w, height: h, color: '#fff5ad', stroke: '#aaaa33' });
   });
 
   // 4. Activation bars (active lifeline segments from activate/deactivate)
@@ -98,7 +88,7 @@ export const parseSequenceNodes = (svgElement: SVGSVGElement): DiagramNode[] => 
     const { cx, cy, w, h } = getRectGeom(rect, svgElement);
     if (w <= 0 || h <= 0) return;
     extractedNodes.push({
-      id: `activation-${Math.random()}`,
+      id: nextId('activation'),
       label: '',
       type: 'node',
       shape: 'rect',
@@ -115,7 +105,7 @@ export const parseSequenceNodes = (svgElement: SVGSVGElement): DiagramNode[] => 
     const style = window.getComputedStyle(rect);
     const fillAttr = rect.getAttribute('fill') || 'rgba(240,240,240,0.5)';
     const color = fillAttr !== 'none' ? fillAttr : 'rgba(240,240,240,0.4)';
-    extractedNodes.push({ id: `bgRect-${Math.random()}`, label: '', type: 'cluster', shape: 'rect', x: cx, y: cy, width: w, height: h, color, stroke: style.stroke !== 'none' ? style.stroke : '#aaa' });
+    extractedNodes.push({ id: nextId('bgRect'), label: '', type: 'cluster', shape: 'rect', x: cx, y: cy, width: w, height: h, color, stroke: style.stroke !== 'none' ? style.stroke : '#aaa' });
   });
 
   return extractedNodes;
@@ -162,7 +152,7 @@ export const parseSequenceLoopFrames = (
     const isAlt = frameType === 'alt' || frameType === 'opt' || frameType === 'par';
 
     nodes.push({
-      id: `loopFrame-${Math.random()}`, label: '', type: 'cluster', shape: 'rect',
+      id: nextId('loopFrame'), label: '', type: 'cluster', shape: 'rect',
       x: minX + w / 2, y: minY + h / 2, width: w, height: h,
       color: isAlt ? 'rgba(255,245,200,0.18)' : 'rgba(236,236,255,0.15)',
       stroke: isAlt ? '#d97706' : '#9370DB',
@@ -209,7 +199,7 @@ export const parseSequenceLoopFrames = (
       const isBottomBorder = Math.abs(lineY - maxY) < 2;
       if (!isTopBorder && !isBottomBorder) {
         dividerEdges.push({
-          id: `divider-${Math.random()}`,
+          id: nextId('divider'),
           pathD: `M ${c.x1} ${c.y1} L ${c.x2} ${c.y2}`,
           stroke: isAlt ? '#d97706' : '#9370DB',
           type: 'structural',
@@ -236,7 +226,7 @@ export const parseSequenceStepNumbers = (svgElement: SVGSVGElement): DiagramNode
     if (!text) return;
 
     stepNodes.push({
-      id: `stepNum-${Math.random()}`,
+      id: nextId('stepNum'),
       label: text,
       type: 'node',
       shape: 'circle',
@@ -265,7 +255,7 @@ export const parseSequenceStepNumbers = (svgElement: SVGSVGElement): DiagramNode
     if (stepNodes.some(n => Math.abs(n.x - cx) < 2 && Math.abs(n.y - cy) < 2)) return;
 
     stepNodes.push({
-      id: `stepNum-${Math.random()}`,
+      id: nextId('stepNum'),
       label,
       type: 'node',
       shape: 'circle',
@@ -330,16 +320,7 @@ export const parseSequenceEdges = (svgElement: SVGSVGElement, isPremium: boolean
 
   const processEdge = (el: Element, type: EdgeType) => {
     let d = "";
-    let stroke = isPremium ? '#94a3b8' : '#333';
-    let dash: number[] | undefined = undefined;
-
-    const style = window.getComputedStyle(el);
-    if (style.stroke && style.stroke !== 'none') stroke = style.stroke;
-
-    if (style.strokeDasharray && style.strokeDasharray !== 'none') {
-      const dashValues = style.strokeDasharray.split(',').map(n => parseFloat(n));
-      if (dashValues.some(v => v > 0)) dash = dashValues;
-    }
+    const { stroke, dash } = extractEdgeStyle(el, isPremium);
 
     const tagName = el.tagName.toLowerCase();
     if (tagName === 'line') {
@@ -401,7 +382,7 @@ export const parseSequenceEdges = (svgElement: SVGSVGElement, isPremium: boolean
         el.classList.contains('messageLine0') ||
         el.classList.contains('messageLine1')
       );
-      extractedEdges.push({ id: `edge-${Math.random()}`, pathD: d, stroke, type, dash, hasArrow, noSnap: type === 'link' });
+      extractedEdges.push({ id: nextId('edge'), pathD: d, stroke, type, dash, hasArrow, noSnap: type === 'link' });
     }
   };
 
@@ -453,10 +434,9 @@ export const parseSequenceEdges = (svgElement: SVGSVGElement, isPremium: boolean
       const hasArrow = line.getAttribute('marker-end') != null ||
         line.classList.contains('messageLine0') ||
         line.classList.contains('messageLine1');
-      const { x: tx, y: ty } = getCumulativeTransform(line, svgElement);
       extractedEdges.push({
         id: `edge-${Math.random()}`,
-        pathD: `M ${lx1 + tx} ${ly1 + ty} L ${lx2 + tx} ${ly2 + ty}`,
+        pathD: lineToPathD(line, svgElement),
         stroke: isPremium ? '#64748b' : '#333',
         type: 'link',
         dash: line.classList.contains('messageLine1') ? [3, 3] : undefined,

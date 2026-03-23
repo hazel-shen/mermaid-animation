@@ -9,6 +9,15 @@ export type ClassLine = {
   bold?: boolean;
 };
 
+/** Geometry for a single pie wedge (angles in radians). */
+export type PieWedge = {
+  cx: number;
+  cy: number;
+  radius: number;
+  startAngle: number;
+  endAngle: number;
+};
+
 export type DiagramNode = {
   id: string;
   label: string;
@@ -19,9 +28,11 @@ export type DiagramNode = {
   height: number;
   color: string;
   stroke: string;
-  shape: 'rect' | 'circle' | 'diamond' | 'hexagon' | 'cylinder' | 'stadium' | 'subroutine' | 'roundRect' | 'note';
+  shape: 'rect' | 'circle' | 'diamond' | 'hexagon' | 'cylinder' | 'stadium' | 'subroutine' | 'roundRect' | 'note' | 'pie';
   /** Present only for class-diagram nodes; carries title + member rows */
   classLines?: ClassLine[];
+  /** Present only for pie chart wedge nodes */
+  pieWedge?: PieWedge;
 };
 
 // link=訊息線(有粒子), structural=結構線(無粒子)
