@@ -57,7 +57,7 @@ describe('parseErNodes', () => {
     // BBox: x=10, y=20, w=80, h=40 → cx=50, cy=40
     const g = el('g'); g.classList.add('er', 'entityBox');
     const rect = el('rect');
-    rect.getBBox = () => mockBBox(10, 20, 80, 40);
+    (rect as unknown as SVGGraphicsElement).getBBox = () => mockBBox(10, 20, 80, 40);
     g.appendChild(rect);
     svgElement.appendChild(g);
 
@@ -122,7 +122,7 @@ describe('parseErNodes', () => {
   it('skips rect with zero-dimension BBox', () => {
     const g = el('g'); g.classList.add('er', 'entityBox');
     const rect = el('rect');
-    rect.getBBox = () => mockBBox(0, 0, 0, 0);
+    (rect as unknown as SVGGraphicsElement).getBBox = () => mockBBox(0, 0, 0, 0);
     g.appendChild(rect);
     svgElement.appendChild(g);
 
