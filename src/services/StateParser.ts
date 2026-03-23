@@ -4,7 +4,7 @@
  */
 import type { DiagramNode, DiagramEdge } from '../types';
 import { getCumulativeTransform } from './svgUtils';
-import { extractComputedColors } from '../utils/parser-base';
+import { extractComputedColors, rectCenter, parentLabel, extractEdgeStyle, nextId } from '../utils/parser-base';
 
 export const parseStateNodes = (svgElement: SVGSVGElement, isPremium: boolean): DiagramNode[] => {
   const nodes: DiagramNode[] = [];
@@ -14,28 +14,19 @@ export const parseStateNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
     const rect = g.querySelector<SVGRectElement>('rect');
     if (!rect) return;
 
-    try {
-      const { x: tx, y: ty } = getCumulativeTransform(rect, svgElement);
-      const bbox = rect.getBBox();
-      if (bbox.width <= 0 || bbox.height <= 0) return;
+    const geom = rectCenter(rect, svgElement);
+    if (!geom) return;
 
-      const cx = tx + bbox.x + bbox.width / 2;
-      const cy = ty + bbox.y + bbox.height / 2;
+    const { color, stroke } = extractComputedColors(rect, {
+      color: isPremium ? '#eff6ff' : '#dbeafe',
+      stroke: isPremium ? '#3b82f6' : '#2563eb',
+    });
 
-      const { color, stroke } = extractComputedColors(rect, {
-        color: isPremium ? '#eff6ff' : '#dbeafe',
-        stroke: isPremium ? '#3b82f6' : '#2563eb',
-      });
-
-      let label = '';
-      const txt = g.querySelector<SVGTextElement>('text');
-      if (txt) label = txt.textContent?.trim() || '';
-
-      const nodeId = g.id || `state-${Math.random()}`;
-      if (!nodes.some(n => n.id === nodeId)) {
-        nodes.push({ id: nodeId, label, type: 'node', shape: 'roundRect', x: cx, y: cy, width: bbox.width, height: bbox.height, color, stroke });
-      }
-    } catch { /* getBBox can fail */ }
+    const label = parentLabel(rect);
+    const nodeId = g.id || nextId('state');
+    if (!nodes.some(n => n.id === nodeId)) {
+      nodes.push({ id: nodeId, label, type: 'node', shape: 'roundRect', x: geom.cx, y: geom.cy, width: geom.width, height: geom.height, color, stroke });
+    }
   });
 
   // Start/end circles (filled circles)
@@ -46,7 +37,7 @@ export const parseStateNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
     const cy = ty + parseFloat(circle.getAttribute('cy') || '0');
     const isEnd = circle.classList.contains('end');
     nodes.push({
-      id: `state-terminal-${Math.random()}`,
+      id: nextId('state-terminal'),
       label: isEnd ? 'End' : 'Start',
       type: 'node',
       shape: 'circle',
@@ -60,22 +51,17 @@ export const parseStateNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
   svgElement.querySelectorAll<SVGGElement>('g.cluster, g.compositeState').forEach(g => {
     const rect = g.querySelector<SVGRectElement>(':scope > rect');
     if (!rect) return;
-    try {
-      const { x: tx, y: ty } = getCumulativeTransform(rect, svgElement);
-      const bbox = rect.getBBox();
-      if (bbox.width <= 0 || bbox.height <= 0) return;
-      const cx = tx + bbox.x + bbox.width / 2;
-      const cy = ty + bbox.y + bbox.height / 2;
-      nodes.push({
-        id: `state-cluster-${Math.random()}`,
-        label: '',
-        type: 'cluster',
-        shape: 'rect',
-        x: cx, y: cy, width: bbox.width, height: bbox.height,
-        color: 'rgba(219,234,254,0.2)',
-        stroke: '#3b82f6',
-      });
-    } catch { /* getBBox can fail */ }
+    const geom = rectCenter(rect, svgElement);
+    if (!geom) return;
+    nodes.push({
+      id: nextId('state-cluster'),
+      label: '',
+      type: 'cluster',
+      shape: 'rect',
+      x: geom.cx, y: geom.cy, width: geom.width, height: geom.height,
+      color: 'rgba(219,234,254,0.2)',
+      stroke: '#3b82f6',
+    });
   });
 
   return nodes;
@@ -87,19 +73,14 @@ export const parseStateEdges = (svgElement: SVGSVGElement, isPremium: boolean): 
   const processPath = (el: Element) => {
     const d = el.getAttribute('d') || '';
     if (!d || d.length <= 10) return;
-    const style = window.getComputedStyle(el);
-    const stroke = (style.stroke && style.stroke !== 'none') ? style.stroke : (isPremium ? '#94a3b8' : '#333');
-    const dashArr = style.strokeDasharray;
-    const dash = (dashArr && dashArr !== 'none')
-      ? dashArr.split(',').map(n => parseFloat(n)).filter(v => v > 0)
-      : undefined;
+    const { stroke, dash } = extractEdgeStyle(el, isPremium);
 
     edges.push({
-      id: `state-edge-${Math.random()}`,
+      id: nextId('state-edge'),
       pathD: d,
       stroke,
       type: 'link',
-      dash: dash?.length ? dash : undefined,
+      dash,
       hasArrow: el.getAttribute('marker-end') != null,
       noSnap: true,
     });

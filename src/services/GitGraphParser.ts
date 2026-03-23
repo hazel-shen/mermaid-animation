@@ -6,7 +6,7 @@
  */
 import type { DiagramNode, DiagramEdge } from '../types';
 import { getCumulativeTransform } from './svgUtils';
-import { lineToPathD, extractComputedColors, extractComputedStroke } from '../utils/parser-base';
+import { lineToPathD, extractComputedColors, extractComputedStroke, rectCenter, parentLabel, nextId } from '../utils/parser-base';
 
 export const parseGitGraphNodes = (svgElement: SVGSVGElement, isPremium: boolean): DiagramNode[] => {
   const nodes: DiagramNode[] = [];
@@ -23,16 +23,10 @@ export const parseGitGraphNodes = (svgElement: SVGSVGElement, isPremium: boolean
       stroke: '#312e81',
     });
 
-    // Try to get commit label
-    let label = '';
-    const parentG = circle.parentElement;
-    if (parentG) {
-      const txt = parentG.querySelector<SVGTextElement>('text');
-      if (txt) label = txt.textContent?.trim() || '';
-    }
+    const label = parentLabel(circle);
 
     nodes.push({
-      id: `git-commit-${Math.random()}`,
+      id: nextId('git-commit'),
       label,
       type: 'node',
       shape: 'circle',
@@ -44,35 +38,23 @@ export const parseGitGraphNodes = (svgElement: SVGSVGElement, isPremium: boolean
 
   // Branch labels (rect backgrounds)
   svgElement.querySelectorAll<SVGRectElement>('rect.branchLabel, rect[class*="branchLabelContainer"]').forEach(rect => {
-    try {
-      const { x: tx, y: ty } = getCumulativeTransform(rect, svgElement);
-      const bbox = rect.getBBox();
-      if (bbox.width <= 0 || bbox.height <= 0) return;
+    const geom = rectCenter(rect, svgElement);
+    if (!geom) return;
 
-      const cx = tx + bbox.x + bbox.width / 2;
-      const cy = ty + bbox.y + bbox.height / 2;
+    const style = window.getComputedStyle(rect);
+    const color = (style.fill && style.fill !== 'none') ? style.fill : '#e0e7ff';
+    const label = parentLabel(rect);
 
-      const style = window.getComputedStyle(rect);
-      const color = (style.fill && style.fill !== 'none') ? style.fill : '#e0e7ff';
-
-      let label = '';
-      const parentG = rect.parentElement;
-      if (parentG) {
-        const txt = parentG.querySelector<SVGTextElement>('text');
-        if (txt) label = txt.textContent?.trim() || '';
-      }
-
-      nodes.push({
-        id: `git-branch-${Math.random()}`,
-        label,
-        type: 'node',
-        shape: 'roundRect',
-        x: cx, y: cy,
-        width: bbox.width, height: bbox.height,
-        color,
-        stroke: '#818cf8',
-      });
-    } catch { /* getBBox can fail */ }
+    nodes.push({
+      id: nextId('git-branch'),
+      label,
+      type: 'node',
+      shape: 'roundRect',
+      x: geom.cx, y: geom.cy,
+      width: geom.width, height: geom.height,
+      color,
+      stroke: '#818cf8',
+    });
   });
 
   return nodes;
@@ -89,7 +71,7 @@ export const parseGitGraphEdges = (svgElement: SVGSVGElement, isPremium: boolean
     const stroke = extractComputedStroke(path, isPremium ? '#818cf8' : '#6366f1');
 
     edges.push({
-      id: `git-edge-${Math.random()}`,
+      id: nextId('git-edge'),
       pathD: d,
       stroke,
       type: 'link',
@@ -100,7 +82,7 @@ export const parseGitGraphEdges = (svgElement: SVGSVGElement, isPremium: boolean
   // Also grab lines connecting commits
   svgElement.querySelectorAll<SVGLineElement>('line[class*="branch"], line.commit-line').forEach(line => {
     const stroke = extractComputedStroke(line, isPremium ? '#818cf8' : '#6366f1');
-    edges.push({ id: `git-line-${Math.random()}`, pathD: lineToPathD(line, svgElement), stroke, type: 'link' });
+    edges.push({ id: nextId('git-line'), pathD: lineToPathD(line, svgElement), stroke, type: 'link' });
   });
 
   return edges;

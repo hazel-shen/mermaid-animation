@@ -5,8 +5,7 @@
  * and generate arc-following particle edges along the outer circumference.
  */
 import type { DiagramNode, DiagramEdge } from '../types';
-import { getCumulativeTransform } from './svgUtils';
-import { extractComputedColors } from '../utils/parser-base';
+import { extractComputedColors, rectCenter, parentLabel, nextId } from '../utils/parser-base';
 
 export const parsePieNodes = (svgElement: SVGSVGElement): DiagramNode[] => {
   const nodes: DiagramNode[] = [];
@@ -16,34 +15,21 @@ export const parsePieNodes = (svgElement: SVGSVGElement): DiagramNode[] => {
     const d = path.getAttribute('d') || '';
     if (!d) return;
 
-    try {
-      const bbox = (path as SVGGraphicsElement).getBBox();
-      const { x: tx, y: ty } = getCumulativeTransform(path, svgElement);
-      const cx = tx + bbox.x + bbox.width / 2;
-      const cy = ty + bbox.y + bbox.height / 2;
+    const geom = rectCenter(path as SVGGraphicsElement, svgElement);
+    if (!geom) return;
 
-      const { color, stroke } = extractComputedColors(path, { color: '#818cf8', stroke: '#fff' });
+    const { color, stroke } = extractComputedColors(path, { color: '#818cf8', stroke: '#fff' });
+    const label = parentLabel(path);
 
-      // Try to get the label from sibling text
-      const parentG = path.parentElement;
-      let label = '';
-      if (parentG) {
-        const txt = parentG.querySelector<SVGTextElement>('text');
-        if (txt) label = txt.textContent?.trim() || '';
-      }
-
-      if (bbox.width > 0 && bbox.height > 0) {
-        nodes.push({
-          id: `pie-slice-${Math.random()}`,
-          label,
-          type: 'node',
-          shape: 'circle',
-          x: cx, y: cy,
-          width: bbox.width, height: bbox.height,
-          color, stroke,
-        });
-      }
-    } catch { /* getBBox can fail */ }
+    nodes.push({
+      id: nextId('pie-slice'),
+      label,
+      type: 'node',
+      shape: 'circle',
+      x: geom.cx, y: geom.cy,
+      width: geom.width, height: geom.height,
+      color, stroke,
+    });
   });
 
   return nodes;
@@ -61,7 +47,7 @@ export const parsePieEdges = (svgElement: SVGSVGElement): DiagramEdge[] => {
     const stroke = (style.fill && style.fill !== 'none') ? style.fill : '#818cf8';
 
     edges.push({
-      id: `pie-edge-${Math.random()}`,
+      id: nextId('pie-edge'),
       pathD: d,
       stroke,
       type: 'link',
