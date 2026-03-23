@@ -134,6 +134,26 @@ export const useCanvasTransform = (
 
     let foundId: string | null = null;
     for (const node of nodes) {
+      if (node.shape === 'pie' && node.pieWedge) {
+        const { cx, cy, radius, startAngle, endAngle } = node.pieWedge;
+        const dx = mouseX - cx;
+        const dy = mouseY - cy;
+        if (Math.hypot(dx, dy) > radius) continue;
+        // Normalise mouse angle to [0, 2π) then check if it falls in the wedge sweep
+        let angle = Math.atan2(dy, dx);
+        let start = startAngle;
+        let end = endAngle;
+        // Normalise both to [0, 2π)
+        const TAU = Math.PI * 2;
+        angle = ((angle % TAU) + TAU) % TAU;
+        start = ((start % TAU) + TAU) % TAU;
+        end   = ((end   % TAU) + TAU) % TAU;
+        const inWedge = end >= start
+          ? angle >= start && angle <= end
+          : angle >= start || angle <= end; // wedge crosses the 0/2π boundary
+        if (inWedge) { foundId = node.id; break; }
+        continue;
+      }
       if (
         mouseX >= node.x - node.width / 2 &&
         mouseX <= node.x + node.width / 2 &&
