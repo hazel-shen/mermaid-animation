@@ -121,8 +121,70 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
   return extractedNodes;
 };
 
+/**
+ * Collect all node ids present in the SVG so we can match against
+ * the short ids embedded in edgePath group ids (e.g. "L-W0-W1-0").
+ * Returns a Set of the raw g.id values (e.g. "flowchart-W0-0").
+ */
+const collectNodeIds = (svgElement: SVGSVGElement): Set<string> => {
+  const ids = new Set<string>();
+  svgElement.querySelectorAll('g.node, g.cluster').forEach(g => {
+    if (g.id) ids.add(g.id);
+  });
+  return ids;
+};
+
+/**
+ * Extract from/to node ids from a Mermaid flowchart edge element.
+ *
+ * New Mermaid (v11+): the id is on the <path> itself, e.g. id="L-W0-W1-0"
+ * and the class contains "LS-W0 LE-W1".
+ * Older Mermaid: the id is on a parent <g>, same format.
+ *
+ * Strategy: check el.id first, then walk ancestors.
+ */
+const edgeEndIds = (el: Element): { fromNodeId?: string; toNodeId?: string } => {
+  const tryParse = (id: string): { fromNodeId: string; toNodeId: string } | null => {
+    // Format: L-<from>-<to>-<index>
+    const m = id.match(/^L-(.+)-(\d+)$/);
+    if (!m) return null;
+    const inner = m[1]; // "<from>-<to>"
+    const sep = inner.indexOf('-');
+    if (sep <= 0) return null;
+    return { fromNodeId: inner.slice(0, sep), toNodeId: inner.slice(sep + 1) };
+  };
+
+  // 1. Try the element's own id (new Mermaid)
+  if (el.id) {
+    const r = tryParse(el.id);
+    if (r) return r;
+  }
+
+  // 2. Try class-based LS-<from> LE-<to> (also on the element itself)
+  const cls = el.getAttribute('class') || '';
+  const lsMatch = cls.match(/\bLS-(\S+)\b/);
+  const leMatch = cls.match(/\bLE-(\S+)\b/);
+  if (lsMatch && leMatch) {
+    return { fromNodeId: lsMatch[1], toNodeId: leMatch[1] };
+  }
+
+  // 3. Walk ancestors (older Mermaid — id on parent <g>)
+  let g: Element | null = el.parentElement;
+  while (g && g.tagName.toLowerCase() !== 'svg') {
+    if (g.id) {
+      const r = tryParse(g.id);
+      if (r) return r;
+    }
+    g = g.parentElement;
+  }
+
+  return {};
+};
+
 export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolean): DiagramEdge[] => {
   const extractedEdges: DiagramEdge[] = [];
+  const nodeIds = collectNodeIds(svgElement);
+
 
   const processEdge = (el: Element, type: EdgeType) => {
     const { stroke, dash } = extractEdgeStyle(el, isPremium);
@@ -140,7 +202,31 @@ export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolea
       // Only treat as arrow if the marker is a genuine arrowhead (not a circle/cross marker).
       const isNonArrowMarker = /circle|cross/i.test(markerAttr);
       const hasArrow = type === 'link' && markerAttr !== '' && markerAttr !== 'none' && !isNonArrowMarker;
-      extractedEdges.push({ id: nextId('edge'), pathD: d, stroke, type, dash, hasArrow });
+
+      // Attach node ids so drawEdge can snap the arrowhead to the box border
+      const { fromNodeId, toNodeId } = type === 'link' ? edgeEndIds(el) : {};
+
+      // Resolve short id (e.g. "W0") → full node g.id (e.g. "flowchart-W0-0")
+      const resolve = (shortId?: string): string | undefined => {
+        if (!shortId) return undefined;
+        if (nodeIds.has(shortId)) return shortId;
+        // Match "flowchart-<shortId>-<digit>" pattern
+        const pattern = new RegExp(`^flowchart-${shortId}-\\d+$`);
+        for (const nid of nodeIds) {
+          if (pattern.test(nid)) return nid;
+        }
+        // Looser: contains "-<shortId>-"
+        for (const nid of nodeIds) {
+          if (nid.includes(`-${shortId}-`)) return nid;
+        }
+        return shortId;
+      };
+
+      extractedEdges.push({
+        id: nextId('edge'), pathD: d, stroke, type, dash, hasArrow,
+        fromNodeId: resolve(fromNodeId),
+        toNodeId:   resolve(toNodeId),
+      });
     }
   };
 
