@@ -69,6 +69,56 @@ export const drawArrowMarker = (
       ctx.stroke();
       break;
     }
+    case 'erOne': {
+      // Exactly-one (||): two clearly spaced ticks away from node (-x)
+      const T = 9;
+      ctx.beginPath();
+      ctx.moveTo(-5,  -T); ctx.lineTo(-5,  T);
+      ctx.moveTo(-13, -T); ctx.lineTo(-13, T);
+      ctx.stroke();
+      break;
+    }
+    case 'erZeroOrOne': {
+      // Zero-or-one (o|): tick nearest node, circle further along line (-x)
+      const T = 9, R = 6;
+      ctx.beginPath();
+      ctx.moveTo(-5, -T); ctx.lineTo(-5, T);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(-18, 0, R, 0, Math.PI * 2);
+      ctx.fillStyle = bgColor;
+      ctx.fill();
+      ctx.stroke();
+      break;
+    }
+    case 'erMany': {
+      // One-or-more (}|): fan tips at node edge (x=0, ±T), converge to root (-CF),
+      // then outer tick further out (-CF-gap)
+      const T = 9, CF = 11, gap = 6;
+      ctx.beginPath();
+      ctx.moveTo(0, -T); ctx.lineTo(-CF, 0);
+      ctx.moveTo(0,  T); ctx.lineTo(-CF, 0);
+      ctx.moveTo(0,  0); ctx.lineTo(-CF, 0);
+      ctx.moveTo(-CF - gap, -T); ctx.lineTo(-CF - gap, T);
+      ctx.stroke();
+      break;
+    }
+    case 'erZeroOrMany': {
+      // Zero-or-more (}o): fan tips at node edge (x=0, ±T), converge to root (-CF),
+      // then circle further out
+      const T = 9, CF = 11, gap = 4, R = 6;
+      ctx.beginPath();
+      ctx.moveTo(0, -T); ctx.lineTo(-CF, 0);
+      ctx.moveTo(0,  T); ctx.lineTo(-CF, 0);
+      ctx.moveTo(0,  0); ctx.lineTo(-CF, 0);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(-CF - gap - R, 0, R, 0, Math.PI * 2);
+      ctx.fillStyle = bgColor;
+      ctx.fill();
+      ctx.stroke();
+      break;
+    }
     default: {
       // Generic filled triangle
       const size = 10;
@@ -88,9 +138,13 @@ export const drawArrowMarker = (
 export const markerSetback = (marker: ArrowMarker | undefined): number => {
   switch (marker) {
     case 'composition':
-    case 'aggregation': return 20;  // diamond length = L*2 = 20
-    case 'extension':   return 12;  // triangle height ≈ H = 14*0.87
-    case 'dependency':  return 0;   // open arrow, no fill needed
-    default:            return 10;  // generic triangle
+    case 'aggregation':  return 20;
+    case 'extension':    return 12;
+    case 'dependency':   return 0;
+    case 'erOne':        return 0;
+    case 'erZeroOrOne':  return 0;
+    case 'erMany':       return 0;
+    case 'erZeroOrMany': return 0;
+    default:             return 10;
   }
 };

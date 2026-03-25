@@ -154,7 +154,7 @@ const drawNodeLabel = (
     const actualLh = 15;
     const actualTotalH = lines.length * actualLh;
     const startY = y - actualTotalH / 2 + actualLh / 2;
-    ctx.textAlign = 'left';
+    ctx.textAlign = 'center';
     lines.forEach((line, i) => {
       let drawn = line;
       if (ctx.measureText(drawn).width > maxW) {
@@ -162,9 +162,8 @@ const drawNodeLabel = (
           drawn = drawn.slice(0, -1);
         drawn += '…';
       }
-      ctx.fillText(drawn, x - width / 2 + PAD_X, startY + i * actualLh);
+      ctx.fillText(drawn, x, startY + i * actualLh);
     });
-    ctx.textAlign = 'center';
   } else {
     // roundRect / stadium / subroutine / cylinder / default: word-wrap
     const PAD_X = shape === 'stadium' ? height / 2 + 8 : 12;
@@ -268,12 +267,18 @@ export const drawNode = (
     const longestLine = label.split('\n').reduce(
       (best, l) => ctx.measureText(l).width > ctx.measureText(best).width ? l : best, ''
     );
-    const PAD = 32;
-    const neededW = ctx.measureText(longestLine).width + PAD * 2;
-    const dw = Math.max(0, neededW - width);
-    const dh = height > 0 ? dw * (height / width) : dw;
-    const dW = width  + dw;
-    const dH = height + dh;
+    let dW: number, dH: number;
+    if (longestLine) {
+      const PAD = 32;
+      const neededW = ctx.measureText(longestLine).width + PAD * 2;
+      const dw = Math.max(0, neededW - width);
+      const dh = height > 0 ? dw * (height / width) : dw;
+      dW = width  + dw;
+      dH = height + dh;
+    } else {
+      dW = width;
+      dH = height;
+    }
     ctx.moveTo(x, y - dH / 2);
     ctx.lineTo(x + dW / 2, y);
     ctx.lineTo(x, y + dH / 2);

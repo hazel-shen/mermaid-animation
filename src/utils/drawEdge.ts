@@ -53,8 +53,9 @@ export const drawEdge = (
     const bp = borderPoint(tipEnd.angle + Math.PI, toNode);
     tipEnd.x = bp.x;
     tipEnd.y = bp.y;
-  } else if (!toNode) {
+  } else if (!toNode && !edge.noSnap) {
     // Legacy path: push tip outward by fixed amount (used by class diagram etc.)
+    // noSnap edges (ER) already have their path endpoints at the node border — skip overhang.
     const MARKER_OVERHANG = 15;
     if (tipEnd && (edge.arrowEnd && edge.arrowEnd !== 'none')) {
       tipEnd.x += Math.cos(tipEnd.angle) * MARKER_OVERHANG;
@@ -63,12 +64,10 @@ export const drawEdge = (
   }
 
   if (fromNode && tipStart && edge.arrowStart && edge.arrowStart !== 'none') {
-    // tipStart.angle already points away from the node (reversed in getPathStart),
-    // so use it directly to get the border point on the from-node side.
     const bp = borderPoint(tipStart.angle + Math.PI, fromNode);
     tipStart.x = bp.x;
     tipStart.y = bp.y;
-  } else if (!fromNode) {
+  } else if (!fromNode && !edge.noSnap) {
     const MARKER_OVERHANG = 15;
     if (tipStart && (edge.arrowStart && edge.arrowStart !== 'none')) {
       tipStart.x += Math.cos(tipStart.angle) * MARKER_OVERHANG;

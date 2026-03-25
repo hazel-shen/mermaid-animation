@@ -12,7 +12,7 @@ import { parseClassNodes, parseClassEdges, parseClassEdgeLabels } from '../servi
 // State
 import { parseStateNodes, parseStateEdges, parseStateEdgeLabels } from '../services/StateParser';
 // ER
-import { parseErNodes, parseErEdges } from '../services/ErParser';
+import { parseErNodes, parseErEdges, parseErEdgeLabels } from '../services/ErParser';
 // Gantt / Timeline
 import { parseGanttNodes, parseGanttEdges } from '../services/GanttParser';
 // Pie
@@ -60,7 +60,7 @@ export const useMermaidParser = (
       return;
     }
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
+    script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js';
     script.onload = initializeMermaid;
     script.onerror = () => setErrorMsg("無法載入 Mermaid 庫，請檢查網路連線。");
     document.body.appendChild(script);
@@ -141,6 +141,7 @@ export const useMermaidParser = (
       case 'er': {
         extractedNodes = parseErNodes(svgElement, premium);
         extractedEdges = parseErEdges(svgElement, premium);
+        extractedLabels = parseErEdgeLabels(svgElement);
         if (extractedEdges.length === 0) {
           const gen = parseGeneric(svgElement, premium);
           if (extractedNodes.length === 0) extractedNodes = gen.nodes;

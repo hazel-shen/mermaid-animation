@@ -7,6 +7,8 @@ export type ClassLine = {
   /** true = draw a horizontal divider rule before this line group */
   divider?: boolean;
   bold?: boolean;
+  /** ER attribute columns: type, name, key (PK/FK/etc.) rendered in separate columns */
+  erAttr?: { type: string; name: string; key: string };
 };
 
 /** Geometry for a single pie wedge (angles in radians). */
@@ -44,11 +46,16 @@ export type EdgeType = 'link' | 'structural';
  */
 export type ArrowMarker =
   | 'none'
-  | 'extension'    // hollow triangle (inheritance <|--)
-  | 'composition'  // filled diamond (*--)
-  | 'aggregation'  // hollow diamond (o--)
-  | 'dependency'   // open arrow (-->)
-  | 'default';     // generic filled triangle
+  | 'extension'      // hollow triangle (inheritance <|--)
+  | 'composition'    // filled diamond (*--)
+  | 'aggregation'    // hollow diamond (o--)
+  | 'dependency'     // open arrow (-->)
+  | 'default'        // generic filled triangle
+  // ER diagram cardinality markers
+  | 'erOne'          // exactly one  ‖ (two perpendicular ticks)
+  | 'erZeroOrOne'    // zero or one  o| (circle + tick)
+  | 'erMany'         // one or more  }| (crow's foot + tick)
+  | 'erZeroOrMany';  // zero or more }o (crow's foot + circle)
 
 export type DiagramEdge = {
   id: string;
