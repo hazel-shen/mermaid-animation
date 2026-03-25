@@ -13,6 +13,7 @@ html, body, #root {
   padding: 0;
   height: 100%;
   overflow: hidden;
+  font-family: 'Red Hat Text', sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;

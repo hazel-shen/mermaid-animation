@@ -72,7 +72,7 @@ const drawPieWedge = (
     const lx = snapCx + Math.cos(midAngle) * radius * 0.6;
     const ly = snapCy + Math.sin(midAngle) * radius * 0.6;
     ctx.fillStyle = getLuminance(node.color) < 0.35 ? '#f1f5f9' : '#1e293b';
-    ctx.font = `bold ${Math.max(10, Math.min(14, radius * 0.14))}px Inter`;
+    ctx.font = `bold ${Math.max(10, Math.min(14, radius * 0.14))}px Red Hat Text`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(node.label, lx, ly);
@@ -92,13 +92,14 @@ const drawNodeLabel = (
   width: number,
   height: number,
 ) => {
-  ctx.fillStyle = getLuminance(node.color) < 0.35 ? '#f1f5f9' : '#1e293b';
+  const isDarkBg = getLuminance(node.color) < 0.35;
+  ctx.fillStyle = isDarkBg ? '#f1f5f9' : '#1e293b';
   const lines = label.split('\n');
   const lh = 16;
   const totalH = lines.length * lh;
 
   if (shape === 'diamond') {
-    ctx.font = 'bold 14px Inter';
+    ctx.font = 'bold 14px Red Hat Text';
     const longestLine = lines.reduce(
       (best, l) => ctx.measureText(l).width > ctx.measureText(best).width ? l : best, ''
     );
@@ -114,7 +115,7 @@ const drawNodeLabel = (
     const hh = dH / 2;
     const TEXT_PAD = 8;
     for (let fs = 14; fs >= 8; fs--) {
-      ctx.font = `bold ${fs}px Inter`;
+      ctx.font = `bold ${fs}px Red Hat Text`;
       let fits = true;
       lines.forEach((line, i) => {
         const lineY = -totalH / 2 + i * lh + lh / 2;
@@ -123,12 +124,12 @@ const drawNodeLabel = (
       });
       if (fits) { fontSize = fs; break; }
     }
-    ctx.font = `bold ${fontSize}px Inter`;
+    ctx.font = `bold ${fontSize}px Red Hat Text`;
     lines.forEach((line, i) => {
       ctx.fillText(line, x, y - totalH / 2 + i * lh + lh / 2);
     });
   } else if (shape === 'hexagon') {
-    ctx.font = 'bold 14px Inter';
+    ctx.font = 'bold 14px Red Hat Text';
     const longestHex = lines.reduce(
       (best, l) => ctx.measureText(l).width > ctx.measureText(best).width ? l : best, ''
     );
@@ -139,18 +140,18 @@ const drawNodeLabel = (
     const flatW = hW - tip * 2;
     let fontSize = 14;
     for (let fs = 14; fs >= 8; fs--) {
-      ctx.font = `bold ${fs}px Inter`;
+      ctx.font = `bold ${fs}px Red Hat Text`;
       const allFit = lines.every(l => ctx.measureText(l).width <= flatW - 8);
       if (allFit) { fontSize = fs; break; }
     }
-    ctx.font = `bold ${fontSize}px Inter`;
+    ctx.font = `bold ${fontSize}px Red Hat Text`;
     lines.forEach((line, i) => {
       ctx.fillText(line, x, y - totalH / 2 + i * lh + lh / 2);
     });
   } else if (shape === 'note') {
     const PAD_X = 10;
     const maxW = width - PAD_X * 2;
-    ctx.font = '12px Inter';
+    ctx.font = '12px Red Hat Text';
     const actualLh = 15;
     const actualTotalH = lines.length * actualLh;
     const startY = y - actualTotalH / 2 + actualLh / 2;
@@ -168,13 +169,14 @@ const drawNodeLabel = (
     // roundRect / stadium / subroutine / cylinder / default: word-wrap
     const PAD_X = shape === 'stadium' ? height / 2 + 8 : 12;
     const maxW = width - PAD_X * 2;
-    ctx.font = 'bold 14px Inter';
+    ctx.font = 'bold 14px Red Hat Text';
 
     const wrappedLines: { text: string; bold: boolean }[] = [];
     for (const srcLine of lines) {
-      const isBold = srcLine.startsWith('**') && srcLine.endsWith('**');
-      const cleanLine = isBold ? srcLine.slice(2, -2) : srcLine;
-      ctx.font = isBold ? 'bold 14px Inter' : '13px Inter';
+      const isBold = isDarkBg || (srcLine.startsWith('**') && srcLine.endsWith('**'));
+      const cleanLine = (srcLine.startsWith('**') && srcLine.endsWith('**'))
+        ? srcLine.slice(2, -2) : srcLine;
+      ctx.font = isBold ? 'bold 14px Red Hat Text' : '13px Red Hat Text';
 
       if (ctx.measureText(cleanLine).width <= maxW) {
         wrappedLines.push({ text: cleanLine, bold: isBold });
@@ -197,7 +199,7 @@ const drawNodeLabel = (
     const wLh = 16;
     const wTotalH = wrappedLines.length * wLh;
     wrappedLines.forEach(({ text: wText, bold }, i) => {
-      ctx.font = bold ? 'bold 14px Inter' : '13px Inter';
+      ctx.font = bold ? 'bold 14px Red Hat Text' : '13px Red Hat Text';
       ctx.fillText(wText, x, y - wTotalH / 2 + i * wLh + wLh / 2);
     });
   }
@@ -267,7 +269,7 @@ export const drawNode = (
   } else if (shape === 'circle') {
     ctx.arc(x, y, width / 2, 0, Math.PI * 2);
   } else if (shape === 'diamond') {
-    ctx.font = 'bold 14px Inter';
+    ctx.font = 'bold 14px Red Hat Text';
     const longestLine = label.split('\n').reduce(
       (best, l) => ctx.measureText(l).width > ctx.measureText(best).width ? l : best, ''
     );
@@ -289,7 +291,7 @@ export const drawNode = (
     ctx.lineTo(x - dW / 2, y);
     ctx.closePath();
   } else if (shape === 'hexagon') {
-    ctx.font = 'bold 14px Inter';
+    ctx.font = 'bold 14px Red Hat Text';
     const longestHex = label.split('\n').reduce(
       (best, l) => ctx.measureText(l).width > ctx.measureText(best).width ? l : best, ''
     );
@@ -426,7 +428,7 @@ export const drawNode = (
       ctx.stroke();
       // Label text
       ctx.fillStyle = getLuminance(color) < 0.35 ? '#f1f5f9' : '#334155';
-      ctx.font = 'bold 12px Inter';
+      ctx.font = 'bold 12px Red Hat Text';
       ctx.textBaseline = 'middle';
       ctx.fillText(label, x, top + HEADER_H / 2);
     } else if (shape === 'roundRect') {
@@ -434,14 +436,14 @@ export const drawNode = (
     } else {
       // Flowchart subgraph: label above the box
       ctx.fillStyle = getLuminance(color) < 0.35 ? '#f1f5f9' : '#334155';
-      ctx.font = 'bold 12px Inter';
+      ctx.font = 'bold 12px Red Hat Text';
       ctx.textBaseline = 'bottom';
       ctx.fillText(label, x, y - height / 2 - 4);
     }
     ctx.textBaseline = 'middle';
   } else if (isStepNum) {
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${Math.max(9, Math.min(12, width * 0.55))}px Inter`;
+    ctx.font = `bold ${Math.max(9, Math.min(12, width * 0.55))}px Red Hat Text`;
     ctx.fillText(label, x, y);
   } else if (node.classLines && node.classLines.length > 0) {
     drawClassNode(ctx, node, color, stroke);
@@ -543,7 +545,7 @@ export const renderFrame = (
   if (seqLabels.length > 0) {
     ctx.shadowBlur = 0;
     seqLabels.forEach(lbl => {
-      ctx.font = `${lbl.bold ? 'bold ' : ''}${lbl.fontSize}px Inter, sans-serif`;
+      ctx.font = `${lbl.bold ? 'bold ' : ''}${lbl.fontSize}px Red Hat Text, sans-serif`;
       ctx.textAlign = lbl.align;
       ctx.textBaseline = 'middle';
 
@@ -572,7 +574,7 @@ export const renderFrame = (
 
   if (showRec) {
     ctx.fillStyle = 'rgba(220,38,38,0.9)';
-    ctx.font = 'bold 18px Inter';
+    ctx.font = 'bold 18px Red Hat Text';
     ctx.fillText('● REC', 24, 36);
   }
 };

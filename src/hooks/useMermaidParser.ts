@@ -14,7 +14,7 @@ import { parseStateNodes, parseStateEdges, parseStateEdgeLabels } from '../servi
 // ER
 import { parseErNodes, parseErEdges, parseErEdgeLabels } from '../services/ErParser';
 // Gantt / Timeline
-import { parseGanttNodes, parseGanttEdges } from '../services/GanttParser';
+import { parseGanttNodes, parseGanttEdges, parseGanttLabels } from '../services/GanttParser';
 // Pie
 import { parsePieNodes, parsePieEdges, parsePieLabels } from '../services/PieParser';
 // Mindmap
@@ -154,6 +154,7 @@ export const useMermaidParser = (
       case 'timeline': {
         extractedNodes = parseGanttNodes(svgElement);
         extractedEdges = parseGanttEdges(svgElement, premium);
+        extractedLabels = parseGanttLabels(svgElement);
         break;
       }
 
