@@ -238,8 +238,12 @@ export const drawNode = (
   ctx.strokeStyle = stroke;
   ctx.lineWidth = 2;
 
-  // Flowchart subgraphs use dashed borders; state composite clusters use solid rounded borders
-  if (node.type === 'cluster' && node.shape !== 'roundRect') ctx.setLineDash([5, 5]);
+  // Flowchart subgraphs and state concurrent sub-regions use dashed borders.
+  // State concurrent sub-regions are roundRect clusters with no label (auto-ID suppressed).
+  // Top-level composite state clusters (roundRect with a label) use solid borders.
+  const isDashedCluster = node.type === 'cluster' &&
+    (node.shape !== 'roundRect' || node.label === '');
+  if (isDashedCluster) ctx.setLineDash([5, 5]);
   else ctx.setLineDash([]);
 
   ctx.beginPath();
@@ -397,14 +401,40 @@ export const drawNode = (
   ctx.textBaseline = 'middle';
 
   if (node.type === 'cluster') {
-    ctx.fillStyle = getLuminance(color) < 0.35 ? '#f1f5f9' : '#334155';
-    ctx.font = 'bold 12px Inter';
-    if (shape === 'roundRect') {
-      // State composite cluster: label centred at the top edge inside the box
-      ctx.textBaseline = 'top';
-      ctx.fillText(label, x, y - height / 2 + 6);
+    if (shape === 'roundRect' && label) {
+      // State composite cluster: tinted header band + divider line + centred label
+      const HEADER_H = 24;
+      const r = 16;
+      const top = y - height / 2;
+      const left = x - width / 2;
+      // Header band clipped to top-rounded corners of the box
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(left, top, width, height, r);
+      ctx.clip();
+      ctx.fillStyle = stroke.startsWith('#') ? stroke + '33' : 'rgba(109,40,217,0.18)';
+      ctx.fillRect(left, top, width, HEADER_H);
+      ctx.restore();
+      // Divider line
+      const dividerY = Math.round(top + HEADER_H);
+      ctx.beginPath();
+      ctx.moveTo(left, dividerY);
+      ctx.lineTo(left + width, dividerY);
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([]);
+      ctx.stroke();
+      // Label text
+      ctx.fillStyle = getLuminance(color) < 0.35 ? '#f1f5f9' : '#334155';
+      ctx.font = 'bold 12px Inter';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, x, top + HEADER_H / 2);
+    } else if (shape === 'roundRect') {
+      // no-op: concurrent sub-region with no label, no divider
     } else {
       // Flowchart subgraph: label above the box
+      ctx.fillStyle = getLuminance(color) < 0.35 ? '#f1f5f9' : '#334155';
+      ctx.font = 'bold 12px Inter';
       ctx.textBaseline = 'bottom';
       ctx.fillText(label, x, y - height / 2 - 4);
     }
@@ -479,8 +509,9 @@ export const renderFrame = (
 
   if (isPremium) drawGrid(ctx, w, h);
 
-  // Clusters first (background layer)
+  // Clusters first (background layer) — largest area first so outer boxes don't overdraw inner ones
   nodes.filter(n => n.type === 'cluster')
+    .sort((a, b) => (b.width * b.height) - (a.width * a.height))
     .forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
 
   // Structural edges (lifelines) first

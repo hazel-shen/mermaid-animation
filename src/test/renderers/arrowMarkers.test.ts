@@ -28,6 +28,22 @@ describe('markerSetback', () => {
   it('returns 10 for undefined (falls through to default)', () => {
     expect(markerSetback(undefined)).toBe(10);
   });
+
+  it('returns 0 for erOne (tick marker — path already ends at node border)', () => {
+    expect(markerSetback('erOne')).toBe(0);
+  });
+
+  it('returns 0 for erZeroOrOne', () => {
+    expect(markerSetback('erZeroOrOne')).toBe(0);
+  });
+
+  it('returns 0 for erMany', () => {
+    expect(markerSetback('erMany')).toBe(0);
+  });
+
+  it('returns 0 for erZeroOrMany', () => {
+    expect(markerSetback('erZeroOrMany')).toBe(0);
+  });
 });
 
 // ── drawArrowMarker — smoke tests ─────────────────────────────────────────────
@@ -41,6 +57,7 @@ const makeCtx = () => ({
   moveTo: vi.fn(),
   lineTo: vi.fn(),
   closePath: vi.fn(),
+  arc: vi.fn(),
   fill: vi.fn(),
   stroke: vi.fn(),
   setLineDash: vi.fn(),
@@ -49,7 +66,10 @@ const makeCtx = () => ({
   lineWidth: 1,
 }) as unknown as CanvasRenderingContext2D;
 
-const MARKERS: ArrowMarker[] = ['extension', 'composition', 'aggregation', 'dependency', 'default'];
+const MARKERS: ArrowMarker[] = [
+  'extension', 'composition', 'aggregation', 'dependency', 'default',
+  'erOne', 'erZeroOrOne', 'erMany', 'erZeroOrMany',
+];
 
 describe('drawArrowMarker', () => {
   it('does nothing for marker "none"', () => {

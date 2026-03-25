@@ -64,7 +64,11 @@ export const parseStateNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
 
       // Label: v10 uses <g id="cluster-label">, v11 uses <g class="cluster-label">
       const labelHost = g.querySelector('g[id="cluster-label"], g.cluster-label') ?? g;
-      const label = extractLabel(labelHost) || g.id || '';
+      const rawLabel = extractLabel(labelHost);
+      // Mermaid auto-generates IDs for concurrent sub-regions (e.g. "divider-id-1", "id-abc123-0").
+      // These look like internal IDs rather than user-defined labels — suppress them.
+      const isAutoId = (s: string) => /^(divider-id-\d+|id-[a-z0-9]+-\d+)$/i.test(s);
+      const label = (rawLabel && !isAutoId(rawLabel)) ? rawLabel : '';
 
       const { stroke } = extractComputedColors(rect, {
         color: 'rgba(237,233,254,0.2)',
