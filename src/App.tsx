@@ -246,7 +246,7 @@ const CanvasDiagram = () => {
     { value: 'flowchart', label: 'Flowchart' },
     { value: 'arch',      label: 'Architecture' },
     { value: 'class',     label: 'Class Diagram' },
-    { value: 'state',     label: 'State Diagram (TODO)' },
+    { value: 'state',     label: 'State Diagram' },
     { value: 'er',        label: 'ER Diagram (TODO)' },
     { value: 'gantt',     label: 'Gantt Chart (TODO)' },
     { value: 'pie',       label: 'Pie Chart' },

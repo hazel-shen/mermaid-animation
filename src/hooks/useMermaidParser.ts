@@ -10,7 +10,7 @@ import { parseFlowchartNodes, parseFlowchartEdges, parseFlowchartEdgeLabels } fr
 // Class
 import { parseClassNodes, parseClassEdges, parseClassEdgeLabels } from '../services/ClassParser';
 // State
-import { parseStateNodes, parseStateEdges } from '../services/StateParser';
+import { parseStateNodes, parseStateEdges, parseStateEdgeLabels } from '../services/StateParser';
 // ER
 import { parseErNodes, parseErEdges } from '../services/ErParser';
 // Gantt / Timeline
@@ -129,6 +129,7 @@ export const useMermaidParser = (
       case 'state': {
         extractedNodes = parseStateNodes(svgElement, premium);
         extractedEdges = parseStateEdges(svgElement, premium);
+        extractedLabels = parseStateEdgeLabels(svgElement);
         if (extractedEdges.length === 0) {
           const gen = parseGeneric(svgElement, premium);
           if (extractedNodes.length === 0) extractedNodes = gen.nodes;

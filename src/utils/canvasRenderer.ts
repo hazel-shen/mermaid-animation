@@ -239,11 +239,29 @@ export const drawNode = (
   ctx.strokeStyle = stroke;
   ctx.lineWidth = 2;
 
-  if (node.type === 'cluster') ctx.setLineDash([5, 5]);
+  // Flowchart subgraphs use dashed borders; state composite clusters use solid rounded borders
+  if (node.type === 'cluster' && node.shape !== 'roundRect') ctx.setLineDash([5, 5]);
   else ctx.setLineDash([]);
 
   ctx.beginPath();
-  if (shape === 'circle') {
+  if (shape === 'endCircle') {
+    // End state: outer ring + inner filled circle (⊙)
+    const r = width / 2;
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = 'transparent';
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Inner filled circle
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.55, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    return;
+  } else if (shape === 'circle') {
     ctx.arc(x, y, width / 2, 0, Math.PI * 2);
   } else if (shape === 'diamond') {
     ctx.font = 'bold 14px Inter';
@@ -295,6 +313,9 @@ export const drawNode = (
     ctx.lineTo(x + width / 2, y + height / 2);
     ctx.lineTo(x - width / 2, y + height / 2);
     ctx.closePath();
+  } else if (shape === 'forkJoin') {
+    // Thin solid bar (fork/join pseudostate)
+    ctx.rect(x - width / 2, y - height / 2, width, height);
   } else if (shape === 'rect') {
     ctx.rect(x - width / 2, y - height / 2, width, height);
   } else {
@@ -372,9 +393,16 @@ export const drawNode = (
 
   if (node.type === 'cluster') {
     ctx.fillStyle = getLuminance(color) < 0.35 ? '#f1f5f9' : '#334155';
-    ctx.font = 'bold 11px Inter';
-    ctx.textBaseline = 'bottom';
-    ctx.fillText(label, x, y - height / 2 - 4);
+    ctx.font = 'bold 12px Inter';
+    if (shape === 'roundRect') {
+      // State composite cluster: label centred at the top edge inside the box
+      ctx.textBaseline = 'top';
+      ctx.fillText(label, x, y - height / 2 + 6);
+    } else {
+      // Flowchart subgraph: label above the box
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(label, x, y - height / 2 - 4);
+    }
     ctx.textBaseline = 'middle';
   } else if (isStepNum) {
     ctx.fillStyle = '#ffffff';
