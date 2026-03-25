@@ -3,7 +3,7 @@ export type NodeType = 'node' | 'cluster' | 'actor' | 'note';
 
 /** A single rendered line inside a class-diagram node box. */
 export type ClassLine = {
-  text: string;
+  text?: string;
   /** true = draw a horizontal divider rule before this line group */
   divider?: boolean;
   bold?: boolean;
@@ -28,7 +28,7 @@ export type DiagramNode = {
   height: number;
   color: string;
   stroke: string;
-  shape: 'rect' | 'circle' | 'diamond' | 'hexagon' | 'cylinder' | 'stadium' | 'subroutine' | 'roundRect' | 'note' | 'pie';
+  shape: 'rect' | 'circle' | 'endCircle' | 'diamond' | 'hexagon' | 'cylinder' | 'stadium' | 'subroutine' | 'roundRect' | 'note' | 'pie' | 'forkJoin';
   /** Present only for class-diagram nodes; carries title + member rows */
   classLines?: ClassLine[];
   /** Present only for pie chart wedge nodes */
