@@ -52,7 +52,7 @@ export const drawClassNode = (
   const scaledDivPad = DIV_PAD * scale;
 
   // Pre-scan erAttr rows to compute uniform column widths for the whole node
-  ctx.font = `${MEMBER_FONT_SIZE}px Inter, sans-serif`;
+  ctx.font = `${MEMBER_FONT_SIZE}px Red Hat Text, sans-serif`;
   const erRows = classLines.filter(cl => cl.erAttr);
   const hasKey = erRows.some(cl => cl.erAttr!.key);
   const maxTypeW = erRows.reduce((m, cl) => Math.max(m, ctx.measureText(cl.erAttr!.type).width + H_PAD * 2), 0);
@@ -83,7 +83,7 @@ export const drawClassNode = (
       curY += scaledDivPad + 1;
     } else if (cl.bold) {
       ctx.fillStyle = textColor;
-      ctx.font = `bold ${TITLE_FONT_SIZE}px Inter, sans-serif`;
+      ctx.font = `bold ${TITLE_FONT_SIZE}px Red Hat Text, sans-serif`;
       const truncated = truncateText(ctx, cl.text ?? '', maxTextWidth);
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -119,7 +119,7 @@ export const drawClassNode = (
 
       // Text — left-aligned type & name, centered key badge
       ctx.fillStyle = textColor;
-      ctx.font = `${MEMBER_FONT_SIZE}px Inter, sans-serif`;
+      ctx.font = `${MEMBER_FONT_SIZE}px Red Hat Text, sans-serif`;
       ctx.textBaseline = 'middle';
 
       ctx.textAlign = 'left';
@@ -139,7 +139,7 @@ export const drawClassNode = (
       curY += scaledLineH;
     } else {
       ctx.fillStyle = textColor;
-      ctx.font = `${MEMBER_FONT_SIZE}px Inter, sans-serif`;
+      ctx.font = `${MEMBER_FONT_SIZE}px Red Hat Text, sans-serif`;
       const truncated = truncateText(ctx, cl.text ?? '', maxTextWidth);
       ctx.fillText(truncated, x - width / 2 + H_PAD, curY + (scaledLineH - MEMBER_FONT_SIZE) / 2);
       curY += scaledLineH;
