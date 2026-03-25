@@ -73,7 +73,7 @@ export const drawClassNode = (
     } else if (cl.bold) {
       ctx.fillStyle = textColor;
       ctx.font = `bold ${TITLE_FONT_SIZE}px Inter, sans-serif`;
-      const truncated = truncateText(ctx, cl.text, maxTextWidth);
+      const truncated = truncateText(ctx, cl.text ?? '', maxTextWidth);
       ctx.textAlign = 'center';
       ctx.fillText(truncated, x, curY + (scaledTitleH - TITLE_FONT_SIZE) / 2);
       ctx.textAlign = 'left';
@@ -81,7 +81,7 @@ export const drawClassNode = (
     } else {
       ctx.fillStyle = textColor;
       ctx.font = `${MEMBER_FONT_SIZE}px Inter, sans-serif`;
-      const truncated = truncateText(ctx, cl.text, maxTextWidth);
+      const truncated = truncateText(ctx, cl.text ?? '', maxTextWidth);
       ctx.fillText(truncated, x - width / 2 + H_PAD, curY + (scaledLineH - MEMBER_FONT_SIZE) / 2);
       curY += scaledLineH;
     }

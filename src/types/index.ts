@@ -3,7 +3,7 @@ export type NodeType = 'node' | 'cluster' | 'actor' | 'note';
 
 /** A single rendered line inside a class-diagram node box. */
 export type ClassLine = {
-  text: string;
+  text?: string;
   /** true = draw a horizontal divider rule before this line group */
   divider?: boolean;
   bold?: boolean;
