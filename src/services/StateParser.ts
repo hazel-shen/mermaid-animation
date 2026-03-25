@@ -62,9 +62,13 @@ export const parseStateNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
       const geom = bboxCenter(rect, svgElement);
       if (!geom) return;
 
-      // Label: Mermaid puts it in a child <g id="cluster-label">
-      const labelHost = g.querySelector('g[id="cluster-label"]') ?? g;
-      const label = extractLabel(labelHost) || g.id || '';
+      // Label: v10 uses <g id="cluster-label">, v11 uses <g class="cluster-label">
+      const labelHost = g.querySelector('g[id="cluster-label"], g.cluster-label') ?? g;
+      const rawLabel = extractLabel(labelHost);
+      // Mermaid auto-generates IDs for concurrent sub-regions (e.g. "divider-id-1", "id-abc123-0").
+      // These look like internal IDs rather than user-defined labels — suppress them.
+      const isAutoId = (s: string) => /^(divider-id-\d+|id-[a-z0-9]+-\d+)$/i.test(s);
+      const label = (rawLabel && !isAutoId(rawLabel)) ? rawLabel : '';
 
       const { stroke } = extractComputedColors(rect, {
         color: 'rgba(237,233,254,0.2)',
@@ -88,7 +92,22 @@ export const parseStateNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
   svgElement.querySelectorAll<SVGGElement>('g.node').forEach(g => {
     const nodeId = g.id || nextId('state-node');
 
-    // 2a. Start / End pseudo-states  ─ contain circle.state-start
+    // 2a. Start / End pseudo-states
+    // v10: circle.state-start (+ optional circle.state-end for end state)
+    // v11: start still has circle.state-start; end state has NO circle — detect by ID "_end-"
+    if (g.id && g.id.includes('_end-')) {
+      const { x: cx, y: cy } = getCumulativeTransform(g, svgElement);
+      push({
+        id: nodeId, label: '',
+        type: 'node',
+        shape: 'endCircle',
+        x: cx, y: cy,
+        width: 14, height: 14,
+        color: '#1e293b', stroke: '#0f172a',
+      });
+      return;
+    }
+
     const startCircle = g.querySelector<SVGCircleElement>('circle.state-start');
     if (startCircle) {
       const endCircle = g.querySelector<SVGCircleElement>('circle.state-end');
@@ -107,7 +126,7 @@ export const parseStateNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
       return;
     }
 
-    // 2b. <<choice>> ─ contains polygon.state-start (diamond)
+    // 2b. <<choice>> ─ v10: polygon.state-start; v11: path-based diamond in anonymous <g>
     const choicePoly = g.querySelector<SVGPolygonElement>('polygon.state-start');
     if (choicePoly) {
       try {
@@ -125,7 +144,7 @@ export const parseStateNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
       return;
     }
 
-    // 2c. <<fork>> / <<join>> ─ contains rect.fork-join (thin bar)
+    // 2c. <<fork>> / <<join>> ─ v10: rect.fork-join; v11: handled below with path detection
     const forkRect = g.querySelector<SVGRectElement>('rect.fork-join');
     if (forkRect) {
       try {
@@ -141,6 +160,46 @@ export const parseStateNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
         });
       } catch { /* skip */ }
       return;
+    }
+
+    // 2c-v11. <<choice>> / <<fork>> / <<join>> in v11
+    // These nodes have class "node statediagram-state" but no g.basic and no rect.
+    // The shape is drawn as path elements inside an anonymous child <g>.
+    {
+      const cls = g.getAttribute('class') || '';
+      const hasBasic = !!g.querySelector('g.basic');
+      const hasRect = !!g.querySelector('rect');
+      const anonG = g.querySelector<SVGGElement>(':scope > g:not([class]):not([id])');
+      if (cls.includes('statediagram-state') && !hasBasic && !hasRect && anonG) {
+        const firstPath = anonG.querySelector('path');
+        const d = firstPath?.getAttribute('d') || '';
+        const { x: cx, y: cy } = getCumulativeTransform(g, svgElement);
+
+        // Diamond (<<choice>>): path starts with M0 {halfH} — symmetric diamond
+        const diamondMatch = d.match(/^M\s*0\s+([\d.e+]+)/);
+        if (diamondMatch) {
+          const halfSize = parseFloat(diamondMatch[1]);
+          push({
+            id: nodeId, label: '', type: 'node', shape: 'diamond',
+            x: cx, y: cy, width: halfSize * 1.5, height: halfSize * 1.5,
+            color: '#1e293b', stroke: '#0f172a',
+          });
+          return;
+        }
+
+        // Fork/Join: path starts with M{-halfW} {-halfH} and is very wide vs tall (or vice versa)
+        const rectMatch = d.match(/^M\s*([-\d.e+]+)\s+([-\d.e+]+)/);
+        if (rectMatch) {
+          const width = Math.abs(parseFloat(rectMatch[1])) * 2;
+          const height = Math.abs(parseFloat(rectMatch[2])) * 2;
+          push({
+            id: nodeId, label: '', type: 'node', shape: 'forkJoin',
+            x: cx, y: cy, width, height,
+            color: '#1e293b', stroke: '#0f172a',
+          });
+          return;
+        }
+      }
     }
 
     // 2d. Regular state box ─ must have statediagram-state in class
@@ -171,20 +230,40 @@ export const parseStateNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
   });
 
   // ── 3. Notes ──────────────────────────────────────────────────────────────
-  // Mermaid renders notes as <g class="statediagram-note"> with <rect class="outer">
+  // v10: <g class="statediagram-note"> with <rect class="outer">
+  // v11: <g class="node statediagram-note"> with <g class="basic label-container"> > path
   svgElement.querySelectorAll<SVGGElement>('g.statediagram-note, g[class*="statediagram-note"]').forEach(g => {
-    const rect = g.querySelector<SVGRectElement>('rect.outer, rect');
-    if (!rect) return;
     try {
-      const geom = bboxCenter(rect as SVGGraphicsElement, svgElement);
-      if (!geom) return;
+      let cx: number, cy: number, width: number, height: number;
+
+      const basicContainer = g.querySelector<SVGGElement>('g.basic');
+      if (basicContainer) {
+        // v11: path-based geometry, centered at node transform
+        const outlinePath = basicContainer.querySelector<SVGPathElement>('path');
+        if (!outlinePath) return;
+        const mMatch = (outlinePath.getAttribute('d') || '').match(/^M\s*([-\d.e+]+)\s+([-\d.e+]+)/);
+        if (!mMatch) return;
+        width = Math.abs(parseFloat(mMatch[1])) * 2;
+        height = Math.abs(parseFloat(mMatch[2])) * 2;
+        if (width <= 0 || height <= 0) return;
+        const t = getCumulativeTransform(g, svgElement);
+        cx = t.x; cy = t.y;
+      } else {
+        // v10: rect-based geometry
+        const rect = g.querySelector<SVGRectElement>('rect.outer, rect');
+        if (!rect) return;
+        const geom = bboxCenter(rect as SVGGraphicsElement, svgElement);
+        if (!geom) return;
+        ({ cx, cy, width, height } = geom);
+      }
+
       push({
         id: g.id || nextId('state-note'),
         label: extractLabel(g),
         type: 'note',
         shape: 'note',
-        x: geom.cx, y: geom.cy,
-        width: geom.width, height: geom.height,
+        x: cx, y: cy,
+        width, height,
         color: '#fef3c7', stroke: '#d97706',
       });
     } catch { /* skip */ }

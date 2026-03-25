@@ -28,10 +28,66 @@ export const parseClassNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
 
   // ── v2 renderer: g.node (dagre-wrapper, used by classDiagram-v2) ──────────
   // Each node is <g class="node default" id="classId-Foo-0" transform="translate(cx,cy)">
-  //   <rect class="outer title-state" x="-w/2" y="-h/2" width="w" height="h">
+  //   v10: <rect class="outer title-state" x="-w/2" y="-h/2" width="w" height="h">
+  //   v11: <g class="basic label-container"> with <path> elements (no rect)
   svgElement.querySelectorAll<SVGGElement>('g.node').forEach(g => {
     if (isInsideDefs(g)) return;
 
+    // ── v11 renderer detection ───────────────────────────────────────────────
+    // v11 dropped rect in favour of path elements inside g.basic.label-container
+    const basicContainer = g.querySelector<SVGGElement>('g.basic');
+    if (basicContainer) {
+      const outlinePath = basicContainer.querySelector<SVGPathElement>('path');
+      if (!outlinePath) return;
+
+      // Dimensions: path is drawn from (-w/2, -h/2) to (w/2, h/2) in local coords.
+      // First M command gives the top-left corner: M{-halfW} {-halfH} L...
+      const mMatch = (outlinePath.getAttribute('d') || '').match(/^M\s*([-\d.e+]+)\s+([-\d.e+]+)/);
+      if (!mMatch) return;
+      const width = Math.abs(parseFloat(mMatch[1])) * 2;
+      const height = Math.abs(parseFloat(mMatch[2])) * 2;
+      if (width <= 0 || height <= 0) return;
+
+      // Center: the node's cumulative transform gives absolute SVG coordinates
+      const { x: cx, y: cy } = getCumulativeTransform(g, svgElement);
+
+      const pathStyle = window.getComputedStyle(outlinePath);
+      const color = (pathStyle.fill && pathStyle.fill !== 'none' && pathStyle.fill !== 'rgb(0, 0, 0)')
+        ? pathStyle.fill : (isPremium ? '#f8fafc' : '#fff4dd');
+      const stroke = (pathStyle.stroke && pathStyle.stroke !== 'none')
+        ? pathStyle.stroke : (isPremium ? '#94a3b8' : '#aaa');
+
+      // classLines from v11 group structure
+      const classLines: ClassLine[] = [];
+      const getGroupItems = (selector: string): string[] =>
+        Array.from(g.querySelectorAll<SVGForeignObjectElement>(`${selector} foreignObject`))
+          .map(fo => fo.textContent?.trim() || '')
+          .filter(t => t.length > 0);
+
+      const titleItems = getGroupItems('g.label-group');
+      const memberItems = getGroupItems('g.members-group');
+      const methodItems = getGroupItems('g.methods-group');
+
+      titleItems.forEach((t, i) => classLines.push({ text: t, bold: i === 0 }));
+      classLines.push({ text: '', divider: true });
+      memberItems.forEach(t => classLines.push({ text: t }));
+      classLines.push({ text: '', divider: true });
+      methodItems.forEach(t => classLines.push({ text: t }));
+
+      const label = titleItems[0] || '';
+      const nodeId = g.id || nextId('class-v11');
+      if (!seenIds.has(nodeId)) {
+        seenIds.add(nodeId);
+        nodes.push({
+          id: nodeId, label, type: 'node', shape: 'rect',
+          x: cx, y: cy, width, height, color, stroke,
+          classLines: classLines.length > 0 ? classLines : undefined,
+        });
+      }
+      return;
+    }
+
+    // ── v10 renderer ─────────────────────────────────────────────────────────
     const rect = g.querySelector<SVGRectElement>('rect.outer, rect[class*="outer"]') ||
                  g.querySelector<SVGRectElement>('rect');
     if (!rect) return;
@@ -163,7 +219,9 @@ export const parseClassNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
 /** Extract ArrowMarker type from a marker-start/marker-end URL attribute. */
 const markerAttrToType = (attr: string | null): ArrowMarker => {
   if (!attr) return 'none';
-  const m = attr.match(/classDiagram-([\w]+)(Start|End)\)/);
+  // v10: url(#classDiagram-extensionEnd)
+  // v11: url(#mermaid-hidden-N_class-extensionEnd)
+  const m = attr.match(/(?:classDiagram-|_class-)([\w]+?)(?:Start|End)\)/);
   if (!m) return attr.includes('marker') ? 'default' : 'none';
   switch (m[1]) {
     case 'extension':   return 'extension';

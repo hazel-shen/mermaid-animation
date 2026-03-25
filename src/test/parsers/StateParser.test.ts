@@ -311,6 +311,133 @@ describe('parseStateNodes', () => {
     svg.appendChild(g);
     expect(parseStateNodes(svg, false)).toHaveLength(0);
   });
+
+  // ── v11: end state detected by id ─────────────────────────────────────────
+
+  it('v11: parses end state by "_end-" in id as shape "endCircle"', () => {
+    const g = el('g'); g.classList.add('node', 'statediagram-state');
+    g.id = 'flowchart_end-0';
+    svg.appendChild(g);
+
+    const [node] = parseStateNodes(svg, false);
+    expect(node.shape).toBe('endCircle');
+    expect(node.type).toBe('node');
+    expect(node.label).toBe('');
+    expect(node.width).toBe(14);
+    expect(node.height).toBe(14);
+  });
+
+  it('v11: end state centre comes from translate transform', () => {
+    const g = el('g'); g.classList.add('node', 'statediagram-state');
+    g.id = 'state_end-1';
+    g.setAttribute('transform', 'translate(50, 75)');
+    svg.appendChild(g);
+
+    const [node] = parseStateNodes(svg, false);
+    expect(node.x).toBe(50);
+    expect(node.y).toBe(75);
+  });
+
+  // ── v11: cluster label via g.cluster-label ─────────────────────────────────
+
+  it('v11: extracts cluster label from g.cluster-label child', () => {
+    const g = el('g');
+    g.setAttribute('class', 'statediagram-state statediagram-cluster');
+    g.id = 'cs-v11';
+    g.appendChild(el('rect'));
+
+    const labelG = el('g'); labelG.classList.add('cluster-label');
+    const txt = el('text'); txt.textContent = 'V11Cluster';
+    labelG.appendChild(txt); g.appendChild(labelG);
+    svg.appendChild(g);
+
+    const [node] = parseStateNodes(svg, false);
+    expect(node.label).toBe('V11Cluster');
+  });
+
+  // ── v11: choice / fork / join via anonymous-g path ─────────────────────────
+
+  it('v11: parses <<choice>> from diamond path (M0 {halfH}) as shape "diamond"', () => {
+    const g = el('g'); g.classList.add('node', 'statediagram-state'); g.id = 'choice-v11';
+    const anonG = el('g');
+    const path = el<SVGPathElement>('path');
+    // Diamond: M0 {halfH} → halfSize=20, width=height=30
+    path.setAttribute('d', 'M0 20 L 30 0 L 0 -20 L -30 0 Z');
+    anonG.appendChild(path); g.appendChild(anonG);
+    svg.appendChild(g);
+
+    const [node] = parseStateNodes(svg, false);
+    expect(node.shape).toBe('diamond');
+    expect(node.type).toBe('node');
+    expect(node.label).toBe('');
+  });
+
+  it('v11: parses <<fork>>/<<join>> from rect path (M {-halfW} {-halfH}) as shape "forkJoin"', () => {
+    const g = el('g'); g.classList.add('node', 'statediagram-state'); g.id = 'fork-v11';
+    const anonG = el('g');
+    const path = el<SVGPathElement>('path');
+    // Fork bar: M -40 -5 → width=80, height=10
+    path.setAttribute('d', 'M -40 -5 L 40 -5 L 40 5 L -40 5 Z');
+    anonG.appendChild(path); g.appendChild(anonG);
+    svg.appendChild(g);
+
+    const [node] = parseStateNodes(svg, false);
+    expect(node.shape).toBe('forkJoin');
+    expect(node.width).toBe(80);
+    expect(node.height).toBe(10);
+  });
+
+  it('v11: does not parse as choice/fork when g has a rect child (v10 path)', () => {
+    const g = el('g'); g.classList.add('node', 'statediagram-state'); g.id = 'v10-choice';
+    g.appendChild(el('rect'));  // presence of rect prevents v11 branch
+    const anonG = el('g');
+    const path = el<SVGPathElement>('path');
+    path.setAttribute('d', 'M0 20 L 30 0 L 0 -20 Z');
+    anonG.appendChild(path); g.appendChild(anonG);
+    svg.appendChild(g);
+
+    // Falls through to regular state-box handler; no rect.fork-join → skips v11 block
+    // but does enter 2d and tries getBBox on rect → produces a roundRect node
+    const nodes = parseStateNodes(svg, false);
+    expect(nodes.every(n => n.shape !== 'diamond')).toBe(true);
+  });
+
+  // ── v11: note via g.basic path geometry ────────────────────────────────────
+
+  it('v11: parses statediagram-note with g.basic path as type "note"', () => {
+    const g = el('g'); g.classList.add('statediagram-note'); g.id = 'note-v11';
+    g.setAttribute('transform', 'translate(100, 80)');
+
+    const basicG = el('g'); basicG.classList.add('basic');
+    const path = el<SVGPathElement>('path');
+    // M -60 -30 → width=120, height=60
+    path.setAttribute('d', 'M -60 -30 L 60 -30 L 60 30 L -60 30 Z');
+    basicG.appendChild(path); g.appendChild(basicG);
+
+    const txt = el('text'); txt.textContent = 'v11 note';
+    g.appendChild(txt);
+    svg.appendChild(g);
+
+    const [node] = parseStateNodes(svg, false);
+    expect(node.type).toBe('note');
+    expect(node.shape).toBe('note');
+    expect(node.label).toBe('v11 note');
+    expect(node.width).toBe(120);
+    expect(node.height).toBe(60);
+    expect(node.x).toBe(100);
+    expect(node.y).toBe(80);
+    expect(node.color).toBe('#fef3c7');
+    expect(node.stroke).toBe('#d97706');
+  });
+
+  it('v11: skips note with g.basic but no path child', () => {
+    const g = el('g'); g.classList.add('statediagram-note'); g.id = 'note-v11-nopath';
+    const basicG = el('g'); basicG.classList.add('basic');
+    g.appendChild(basicG);
+    svg.appendChild(g);
+
+    expect(parseStateNodes(svg, false)).toHaveLength(0);
+  });
 });
 
 // ─── parseStateEdges ──────────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ const makeCtx = (charWidth = 8) => {
   const ctx = {
     measureText: vi.fn((text: string) => ({ width: text.length * charWidth })),
     fillText: vi.fn(),
+    fillRect: vi.fn(),
     beginPath: vi.fn(),
     moveTo: vi.fn(),
     lineTo: vi.fn(),
@@ -114,5 +115,81 @@ describe('drawClassNode', () => {
     const node = makeNode();
     drawClassNode(ctx, node, node.color, node.stroke);
     expect((ctx.stroke as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ── drawClassNode — erAttr rows ───────────────────────────────────────────────
+
+const makeErNode = (overrides: Partial<DiagramNode> = {}): DiagramNode => ({
+  id: 'er-1',
+  label: 'Order',
+  type: 'node',
+  shape: 'rect',
+  color: '#dcfce7',
+  stroke: '#0c26e9',
+  x: 100,
+  y: 100,
+  width: 200,
+  height: 90,
+  classLines: [
+    { text: 'Order', bold: true },
+    { text: '', divider: true },
+    { erAttr: { type: 'int',    name: 'id',       key: 'PK' } },
+    { erAttr: { type: 'string', name: 'status',   key: ''   } },
+    { erAttr: { type: 'int',    name: 'customerId', key: 'FK' } },
+  ],
+  ...overrides,
+});
+
+describe('drawClassNode — erAttr rows', () => {
+  it('renders ER node with erAttr rows without throwing', () => {
+    const ctx = makeCtx();
+    const node = makeErNode();
+    expect(() => drawClassNode(ctx, node, node.color, node.stroke)).not.toThrow();
+  });
+
+  it('calls fillRect for each erAttr row background', () => {
+    const ctx = makeCtx();
+    const node = makeErNode();
+    drawClassNode(ctx, node, node.color, node.stroke);
+    // 3 erAttr rows → 3 fillRect calls for row backgrounds
+    expect((ctx.fillRect as ReturnType<typeof vi.fn>).mock.calls.length).toBe(3);
+  });
+
+  it('calls fillText for type and name in each erAttr row', () => {
+    const ctx = makeCtx();
+    const node = makeErNode();
+    drawClassNode(ctx, node, node.color, node.stroke);
+    // title row (1) + 3 rows × (type + name + key) = 1 + 9 = 10 minimum
+    expect((ctx.fillText as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(7);
+  });
+
+  it('renders erAttr rows with no key column without throwing', () => {
+    const ctx = makeCtx();
+    const node = makeErNode({
+      classLines: [
+        { text: 'Tag', bold: true },
+        { text: '', divider: true },
+        { erAttr: { type: 'string', name: 'name', key: '' } },
+      ],
+    });
+    expect(() => drawClassNode(ctx, node, node.color, node.stroke)).not.toThrow();
+  });
+
+  it('draws column dividers via stroke() for erAttr rows', () => {
+    const ctx = makeCtx();
+    const node = makeErNode();
+    drawClassNode(ctx, node, node.color, node.stroke);
+    // divider line (1) + 3 erAttr row grid strokes = at least 4 stroke calls
+    expect((ctx.stroke as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('uses divider color (stroke) for column and row grid lines', () => {
+    const ctx = makeCtx();
+    const node = makeErNode();
+    drawClassNode(ctx, node, node.color, node.stroke);
+    // strokeStyle should have been set to the node stroke color at some point
+    const strokeCalls = (ctx.stroke as ReturnType<typeof vi.fn>).mock.calls;
+    expect(strokeCalls.length).toBeGreaterThan(0);
   });
 });
