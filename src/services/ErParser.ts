@@ -185,6 +185,7 @@ export const parseErEdges = (svgElement: SVGSVGElement, isPremium: boolean, node
       arrowStart: arrowStart !== 'none' ? arrowStart : undefined,
       toNodeId,
       fromNodeId,
+      noSnap: true,
     });
   });
 
