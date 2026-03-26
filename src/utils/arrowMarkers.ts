@@ -92,28 +92,25 @@ export const drawArrowMarker = (
       break;
     }
     case 'erMany': {
-      // One-or-more (}|): fan tips at node edge (x=0, ±T), converge to root (-CF),
-      // then outer tick further out (-CF-gap)
-      const T = 9, CF = 11, gap = 6;
+      // anchor = border point; tips extend OVER px past the border (node fill clips them)
+      const T = 9, CF = 20, gap = 7, OVER = 10;
       ctx.beginPath();
-      ctx.moveTo(0, -T); ctx.lineTo(-CF, 0);
-      ctx.moveTo(0,  T); ctx.lineTo(-CF, 0);
-      ctx.moveTo(0,  0); ctx.lineTo(-CF, 0);
-      ctx.moveTo(-CF - gap, -T); ctx.lineTo(-CF - gap, T);
+      ctx.moveTo(OVER, -T); ctx.lineTo(-CF, 0);
+      ctx.moveTo(OVER,  T); ctx.lineTo(-CF, 0);
+      ctx.moveTo(0,     0); ctx.lineTo(-CF, 0);
+      ctx.moveTo(-(CF + gap), -T); ctx.lineTo(-(CF + gap), T);
       ctx.stroke();
       break;
     }
     case 'erZeroOrMany': {
-      // Zero-or-more (}o): fan tips at node edge (x=0, ±T), converge to root (-CF),
-      // then circle further out
-      const T = 9, CF = 11, gap = 4, R = 6;
+      const T = 9, CF = 20, gap = 5, R = 6, OVER = 10;
       ctx.beginPath();
-      ctx.moveTo(0, -T); ctx.lineTo(-CF, 0);
-      ctx.moveTo(0,  T); ctx.lineTo(-CF, 0);
-      ctx.moveTo(0,  0); ctx.lineTo(-CF, 0);
+      ctx.moveTo(OVER, -T); ctx.lineTo(-CF, 0);
+      ctx.moveTo(OVER,  T); ctx.lineTo(-CF, 0);
+      ctx.moveTo(0,     0); ctx.lineTo(-CF, 0);
       ctx.stroke();
       ctx.beginPath();
-      ctx.arc(-CF - gap - R, 0, R, 0, Math.PI * 2);
+      ctx.arc(-(CF + gap + R), 0, R, 0, Math.PI * 2);
       ctx.fillStyle = bgColor;
       ctx.fill();
       ctx.stroke();
@@ -133,6 +130,7 @@ export const drawArrowMarker = (
 
   ctx.restore();
 };
+
 
 /** How far (px) to set back the line end so it doesn't protrude through the marker. */
 export const markerSetback = (marker: ArrowMarker | undefined): number => {
