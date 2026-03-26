@@ -205,6 +205,21 @@ const PIE_CODE = `pie title 技術棧佔比
     "Rust" : 10
     "Other" : 5`;
 
+const MINDMAP_CODE = `mindmap
+  root((專案架構))
+    前端
+      React
+      TypeScript
+      Canvas
+    後端
+      Node.js
+      REST API
+      資料庫
+    工具
+      Git
+      Docker
+      CI/CD`;
+
 const GITGRAPH_CODE = `gitGraph
     commit id: "初始提交"
     commit id: "基礎架構"
@@ -239,6 +254,7 @@ const CanvasDiagram = () => {
     gantt:      GANTT_CODE,
     pie:        PIE_CODE,
     gitgraph:   GITGRAPH_CODE,
+    mindmap:    MINDMAP_CODE,
   };
 
   const SAMPLE_OPTIONS = [
@@ -250,7 +266,8 @@ const CanvasDiagram = () => {
     { value: 'er',        label: 'ER Diagram' },
     { value: 'gantt',     label: 'Gantt Chart' },
     { value: 'pie',       label: 'Pie Chart' },
-    { value: 'gitgraph',  label: 'Git Graph (TODO)' },
+    { value: 'gitgraph',  label: 'Git Graph' },
+    { value: 'mindmap',   label: 'Mind Map (TODO)' },
   ];
 
   // UI state

@@ -131,7 +131,19 @@ const erMarkerToType = (attr: string | null): ArrowMarker => {
   return 'none';
 };
 
-export const parseErEdges = (svgElement: SVGSVGElement, isPremium: boolean): DiagramEdge[] => {
+/** Find the node whose bounding box contains or is closest to (px, py). */
+const nearestNode = (px: number, py: number, nodes: DiagramNode[]): DiagramNode | undefined =>
+  nodes.reduce<{ node?: DiagramNode; dist: number }>(
+    (best, n) => {
+      // Use distance to node centre — path endpoints near a border are still
+      // closer to their own node's centre than to any other node's centre.
+      const d = Math.hypot(n.x - px, n.y - py);
+      return d < best.dist ? { node: n, dist: d } : best;
+    },
+    { dist: Infinity },
+  ).node;
+
+export const parseErEdges = (svgElement: SVGSVGElement, isPremium: boolean, nodes: DiagramNode[] = []): DiagramEdge[] => {
   const edges: DiagramEdge[] = [];
 
   svgElement.querySelectorAll<SVGPathElement>(
@@ -145,6 +157,24 @@ export const parseErEdges = (svgElement: SVGSVGElement, isPremium: boolean): Dia
     const arrowEnd   = erMarkerToType(el.getAttribute('marker-end'));
     const arrowStart = erMarkerToType(el.getAttribute('marker-start'));
 
+    // Resolve node ids so drawEdge can snap markers exactly to the box border.
+    // ER paths already terminate near the border but may be off by a few pixels
+    // on diagonal edges (Mermaid reserves space for its own SVG markers).
+    // markerSetback for all er* markers is 0, so only tipEnd/tipStart positions
+    // are adjusted — the path itself is never modified.
+    let toNodeId: string | undefined;
+    let fromNodeId: string | undefined;
+    if (nodes.length > 0) {
+      const segs = d.trim().match(/[MLCQTSAZ][^MLCQTSAZ]*/gi) || [];
+      const firstNums = (segs[0] || '').slice(1).trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+      const lastSeg   = segs[segs.length - 1] || '';
+      const lastNums  = lastSeg.slice(1).trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+      if (firstNums.length >= 2)
+        fromNodeId = nearestNode(firstNums[0], firstNums[1], nodes)?.id;
+      if (lastNums.length >= 2)
+        toNodeId = nearestNode(lastNums[lastNums.length - 2], lastNums[lastNums.length - 1], nodes)?.id;
+    }
+
     edges.push({
       id: nextId('er-edge'),
       pathD: d,
@@ -153,6 +183,8 @@ export const parseErEdges = (svgElement: SVGSVGElement, isPremium: boolean): Dia
       hasArrow: arrowEnd !== 'none' || arrowStart !== 'none',
       arrowEnd:   arrowEnd   !== 'none' ? arrowEnd   : undefined,
       arrowStart: arrowStart !== 'none' ? arrowStart : undefined,
+      toNodeId,
+      fromNodeId,
       noSnap: true,
     });
   });

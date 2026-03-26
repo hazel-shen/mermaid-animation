@@ -21,6 +21,10 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
+  "overrides": {
+    "picomatch@2.3.1": "2.3.2",
+    "picomatch@4.0.3": "4.0.4"
+  },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@testing-library/jest-dom": "^6.9.1",

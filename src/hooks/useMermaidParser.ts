@@ -20,7 +20,7 @@ import { parsePieNodes, parsePieEdges, parsePieLabels } from '../services/PiePar
 // Mindmap
 import { parseMindmapNodes, parseMindmapEdges } from '../services/MindmapParser';
 // Git Graph
-import { parseGitGraphNodes, parseGitGraphEdges } from '../services/GitGraphParser';
+import { parseGitGraphNodes, parseGitGraphEdges, parseGitGraphLabels } from '../services/GitGraphParser';
 // Generic fallback
 import { parseGeneric } from '../services/GenericParser';
 
@@ -140,7 +140,7 @@ export const useMermaidParser = (
 
       case 'er': {
         extractedNodes = parseErNodes(svgElement, premium);
-        extractedEdges = parseErEdges(svgElement, premium);
+        extractedEdges = parseErEdges(svgElement, premium, extractedNodes);
         extractedLabels = parseErEdgeLabels(svgElement);
         if (extractedEdges.length === 0) {
           const gen = parseGeneric(svgElement, premium);
@@ -179,6 +179,7 @@ export const useMermaidParser = (
       case 'gitgraph': {
         extractedNodes = parseGitGraphNodes(svgElement, premium);
         extractedEdges = parseGitGraphEdges(svgElement, premium);
+        extractedLabels = parseGitGraphLabels(svgElement);
         if (extractedEdges.length === 0) {
           const gen = parseGeneric(svgElement, premium);
           if (extractedNodes.length === 0) extractedNodes = gen.nodes;

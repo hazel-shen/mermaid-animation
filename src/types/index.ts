@@ -30,7 +30,7 @@ export type DiagramNode = {
   height: number;
   color: string;
   stroke: string;
-  shape: 'rect' | 'circle' | 'endCircle' | 'diamond' | 'hexagon' | 'cylinder' | 'stadium' | 'subroutine' | 'roundRect' | 'note' | 'pie' | 'forkJoin';
+  shape: 'rect' | 'circle' | 'endCircle' | 'diamond' | 'hexagon' | 'cylinder' | 'stadium' | 'subroutine' | 'roundRect' | 'note' | 'pie' | 'forkJoin' | 'mergeCircle';
   /** Present only for class-diagram nodes; carries title + member rows */
   classLines?: ClassLine[];
   /** Present only for pie chart wedge nodes */
@@ -86,6 +86,8 @@ export type SeqLabel = {
   align: CanvasTextAlign;
   /** Optional background fill drawn behind the label text (e.g. for class-diagram edge labels). */
   bgColor?: string;
+  /** Rotation in radians around (x, y). Text is drawn along the rotated axis starting from that point. */
+  rotation?: number;
 };
 
 export type Transform = {

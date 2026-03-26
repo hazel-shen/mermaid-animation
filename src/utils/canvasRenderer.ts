@@ -266,6 +266,23 @@ export const drawNode = (
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
     return;
+  } else if (shape === 'mergeCircle') {
+    // Merge commit: hollow outer ring
+    const r = width / 2;
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = 'transparent';
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    // Inner filled circle
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.5, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    return;
   } else if (shape === 'circle') {
     ctx.arc(x, y, width / 2, 0, Math.PI * 2);
   } else if (shape === 'diamond') {
@@ -548,6 +565,21 @@ export const renderFrame = (
       ctx.font = `${lbl.bold ? 'bold ' : ''}${lbl.fontSize}px Red Hat Text, sans-serif`;
       ctx.textAlign = lbl.align;
       ctx.textBaseline = 'middle';
+
+      if (lbl.rotation !== undefined) {
+        // Rotated label: (x, y) is directly below the commit circle (pivot + radius + gap).
+        // After rotate(-PI/4) the text reads diagonally; textBaseline:'top' ensures
+        // the text starts exactly at the anchor with no upward overflow.
+        ctx.save();
+        ctx.translate(lbl.x, lbl.y);
+        ctx.rotate(lbl.rotation);
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = lbl.color;
+        ctx.fillText(lbl.text, 0, 0);
+        ctx.restore();
+        return;
+      }
 
       if (lbl.bgColor) {
         const metrics = ctx.measureText(lbl.text);

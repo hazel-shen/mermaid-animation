@@ -12,7 +12,6 @@ const borderPoint = (angle: number, node: DiagramNode): { x: number; y: number }
   const dy = Math.sin(angle);
   const hw = width / 2;
   const hh = height / 2;
-  // Parametric t to each of the 4 edges from centre
   const tx = dx !== 0 ? hw / Math.abs(dx) : Infinity;
   const ty = dy !== 0 ? hh / Math.abs(dy) : Infinity;
   const t  = Math.min(tx, ty);
@@ -47,12 +46,14 @@ export const drawEdge = (
   const fromNode = edge.fromNodeId ? nodes.find(n => n.id === edge.fromNodeId) ?? null : null;
 
   if (toNode && tipEnd && (edge.arrowEnd || edge.hasArrow)) {
-    // tipEnd.angle points FROM the previous point TOWARD the node (approach direction).
-    // borderPoint needs the outward direction FROM the node centre TOWARD the path,
-    // which is the reverse (+ π).
-    const bp = borderPoint(tipEnd.angle + Math.PI, toNode);
+    const dirAngle = Math.atan2(tipEnd.y - toNode.y, tipEnd.x - toNode.x);
+    const bp = borderPoint(dirAngle, toNode);
     tipEnd.x = bp.x;
     tipEnd.y = bp.y;
+    // ER fan markers: tips spread ±T perpendicular to the path.
+    // On diagonal edges they can protrude past an adjacent border edge.
+    // Retreat tipEnd outward by T×sin(θ) where θ = angle between the path
+    // and the hit border's normal (= path angle from the border's perpendicular).
   } else if (!toNode && !edge.noSnap) {
     // Legacy path: push tip outward by fixed amount (used by class diagram etc.)
     // noSnap edges (ER) already have their path endpoints at the node border — skip overhang.
@@ -64,7 +65,8 @@ export const drawEdge = (
   }
 
   if (fromNode && tipStart && edge.arrowStart && edge.arrowStart !== 'none') {
-    const bp = borderPoint(tipStart.angle + Math.PI, fromNode);
+    const dirAngle = Math.atan2(tipStart.y - fromNode.y, tipStart.x - fromNode.x);
+    const bp = borderPoint(dirAngle, fromNode);
     tipStart.x = bp.x;
     tipStart.y = bp.y;
   } else if (!fromNode && !edge.noSnap) {
