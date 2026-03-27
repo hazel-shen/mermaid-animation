@@ -4,14 +4,25 @@ import { drawArrowMarker, markerSetback } from './arrowMarkers';
 
 /**
  * Projects outward from the node centre along `angle` and returns the exact
- * intersection with the node's bounding rectangle border.
+ * intersection with the node's bounding border.
+ * - cloud/bang: ellipse border (rx = w/2, ry = h/2)
+ * - circle:     circle border
+ * - others:     rectangle border
  */
 const borderPoint = (angle: number, node: DiagramNode): { x: number; y: number } => {
-  const { x: cx, y: cy, width, height } = node;
+  const { x: cx, y: cy, width, height, shape } = node;
   const dx = Math.cos(angle);
   const dy = Math.sin(angle);
-  const hw = width / 2;
+  const hw = width  / 2;
   const hh = height / 2;
+
+  if (shape === 'cloud' || shape === 'bang' || shape === 'circle') {
+    // Ellipse intersection: t = 1 / sqrt((dx/hw)² + (dy/hh)²)
+    const denom = Math.sqrt((dx / hw) ** 2 + (dy / hh) ** 2);
+    const t = denom > 0 ? 1 / denom : hw;
+    return { x: cx + dx * t, y: cy + dy * t };
+  }
+
   const tx = dx !== 0 ? hw / Math.abs(dx) : Infinity;
   const ty = dy !== 0 ? hh / Math.abs(dy) : Infinity;
   const t  = Math.min(tx, ty);

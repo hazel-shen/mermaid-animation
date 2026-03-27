@@ -18,7 +18,7 @@ import { parseGanttNodes, parseGanttEdges, parseGanttLabels } from '../services/
 // Pie
 import { parsePieNodes, parsePieEdges, parsePieLabels } from '../services/PieParser';
 // Mindmap
-import { parseMindmapNodes, parseMindmapEdges } from '../services/MindmapParser';
+import { parseMindmapNodes, parseMindmapEdges, snapMindmapEdgesToNodes } from '../services/MindmapParser';
 // Git Graph
 import { parseGitGraphNodes, parseGitGraphEdges, parseGitGraphLabels } from '../services/GitGraphParser';
 // Generic fallback
@@ -173,6 +173,7 @@ export const useMermaidParser = (
           extractedNodes = gen.nodes;
           extractedEdges = gen.edges;
         }
+        extractedEdges = snapMindmapEdgesToNodes(extractedEdges, extractedNodes);
         break;
       }
 

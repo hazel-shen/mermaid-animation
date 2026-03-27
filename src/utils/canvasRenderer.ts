@@ -9,6 +9,50 @@ import type { ParticleShape } from './drawParticles';
 export type { ParticleShape };
 export { drawEdge };
 
+// Cloud shape centred at (0,0) fitting w×h.
+// N bumps placed on an ellipse; bump radius scales with the shorter axis so bumps
+// always fit the label regardless of aspect ratio.
+const drawCloudPath = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+  const rw = w / 2;
+  const rh = h / 2;
+  // bump radius: ~35% of the shorter axis, capped so bumps don't overflow
+  const br = Math.min(rw, rh) * 0.36;
+  // ellipse on which bump centres sit, inset by half a bump radius
+  const ex = rw - br * 0.5;
+  const ey = rh - br * 0.5;
+  // more bumps for wider nodes so the top/bottom edges look bumpy too
+  const N = w > h * 1.6 ? 10 : 8;
+  const overlap = 0.18; // radians of extra arc on each side for seamless joins
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2 - Math.PI / 2;
+    const cx = Math.cos(a) * ex;
+    const cy = Math.sin(a) * ey;
+    ctx.arc(cx, cy, br, a - Math.PI / N - overlap, a + Math.PI / N + overlap);
+  }
+  ctx.closePath();
+};
+
+// Bang (spiky burst) centred at (0,0) fitting w×h.
+// Spike count and depth scale so the shape always surrounds the label.
+const drawBangPath = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+  const spikes = 14;
+  // outerR fits the bounding box; innerR creates the spike depth (~78% gives sharp tips)
+  const outerRx = w / 2;
+  const outerRy = h / 2;
+  const innerRx = outerRx * 0.78;
+  const innerRy = outerRy * 0.78;
+  const step = Math.PI / spikes;
+  const startAngle = -Math.PI / 2;
+  ctx.moveTo(Math.cos(startAngle) * outerRx, Math.sin(startAngle) * outerRy);
+  for (let i = 0; i < spikes * 2; i++) {
+    const angle = i * step + startAngle;
+    const rx = i % 2 === 0 ? outerRx : innerRx;
+    const ry = i % 2 === 0 ? outerRy : innerRy;
+    ctx.lineTo(Math.cos(angle) * rx, Math.sin(angle) * ry);
+  }
+  ctx.closePath();
+};
+
 export const drawGrid = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
   const bigW = w * 2;
   const bigH = h * 2;
@@ -233,6 +277,30 @@ export const drawNode = (
 
   if (shape === 'pie') {
     drawPieWedge(ctx, node, premium, hoveredId, particleColor);
+    return;
+  }
+
+  if (shape === 'cloud' || shape === 'bang') {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.beginPath();
+    if (shape === 'cloud') {
+      drawCloudPath(ctx, width, height);
+    } else {
+      drawBangPath(ctx, width, height);
+    }
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = isHovered ? particleColor : stroke;
+    ctx.lineWidth = isHovered ? 3 : 2;
+    ctx.stroke();
+    ctx.restore();
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.setLineDash([]);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    drawNodeLabel(ctx, node, label, 'roundRect', x, y, width, height);
     return;
   }
 
