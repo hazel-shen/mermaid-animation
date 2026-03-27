@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { parseGitGraphNodes, parseGitGraphEdges, parseGitGraphLabels } from '../../services/GitGraphParser';
+import { parseGitGraphNodes, parseGitGraphEdges, parseGitGraphLabels, snapGitArrowsToNodes, regenGitArrowPaths } from '../../services/GitGraphParser';
 import { resetIdCounter } from '../../utils/parser-base';
+import type { DiagramNode, DiagramEdge } from '../../types';
 
 const NS = 'http://www.w3.org/2000/svg';
 const el = <T extends SVGElement>(tag: string) => document.createElementNS(NS, tag) as T;
@@ -82,7 +83,7 @@ describe('parseGitGraphNodes', () => {
     expect(node.y).toBe(100);
   });
 
-  it('sets width and height as r * 2', () => {
+  it('sets width and height scaling r by 1.4x (min r=10)', () => {
     const circle = el<SVGCircleElement>('circle');
     circle.classList.add('commit', 'commit0');
     circle.setAttribute('cx', '0');
@@ -91,8 +92,9 @@ describe('parseGitGraphNodes', () => {
     svg.appendChild(circle);
 
     const [node] = parseGitGraphNodes(svg, false);
-    expect(node.width).toBe(30);
-    expect(node.height).toBe(30);
+    // r = Math.max(15, 10) * 1.4 = 21 → width = 42
+    expect(node.width).toBeCloseTo(42);
+    expect(node.height).toBeCloseTo(42);
   });
 
   it('falls back to BRANCH_PALETTE color by branchIdx when computed fill is absent', () => {
@@ -368,7 +370,7 @@ describe('parseGitGraphEdges', () => {
     expect(edges[0].type).toBe('structural');
   });
 
-  it('sets dash=[6,4] on lifelines', () => {
+  it('sets dash=[8,6] on lifelines', () => {
     const line = el<SVGLineElement>('line');
     line.classList.add('branch', 'branch0');
     line.setAttribute('x1', '0'); line.setAttribute('y1', '0');
@@ -377,7 +379,7 @@ describe('parseGitGraphEdges', () => {
 
     vi.spyOn(window, 'getComputedStyle').mockReturnValue({ stroke: '' } as unknown as CSSStyleDeclaration);
 
-    expect(parseGitGraphEdges(svg, false)[0].dash).toEqual([6, 4]);
+    expect(parseGitGraphEdges(svg, false)[0].dash).toEqual([8, 6]);
   });
 
   it('sets hasArrow=false on lifelines', () => {
@@ -408,7 +410,7 @@ describe('parseGitGraphEdges', () => {
     expect(edge.pathD).toBe('M 10 20 L 110 20');
   });
 
-  it('uses branchIdx from branch class for stroke fallback', () => {
+  it('uses neutral gray (#9ca3af) for lifeline stroke regardless of branch index', () => {
     const line = el<SVGLineElement>('line');
     line.classList.add('branch', 'branch3');
     line.setAttribute('x1', '0'); line.setAttribute('y1', '0');
@@ -417,7 +419,7 @@ describe('parseGitGraphEdges', () => {
 
     vi.spyOn(window, 'getComputedStyle').mockReturnValue({ stroke: '' } as unknown as CSSStyleDeclaration);
 
-    expect(parseGitGraphEdges(svg, false)[0].stroke).toBe(PALETTE[3]);
+    expect(parseGitGraphEdges(svg, false)[0].stroke).toBe('#9ca3af');
   });
 
   it('deduplicates lifelines with identical path d', () => {
@@ -538,28 +540,26 @@ describe('parseGitGraphEdges', () => {
 describe('parseGitGraphLabels', () => {
   let svg: SVGSVGElement;
 
-  const GAP = 30;
-  const LATERAL = GAP * 0.5;
+  const LINE_STEP = 22;
+  const LATERAL = LINE_STEP * 0.5;
 
-  const makeCircle = (cx: number, cy: number, r = 10, cls = 'commit commit0') => {
-    const circle = el<SVGCircleElement>('circle');
-    circle.setAttribute('class', cls);
-    circle.setAttribute('cx', String(cx));
-    circle.setAttribute('cy', String(cy));
-    circle.setAttribute('r', String(r));
-    return circle;
-  };
-
-  const makeLabel = (text: string) => {
-    const g = el('g'); g.classList.add('commit-labels');
-    const innerG = el('g');
-    const txt = el<SVGTextElement>('text');
-    txt.classList.add('commit-label');
-    txt.textContent = text;
-    innerG.appendChild(txt);
-    g.appendChild(innerG);
-    return g;
-  };
+  // Helpers: build a DiagramNode as parseGitGraphNodes would after expansion
+  const makeCommitNode = (
+    x: number, y: number, r = 10,
+    gitCommitLabel?: string, gitTagLabel?: string,
+    shape: DiagramNode['shape'] = 'circle',
+  ): DiagramNode => ({
+    id: `test-${Math.random()}`,
+    label: '',
+    type: 'node',
+    shape,
+    x, y,
+    width: r * 2, height: r * 2,
+    color: '#2166f3',
+    stroke: '#2166f3',
+    gitCommitLabel,
+    gitTagLabel,
+  });
 
   beforeEach(() => {
     svg = el<SVGSVGElement>('svg');
@@ -571,94 +571,56 @@ describe('parseGitGraphLabels', () => {
     vi.restoreAllMocks();
   });
 
-  it('returns empty array for empty SVG', () => {
+  it('returns empty array when no expandedNodes passed', () => {
     expect(parseGitGraphLabels(svg)).toEqual([]);
   });
 
-  it('skips commit-label with empty text content', () => {
-    svg.appendChild(makeCircle(50, 80));
-    const g = makeLabel('');
-    svg.appendChild(g);
-
-    expect(parseGitGraphLabels(svg)).toHaveLength(0);
+  it('returns empty array when expandedNodes is empty', () => {
+    expect(parseGitGraphLabels(svg, [])).toEqual([]);
   });
 
-  it('skips commit-label with whitespace-only text', () => {
-    svg.appendChild(makeCircle(50, 80));
-    const g = makeLabel('   ');
-    svg.appendChild(g);
-
-    expect(parseGitGraphLabels(svg)).toHaveLength(0);
+  it('returns empty array when node has no commit label or tag label', () => {
+    expect(parseGitGraphLabels(svg, [makeCommitNode(50, 80)])).toHaveLength(0);
   });
 
-  it('pairs commit-label text with commit circle by DOM index', () => {
-    svg.appendChild(makeCircle(50, 80));
-    svg.appendChild(makeLabel('A'));
-
-    const labels = parseGitGraphLabels(svg);
+  it('generates a commit label from node gitCommitLabel', () => {
+    const nodes = [makeCommitNode(50, 80, 10, 'A')];
+    const labels = parseGitGraphLabels(svg, nodes);
     expect(labels).toHaveLength(1);
     expect(labels[0].text).toBe('A');
   });
 
-  it('computes x = cx - LATERAL and y = cy + r + GAP', () => {
+  it('computes x = cx - LATERAL and y = cy + r + LINE_STEP', () => {
     const cx = 100, cy = 120, r = 10;
-    svg.appendChild(makeCircle(cx, cy, r));
-    svg.appendChild(makeLabel('B'));
-
-    const [label] = parseGitGraphLabels(svg);
+    const nodes = [makeCommitNode(cx, cy, r, 'B')];
+    const [label] = parseGitGraphLabels(svg, nodes);
     expect(label.x).toBeCloseTo(cx - LATERAL);
-    expect(label.y).toBeCloseTo(cy + r + GAP);
-  });
-
-  it('accounts for parent transform in circle position', () => {
-    const g = el('g');
-    g.setAttribute('transform', 'translate(40, 60)');
-    g.appendChild(makeCircle(10, 20, 10));
-    svg.appendChild(g);
-    svg.appendChild(makeLabel('C'));
-
-    const [label] = parseGitGraphLabels(svg);
-    // world cx = 40+10 = 50, world cy = 60+20 = 80
-    expect(label.x).toBeCloseTo(50 - LATERAL);
-    expect(label.y).toBeCloseTo(80 + 10 + GAP);
+    expect(label.y).toBeCloseTo(cy + r + LINE_STEP);
   });
 
   it('sets rotation to -Math.PI / 5.5', () => {
-    svg.appendChild(makeCircle(50, 80));
-    svg.appendChild(makeLabel('D'));
-
-    const [label] = parseGitGraphLabels(svg);
+    const [label] = parseGitGraphLabels(svg, [makeCommitNode(50, 80, 10, 'D')]);
     expect(label.rotation).toBeCloseTo(-Math.PI / 5.5);
   });
 
   it('sets fontSize=11, bold=false, align=left', () => {
-    svg.appendChild(makeCircle(50, 80));
-    svg.appendChild(makeLabel('E'));
-
-    const [label] = parseGitGraphLabels(svg);
+    const [label] = parseGitGraphLabels(svg, [makeCommitNode(50, 80, 10, 'E')]);
     expect(label.fontSize).toBe(11);
     expect(label.bold).toBe(false);
     expect(label.align).toBe('left');
   });
 
-  it('skips label when circle count is less than label index', () => {
-    // 1 circle, 2 labels — second label should be skipped
-    svg.appendChild(makeCircle(50, 80));
-    svg.appendChild(makeLabel('A'));
-    svg.appendChild(makeLabel('B'));
-
-    const labels = parseGitGraphLabels(svg);
+  it('skips nodes with no commit label', () => {
+    const nodes = [makeCommitNode(50, 80), makeCommitNode(150, 80, 10, 'Z')];
+    const labels = parseGitGraphLabels(svg, nodes);
     expect(labels).toHaveLength(1);
-    expect(labels[0].text).toBe('A');
+    expect(labels[0].text).toBe('Z');
+    expect(labels[0].x).toBeCloseTo(150 - LATERAL);
   });
 
-  it('pairs multiple labels with circles in order', () => {
-    svg.appendChild(makeCircle(50, 80));
-    svg.appendChild(makeCircle(150, 80));
-    svg.appendChild(makeLabel('X'));
-    svg.appendChild(makeLabel('Y'));
-
-    const labels = parseGitGraphLabels(svg);
+  it('generates labels for multiple nodes in order', () => {
+    const nodes = [makeCommitNode(50, 80, 10, 'X'), makeCommitNode(150, 80, 10, 'Y')];
+    const labels = parseGitGraphLabels(svg, nodes);
     expect(labels).toHaveLength(2);
     expect(labels[0].text).toBe('X');
     expect(labels[0].x).toBeCloseTo(50 - LATERAL);
@@ -666,15 +628,169 @@ describe('parseGitGraphLabels', () => {
     expect(labels[1].x).toBeCloseTo(150 - LATERAL);
   });
 
-  it('excludes commit-merge circles from circle pairing', () => {
-    // commit-merge inner circle should not count as a pairing target
-    svg.appendChild(makeCircle(50, 80, 6, 'commit commit-merge commit0'));
-    svg.appendChild(makeCircle(150, 80, 10, 'commit commit0'));
-    svg.appendChild(makeLabel('Z'));
+  it('excludes roundRect (branch label pill) nodes from label generation', () => {
+    const nodes = [makeCommitNode(50, 80, 10, 'A', undefined, 'roundRect')];
+    expect(parseGitGraphLabels(svg, nodes)).toHaveLength(0);
+  });
 
-    const labels = parseGitGraphLabels(svg);
+  it('mergeCircle nodes also generate commit labels', () => {
+    const nodes = [makeCommitNode(80, 80, 10, 'M', undefined, 'mergeCircle')];
+    const labels = parseGitGraphLabels(svg, nodes);
     expect(labels).toHaveLength(1);
-    // Should pair with the non-merge circle at cx=150
-    expect(labels[0].x).toBeCloseTo(150 - LATERAL);
+    expect(labels[0].text).toBe('M');
+  });
+});
+
+// ─── snapGitArrowsToNodes ─────────────────────────────────────────────────────
+
+describe('snapGitArrowsToNodes', () => {
+  const makeNode = (id: string, x: number, y: number, shape: DiagramNode['shape'] = 'circle'): DiagramNode => ({
+    id, label: '', type: 'node', shape, x, y, width: 20, height: 20, color: '#000', stroke: '#000',
+  });
+
+  const makeArrow = (id: string, pathD: string): DiagramEdge => ({
+    id, pathD, stroke: '#000', type: 'link', hasArrow: false,
+  });
+
+  const makeLifeline = (pathD: string): DiagramEdge => ({
+    id: 'git-lifeline-1', pathD, stroke: '#9ca3af', type: 'structural', hasArrow: false,
+  });
+
+  it('returns edges unchanged when no commit nodes exist', () => {
+    const edges = [makeArrow('git-arrow-1', 'M 0 0 L 100 0')];
+    const result = snapGitArrowsToNodes(edges, []);
+    expect(result[0].fromNodeId).toBeUndefined();
+    expect(result[0].toNodeId).toBeUndefined();
+  });
+
+  it('does not modify non-arrow edges (lifelines stay untouched)', () => {
+    const lifeline = makeLifeline('M 0 80 L 500 80');
+    const node = makeNode('n1', 50, 80);
+    const result = snapGitArrowsToNodes([lifeline], [node]);
+    expect(result[0].fromNodeId).toBeUndefined();
+    expect(result[0].toNodeId).toBeUndefined();
+  });
+
+  it('assigns fromNodeId to the nearest node to the start point', () => {
+    const nodes = [makeNode('n1', 50, 80), makeNode('n2', 150, 80)];
+    const arrow = makeArrow('git-arrow-1', 'M 50 80 L 150 80');
+    const [result] = snapGitArrowsToNodes([arrow], nodes);
+    expect(result.fromNodeId).toBe('n1');
+  });
+
+  it('assigns toNodeId to the nearest node to the end point', () => {
+    const nodes = [makeNode('n1', 50, 80), makeNode('n2', 150, 80)];
+    const arrow = makeArrow('git-arrow-1', 'M 50 80 L 150 80');
+    const [result] = snapGitArrowsToNodes([arrow], nodes);
+    expect(result.toNodeId).toBe('n2');
+  });
+
+  it('correctly matches cross-branch arrow start/end after coordinate expansion', () => {
+    // Simulates a branch-off arrow after expandGitBranchSpacing:
+    // start near main commit (x=130, y=30), end near feature first commit (x=220, y=150)
+    const nodes = [
+      makeNode('main-1',    130, 30),
+      makeNode('feature-1', 220, 150),
+      makeNode('main-2',    310, 30),
+    ];
+    const arrow = makeArrow('git-arrow-2', 'M 130 30 L 130 150 L 220 150');
+    const [result] = snapGitArrowsToNodes([arrow], nodes);
+    expect(result.fromNodeId).toBe('main-1');
+    expect(result.toNodeId).toBe('feature-1');
+  });
+
+  it('skips snap when path has no recognisable start point', () => {
+    const node = makeNode('n1', 50, 80);
+    const arrow = makeArrow('git-arrow-1', 'Z');
+    const [result] = snapGitArrowsToNodes([arrow], [node]);
+    expect(result.fromNodeId).toBeUndefined();
+  });
+
+  it('only considers commit-shaped nodes (excludes roundRect branch labels)', () => {
+    const commitNode  = makeNode('commit', 100, 80, 'circle');
+    const branchLabel = makeNode('label',   20, 80, 'roundRect');
+    // Arrow start is closer to branchLabel but it should not be matched
+    const arrow = makeArrow('git-arrow-1', 'M 30 80 L 100 80');
+    const [result] = snapGitArrowsToNodes([arrow], [commitNode, branchLabel]);
+    expect(result.fromNodeId).toBe('commit');
+  });
+});
+
+// ─── regenGitArrowPaths ───────────────────────────────────────────────────────
+
+describe('regenGitArrowPaths', () => {
+  const makeNode = (id: string, x: number, y: number): DiagramNode => ({
+    id, label: '', type: 'node', shape: 'circle', x, y, width: 20, height: 20, color: '#000', stroke: '#000',
+  });
+
+  const makeArrow = (fromNodeId: string, toNodeId: string): DiagramEdge => ({
+    id: 'git-arrow-1', pathD: 'M 0 0 L 1 1', stroke: '#000', type: 'link', hasArrow: false, fromNodeId, toNodeId,
+  });
+
+  const makeLifeline = (): DiagramEdge => ({
+    id: 'git-lifeline-1', pathD: 'M 0 80 L 500 80', stroke: '#9ca3af', type: 'structural', hasArrow: false,
+  });
+
+  it('does not modify non-arrow edges', () => {
+    const lifeline = makeLifeline();
+    const result = regenGitArrowPaths([lifeline], []);
+    expect(result[0].pathD).toBe('M 0 80 L 500 80');
+  });
+
+  it('leaves edge unchanged when fromNodeId or toNodeId is missing', () => {
+    const edge: DiagramEdge = { id: 'git-arrow-1', pathD: 'M 0 0 L 1 1', stroke: '#000', type: 'link', hasArrow: false };
+    const result = regenGitArrowPaths([edge], [makeNode('n1', 50, 80)]);
+    expect(result[0].pathD).toBe('M 0 0 L 1 1');
+  });
+
+  it('generates a straight horizontal path for same-branch commits (same Y)', () => {
+    const nodes = [makeNode('a', 50, 80), makeNode('b', 150, 80)];
+    const result = regenGitArrowPaths([makeArrow('a', 'b')], nodes);
+    expect(result[0].pathD).toBe('M 50 80 L 150 80');
+  });
+
+  it('generates a vertical-first path with Q curve for branch-off (y2 > y1)', () => {
+    const nodes = [makeNode('main', 130, 30), makeNode('feat', 220, 150)];
+    const result = regenGitArrowPaths([makeArrow('main', 'feat')], nodes);
+    const d = result[0].pathD;
+    // Must start with M at from-node centre
+    expect(d).toMatch(/^M 130 30/);
+    // Must contain a Q (quadratic bezier) for the rounded corner
+    expect(d).toContain('Q');
+    // Must end at to-node centre
+    expect(d).toMatch(/L 220 150$/);
+  });
+
+  it('generates a horizontal-first path with Q curve for merge (y2 < y1)', () => {
+    const nodes = [makeNode('feat', 220, 150), makeNode('main', 310, 30)];
+    const result = regenGitArrowPaths([makeArrow('feat', 'main')], nodes);
+    const d = result[0].pathD;
+    expect(d).toMatch(/^M 220 150/);
+    expect(d).toContain('Q');
+    expect(d).toMatch(/L 310 30$/);
+  });
+
+  it('corner radius is clamped when segments are very short', () => {
+    // Tiny vertical segment: y difference = 10 → r should be at most 5 (half of 10)
+    const nodes = [makeNode('a', 100, 0), makeNode('b', 200, 10)];
+    const result = regenGitArrowPaths([makeArrow('a', 'b')], nodes);
+    const d = result[0].pathD;
+    // Q control point y must be between y1=0 and y2=10
+    const qMatch = d.match(/Q ([\d.]+) ([\d.]+)/);
+    expect(qMatch).not.toBeNull();
+    const qY = parseFloat(qMatch![2]);
+    expect(qY).toBeGreaterThanOrEqual(0);
+    expect(qY).toBeLessThanOrEqual(10);
+  });
+
+  it('rebuilds paths for multiple arrows independently', () => {
+    const nodes = [
+      makeNode('a', 50, 80), makeNode('b', 150, 80),
+      makeNode('c', 150, 200), makeNode('d', 250, 80),
+    ];
+    const edges = [makeArrow('a', 'b'), { ...makeArrow('b', 'c'), id: 'git-arrow-2' }];
+    const result = regenGitArrowPaths(edges, nodes);
+    expect(result[0].pathD).toBe('M 50 80 L 150 80');   // same branch
+    expect(result[1].pathD).toContain('Q');               // branch-off
   });
 });

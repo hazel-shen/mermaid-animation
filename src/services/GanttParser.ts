@@ -102,22 +102,31 @@ export const parseGanttNodes = (svgElement: SVGSVGElement): DiagramNode[] => {
     const cls = rect.getAttribute('class') ?? rect.className?.baseVal ?? '';
     if (!/\btask/.test(cls)) return;
 
+    const statusKey = taskStatusKey(rect);
     const geom = rectCenter(rect, svgElement);
     if (!geom) return;
-    if (geom.width < 4 || geom.height < 4) return;
+    if (geom.height < 4) return;
     if (geom.width > 8000) return;
 
-    const statusKey = taskStatusKey(rect);
+    const isMilestone = statusKey === 'milestone';
+    // Milestone rects have zero duration → width ≈ 0 in SVG.
+    // Use height for both dimensions to produce a proper square diamond.
+    const nodeWidth  = isMilestone ? geom.height : geom.width;
+    const nodeHeight = geom.height;
+    if (!isMilestone && nodeWidth < 4) return;
+
     const { color, stroke } = extractComputedColors(rect, STATUS_COLORS[statusKey]);
-    const label = labelByTaskId[rect.id ?? ''] ?? '';
+    // Milestone label is rendered as a SeqLabel beside the diamond (not inside),
+    // so the diamond shape stays at a fixed small size regardless of text length.
+    const label = isMilestone ? '' : (labelByTaskId[rect.id ?? ''] ?? '');
 
     nodes.push({
       id: nextId('gantt-task'),
       label,
       type: 'node',
-      shape: 'roundRect',
+      shape: isMilestone ? 'diamond' : 'roundRect',
       x: geom.cx, y: geom.cy,
-      width: geom.width, height: geom.height,
+      width: nodeWidth, height: nodeHeight,
       color, stroke,
     });
   });
@@ -130,29 +139,27 @@ export const parseGanttNodes = (svgElement: SVGSVGElement): DiagramNode[] => {
 export const parseGanttEdges = (svgElement: SVGSVGElement, isPremium: boolean): DiagramEdge[] => {
   const edges: DiagramEdge[] = [];
 
-  // ── 1. Particle-flow paths along each task bar ────────────────────────────
+  // ── 1. Flow edges for each task bar (used for particle animation) ─────────
   svgElement.querySelectorAll<SVGRectElement>('rect').forEach(rect => {
     const cls = rect.getAttribute('class') ?? rect.className?.baseVal ?? '';
     if (!/\btask/.test(cls)) return;
 
     const geom = rectCenter(rect, svgElement);
     if (!geom) return;
-    if (geom.width < 20 || geom.height < 4) return;
-    if (geom.width > 8000) return;
-
-    const x1 = geom.cx - geom.width / 2 + 2;
-    const x2 = geom.cx + geom.width / 2 - 2;
-    const y  = geom.cy - geom.height * 0.15;
+    if (geom.width < 20) return;
 
     const style = window.getComputedStyle(rect);
-    const fill  = style.fill;
-    const stroke = (fill && fill !== 'none' && fill !== 'rgb(0, 0, 0)')
-      ? fill
-      : (isPremium ? '#6366f1' : '#60a5fa');
+    const rawFill = style.fill;
+    const hasFill = rawFill && rawFill !== 'none' && rawFill !== 'rgb(0, 0, 0)';
+    const stroke = hasFill ? rawFill : (isPremium ? '#6366f1' : '#60a5fa');
+
+    const left  = geom.cx - geom.width / 2;
+    const right = geom.cx + geom.width / 2;
+    const cy    = geom.cy;
 
     edges.push({
       id: nextId('gantt-flow'),
-      pathD: `M ${x1} ${y} L ${x2} ${y}`,
+      pathD: `M ${left} ${cy} L ${right} ${cy}`,
       stroke,
       type: 'link',
       hasArrow: false,
@@ -175,7 +182,7 @@ export const parseGanttEdges = (svgElement: SVGSVGElement, isPremium: boolean): 
     });
   });
 
-  // ── 3. Today marker ────────────────────────────────────────────────────────
+  // ── 2. Today marker ────────────────────────────────────────────────────────
   svgElement.querySelectorAll<SVGLineElement>('g.today line, line.today').forEach(line => {
     const d = lineToPathD(line, svgElement);
     if (!d) return;
@@ -264,7 +271,32 @@ export const parseGanttLabels = (svgElement: SVGSVGElement): SeqLabel[] => {
     labels.push({ x, y, text, fontSize: 11, bold: false, color, align: 'center' });
   });
 
-  // ── 3. Date tick labels inside g.grid ─────────────────────────────────────
+  // ── 3. Milestone labels (positioned to the right of the diamond symbol) ─────
+  // Build task-id → label text lookup same as parseGanttNodes does.
+  const milestoneTextById: Record<string, string> = {};
+  svgElement.querySelectorAll<SVGTextElement>('text[id$="-text"]').forEach(txt => {
+    milestoneTextById[txt.id.replace(/-text$/, '')] = txt.textContent?.trim() ?? '';
+  });
+  svgElement.querySelectorAll<SVGRectElement>('rect').forEach(rect => {
+    const cls = rect.getAttribute('class') ?? rect.className?.baseVal ?? '';
+    if (!/\bmilestone/.test(cls)) return;
+    const text = milestoneTextById[rect.id ?? ''];
+    if (!text) return;
+    const geom = rectCenter(rect, svgElement);
+    if (!geom) return;
+    const diamondHalf = geom.height / 2;
+    labels.push({
+      x: geom.cx + diamondHalf + 6,
+      y: geom.cy,
+      text,
+      fontSize: 12,
+      bold: false,
+      color: '#6b21a8',
+      align: 'left',
+    });
+  });
+
+  // ── 4. Date tick labels inside g.grid ─────────────────────────────────────
   svgElement.querySelectorAll<SVGTextElement>('g.grid text').forEach(el => {
     const geom = rectCenter(el, svgElement);
     if (!geom) return;

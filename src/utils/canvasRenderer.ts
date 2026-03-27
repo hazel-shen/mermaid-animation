@@ -335,19 +335,47 @@ export const drawNode = (
     ctx.shadowOffsetY = 0;
     return;
   } else if (shape === 'mergeCircle') {
-    // Merge commit: hollow outer ring
+    // Merge commit: hollow outer ring (metro style)
     const r = width / 2;
     ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fillStyle = 'transparent';
+    ctx.fillStyle = '#ffffff';
     ctx.fill();
     ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 4;
     ctx.stroke();
-    // Inner filled circle
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    return;
+  } else if (shape === 'reverseCircle') {
+    // REVERSE commit: filled circle + white ✕ cross inside
+    const r = width / 2;
     ctx.beginPath();
-    ctx.arc(x, y, r * 0.5, 0, Math.PI * 2);
+    ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fillStyle = color;
     ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    // Draw ✕
+    const arm = r * 0.45;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(x - arm, y - arm); ctx.lineTo(x + arm, y + arm);
+    ctx.moveTo(x + arm, y - arm); ctx.lineTo(x - arm, y + arm);
+    ctx.stroke();
+    return;
+  } else if (shape === 'highlightRect') {
+    // HIGHLIGHT commit: filled square with thick border
+    const half = width / 2;
+    ctx.fillStyle = color;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.roundRect(x - half, y - half, width, height, 3);
+    ctx.fill();
+    ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
     return;
@@ -635,14 +663,68 @@ export const renderFrame = (
       ctx.textBaseline = 'middle';
 
       if (lbl.rotation !== undefined) {
-        // Rotated label: (x, y) is directly below the commit circle (pivot + radius + gap).
-        // After rotate(-PI/4) the text reads diagonally; textBaseline:'top' ensures
-        // the text starts exactly at the anchor with no upward overflow.
         ctx.save();
         ctx.translate(lbl.x, lbl.y);
         ctx.rotate(lbl.rotation);
         ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
+        ctx.textBaseline = 'middle';
+        if (lbl.bgColor) {
+          // Git tag shape: left-pointing arrow notch + rounded right body + hole dot
+          //
+          //   ╭──────────────────╮
+          //  ◄  ●  text           │
+          //   ╰──────────────────╯
+          //
+          const th = lbl.fontSize;
+          const padY = 4;
+          const halfH = th / 2 + padY;     // half total height
+          const notch = halfH;             // notch depth = halfH so tip is sharp
+          const cornerR = 4;
+          const holeR = 2.5;
+          const holeGap = 4;               // gap between hole left edge and body left
+          const textGap = 4;               // gap between hole right edge and text
+
+          // Measure text AFTER font is set (font already set above)
+          const tw = ctx.measureText(lbl.text).width;
+
+          // Layout (all x relative to the notch tip at x=0):
+          // 0 = tip, notch = body left edge
+          // text starts at: notch + holeGap + holeR*2 + textGap
+          const textX = notch + holeGap + holeR * 2 + textGap;
+          const R = textX + tw + holeGap; // body right edge
+          const T = -halfH;
+          const B =  halfH;
+
+          // Body shape
+          ctx.fillStyle = lbl.bgColor;
+          ctx.strokeStyle = 'rgba(100,116,139,0.6)';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([]);
+          ctx.beginPath();
+          ctx.moveTo(0, 0);            // notch tip
+          ctx.lineTo(notch, T);        // top-left of body
+          ctx.lineTo(R - cornerR, T);
+          ctx.arcTo(R, T, R, T + cornerR, cornerR);
+          ctx.lineTo(R, B - cornerR);
+          ctx.arcTo(R, B, R - cornerR, B, cornerR);
+          ctx.lineTo(notch, B);        // bottom-left of body
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+
+          // Hole dot
+          ctx.beginPath();
+          ctx.arc(notch + holeGap + holeR, 0, holeR, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(100,116,139,0.6)';
+          ctx.fill();
+
+          // Text
+          ctx.textAlign = 'left';
+          ctx.fillStyle = lbl.color;
+          ctx.fillText(lbl.text, textX, 0);
+          ctx.restore();
+          return;
+        }
         ctx.fillStyle = lbl.color;
         ctx.fillText(lbl.text, 0, 0);
         ctx.restore();
@@ -653,13 +735,13 @@ export const renderFrame = (
         const metrics = ctx.measureText(lbl.text);
         const tw = metrics.width;
         const th = lbl.fontSize;
-        const padX = 4, padY = 2;
+        const padX = 6, padY = 3;
         let bx = lbl.x;
         if (lbl.align === 'center') bx -= tw / 2;
         else if (lbl.align === 'right') bx -= tw;
         ctx.fillStyle = lbl.bgColor;
         ctx.beginPath();
-        ctx.roundRect(bx - padX, lbl.y - th / 2 - padY, tw + padX * 2, th + padY * 2, 3);
+        ctx.roundRect(bx - padX, lbl.y - th / 2 - padY, tw + padX * 2, th + padY * 2, 4);
         ctx.fill();
       }
 

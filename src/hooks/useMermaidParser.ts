@@ -10,7 +10,7 @@ import { parseFlowchartNodes, parseFlowchartEdges, parseFlowchartEdgeLabels } fr
 // Class
 import { parseClassNodes, parseClassEdges, parseClassEdgeLabels } from '../services/ClassParser';
 // State
-import { parseStateNodes, parseStateEdges, parseStateEdgeLabels } from '../services/StateParser';
+import { parseStateNodes, parseStateEdges, parseStateEdgeLabels, snapStateEdgesToNodes } from '../services/StateParser';
 // ER
 import { parseErNodes, parseErEdges, parseErEdgeLabels } from '../services/ErParser';
 // Gantt / Timeline
@@ -20,7 +20,7 @@ import { parsePieNodes, parsePieEdges, parsePieLabels } from '../services/PiePar
 // Mindmap
 import { parseMindmapNodes, parseMindmapEdges, snapMindmapEdgesToNodes } from '../services/MindmapParser';
 // Git Graph
-import { parseGitGraphNodes, parseGitGraphEdges, parseGitGraphLabels } from '../services/GitGraphParser';
+import { parseGitGraphNodes, parseGitGraphEdges, parseGitGraphLabels, snapGitArrowsToNodes, expandGitBranchSpacing, regenGitArrowPaths } from '../services/GitGraphParser';
 // Generic fallback
 import { parseGeneric } from '../services/GenericParser';
 
@@ -84,7 +84,6 @@ export const useMermaidParser = (
 
   const extractDataFromSVG = useCallback((svgElement: SVGSVGElement, type: DiagramType) => {
     const vb = svgElement.viewBox.baseVal;
-    setViewBox({ x: vb.x, y: vb.y, width: vb.width, height: vb.height });
 
     let extractedNodes: DiagramNode[];
     let extractedEdges: DiagramEdge[];
@@ -135,6 +134,7 @@ export const useMermaidParser = (
           if (extractedNodes.length === 0) extractedNodes = gen.nodes;
           extractedEdges = gen.edges;
         }
+        extractedEdges = snapStateEdgesToNodes(extractedEdges, extractedNodes);
         break;
       }
 
@@ -180,12 +180,20 @@ export const useMermaidParser = (
       case 'gitgraph': {
         extractedNodes = parseGitGraphNodes(svgElement, premium);
         extractedEdges = parseGitGraphEdges(svgElement, premium);
-        extractedLabels = parseGitGraphLabels(svgElement);
         if (extractedEdges.length === 0) {
           const gen = parseGeneric(svgElement, premium);
           if (extractedNodes.length === 0) extractedNodes = gen.nodes;
           extractedEdges = gen.edges;
         }
+        // 1. Expand node positions (lifeline paths remapped, arrow paths deferred)
+        ({ nodes: extractedNodes, edges: extractedEdges, labels: extractedLabels } =
+          expandGitBranchSpacing(extractedNodes, extractedEdges, []));
+        // 2. Snap arrows to expanded node borders
+        extractedEdges = snapGitArrowsToNodes(extractedEdges, extractedNodes);
+        // 3. Rebuild arrow paths from node positions (clean orthogonal lines)
+        extractedEdges = regenGitArrowPaths(extractedEdges, extractedNodes);
+        // 4. Place labels at fixed offsets from expanded node centres
+        extractedLabels = parseGitGraphLabels(svgElement, extractedNodes);
         break;
       }
 
@@ -206,6 +214,8 @@ export const useMermaidParser = (
     const cleanedEdges = extractedEdges.filter(edge => {
       if (edge.type !== 'structural') return true;
       if (edge.id.startsWith('divider-')) return true;
+      // Git lifelines are intentionally horizontal — never filter them out
+      if (edge.id.startsWith('git-lifeline')) return true;
       const m = edge.pathD.match(/M\s*([\d.e+\-]+)\s+([\d.e+\-]+)\s+L\s*([\d.e+\-]+)\s+([\d.e+\-]+)/i);
       if (m) {
         const dx = Math.abs(parseFloat(m[3]) - parseFloat(m[1]));
@@ -215,6 +225,23 @@ export const useMermaidParser = (
       return true;
     });
     setEdges(cleanedEdges);
+
+    // Compute the effective viewBox for initial fit.
+    // For gitgraph, expandGitBranchSpacing moves nodes far beyond the original SVG viewBox,
+    // so we compute the bounding box from the actual expanded node positions.
+    // For other diagram types the SVG viewBox is accurate.
+    if (type === 'gitgraph' && extractedNodes.length > 0) {
+      const xs = extractedNodes.flatMap(n => [n.x - n.width / 2, n.x + n.width / 2]);
+      const ys = extractedNodes.flatMap(n => [n.y - n.height / 2, n.y + n.height / 2]);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      const PAD = 80; // room for branch label pills, commit-ID labels below commits, lifelines
+      setViewBox({ x: minX - PAD, y: minY - PAD, width: maxX - minX + PAD * 2, height: maxY - minY + PAD * 2 });
+    } else {
+      setViewBox({ x: vb.x, y: vb.y, width: vb.width, height: vb.height });
+    }
   }, []);
 
   const renderMermaidToData = useCallback(async () => {

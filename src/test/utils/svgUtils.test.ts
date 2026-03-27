@@ -128,4 +128,23 @@ describe('getCumulativeTransform', () => {
     expect(result.x).toBeCloseTo(3.5);
     expect(result.y).toBeCloseTo(7.25);
   });
+
+  // Mermaid v11 composite-state sub-graphs use nested <svg x y> for positioning
+  it('accumulates x/y attributes on nested <svg> elements', () => {
+    const NS = 'http://www.w3.org/2000/svg';
+    const outerG = document.createElementNS(NS, 'g');
+    outerG.setAttribute('transform', 'translate(50, 30)');
+
+    const innerSvg = document.createElementNS(NS, 'svg');
+    innerSvg.setAttribute('x', '20');
+    innerSvg.setAttribute('y', '10');
+
+    const el = document.createElementNS(NS, 'path');
+    innerSvg.appendChild(el);
+    outerG.appendChild(innerSvg);
+    svg.appendChild(outerG);
+
+    // Expected: outerG translate (50,30) + innerSvg x/y (20,10) = (70, 40)
+    expect(getCumulativeTransform(el, svg)).toEqual({ x: 70, y: 40 });
+  });
 });

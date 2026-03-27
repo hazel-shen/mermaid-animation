@@ -4,6 +4,15 @@ export const getCumulativeTransform = (element: Element, stopAt: Element): { x: 
   let current = element;
 
   while (current && current !== stopAt) {
+    // Nested <svg> elements use x/y attributes for positioning (not transform).
+    // This is how Mermaid v11 positions composite-state sub-graphs.
+    if (current.tagName === 'svg' || current.tagName === 'SVG') {
+      const sx = current.getAttribute('x');
+      const sy = current.getAttribute('y');
+      if (sx) x += parseFloat(sx);
+      if (sy) y += parseFloat(sy);
+    }
+
     const transform = current.getAttribute('transform');
     if (transform) {
       // matrix(a,b,c,d,e,f) — e and f are the translation components

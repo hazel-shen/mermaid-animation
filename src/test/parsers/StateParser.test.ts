@@ -487,14 +487,15 @@ describe('parseStateEdges', () => {
     expect(parseStateEdges(svg, false)).toHaveLength(0);
   });
 
-  it('sets noSnap=true on every edge', () => {
+  it('does not set noSnap on edges outside a statediagram-cluster', () => {
     const g = el('g'); g.classList.add('edgePath');
     const path = el<SVGPathElement>('path');
     path.setAttribute('d', 'M 10 10 L 100 100');
     g.appendChild(path); svg.appendChild(g);
 
     const [edge] = parseStateEdges(svg, false);
-    expect(edge.noSnap).toBe(true);
+    expect(edge.noSnap).toBeUndefined();
+    expect(edge.parentClusterId).toBeUndefined();
   });
 
   it('sets hasArrow=true when path has marker-end attribute', () => {
