@@ -33,7 +33,9 @@ const extractLabel = (g: Element): string => {
 
 const bboxCenter = (el: SVGGraphicsElement, svgElement: SVGSVGElement) => {
   const bbox = el.getBBox();
-  if (bbox.width <= 0 && bbox.height <= 0) return null;
+  // getBBox() may return an empty object {} in hidden containers — guard against NaN
+  const w = bbox.width, h = bbox.height;
+  if (!(w > 0) || !(h > 0)) return null;
   const { x: tx, y: ty } = getCumulativeTransform(el, svgElement);
   return {
     cx: tx + bbox.x + bbox.width / 2,
@@ -291,6 +293,12 @@ export const parseStateEdges = (svgElement: SVGSVGElement, isPremium: boolean): 
 
     const { stroke, dash } = extractEdgeStyle(el, isPremium);
 
+    // Tag edges that live inside a composite-state cluster <g> so that
+    // snapStateEdgesToNodes can treat them as internal transitions and
+    // avoid assigning a cluster toNodeId (which would cause drawEdge to
+    // clip the entire path away via the evenodd canvas clip).
+    const parentCluster = el.closest('g[class*="statediagram-cluster"]');
+
     edges.push({
       id: nextId('state-edge'),
       pathD,
@@ -298,11 +306,109 @@ export const parseStateEdges = (svgElement: SVGSVGElement, isPremium: boolean): 
       type: 'link',
       dash,
       hasArrow: el.getAttribute('marker-end') != null,
-      noSnap: true,
+      parentClusterId: parentCluster?.id ?? undefined,
     });
   });
 
   return edges;
+};
+
+// ─── snap edges to node borders ─────────────────────────────────────────────
+
+/**
+ * Attach fromNodeId / toNodeId to each state edge by matching path endpoints
+ * to the nearest parsed node. This lets drawEdge snap arrowheads to the exact
+ * border of each shape (rectangle, diamond, circle) using borderPoint().
+ */
+export const snapStateEdgesToNodes = (
+  edges: DiagramEdge[],
+  nodes: DiagramNode[],
+): DiagramEdge[] => {
+  if (nodes.length === 0) return edges;
+
+  const clusters = nodes.filter(n => n.type === 'cluster');
+
+  /**
+   * Distance from point (x, y) to the nearest edge of a cluster's bounding box.
+   * Returns 0 when the point is inside the cluster.
+   */
+  const distToCluster = (x: number, y: number, n: DiagramNode): number => {
+    const ox = Math.max(n.x - n.width  / 2 - x, x - (n.x + n.width  / 2), 0);
+    const oy = Math.max(n.y - n.height / 2 - y, y - (n.y + n.height / 2), 0);
+    return Math.hypot(ox, oy);
+  };
+
+  // Find the smallest cluster that contains (or is within 5 px of) the point.
+  const findContainingCluster = (x: number, y: number): DiagramNode | undefined =>
+    clusters
+      .filter(n => distToCluster(x, y, n) < 5)
+      .sort((a, b) => a.width * a.height - b.width * b.height)[0];
+
+  // Only snap to individual state nodes, not to the cluster container itself.
+  // Including clusters would cause all endpoints inside the cluster to snap to it
+  // when the cluster has a NaN position (getBBox fails in hidden containers).
+  const nonClusterNodes = nodes.filter(n => n.type !== 'cluster');
+  const nearestNode = (x: number, y: number): DiagramNode =>
+    nonClusterNodes.reduce((best, n) =>
+      Math.hypot(n.x - x, n.y - y) < Math.hypot(best.x - x, best.y - y) ? n : best
+    );
+
+  const startPt = (d: string) => {
+    const m = d.match(/M\s*([-+]?[\d.e]+)[,\s]+([-+]?[\d.e]+)/i);
+    return m ? { x: parseFloat(m[1]), y: parseFloat(m[2]) } : null;
+  };
+  const endPt = (d: string) => {
+    const m = d.match(/[MLCSQTA][^MLCSQTAZHV]*$/i);
+    if (!m) return null;
+    const nums = [...m[0].matchAll(/[-+]?[\d.]+(?:e[-+]?\d+)?/g)].map(n => parseFloat(n[0]));
+    return nums.length >= 2 ? { x: nums[nums.length - 2], y: nums[nums.length - 1] } : null;
+  };
+
+  const EXTERNAL_DIST = 20;
+
+  return edges.map(edge => {
+    // ── Internal transitions ────────────────────────────────────────────────
+    // Edges tagged with parentClusterId live INSIDE a composite-state cluster
+    // SVG group. They are internal transitions (both endpoints within the same
+    // cluster). Do NOT assign a cluster toNodeId/fromNodeId — that would
+    // trigger the drawEdge canvas clip and erase the entire path.
+    // Return the edge unchanged so the path is drawn as-is from the Mermaid SVG.
+    if (edge.parentClusterId) {
+      return edge;
+    }
+
+    // ── External transitions ────────────────────────────────────────────────
+    const sp = startPt(edge.pathD);
+    const ep = endPt(edge.pathD);
+
+    const startCluster = sp ? findContainingCluster(sp.x, sp.y) : undefined;
+    const endCluster   = ep ? findContainingCluster(ep.x, ep.y) : undefined;
+
+    let fromNodeId: string | undefined;
+    let toNodeId:   string | undefined;
+
+    if (sp) {
+      if (startCluster) {
+        // External exit: end point is well outside the cluster the start is in.
+        const epDist = ep ? distToCluster(ep.x, ep.y, startCluster) : Infinity;
+        fromNodeId = epDist > EXTERNAL_DIST ? startCluster.id : nearestNode(sp.x, sp.y).id;
+      } else {
+        fromNodeId = nearestNode(sp.x, sp.y).id;
+      }
+    }
+
+    if (ep) {
+      if (endCluster) {
+        // External entry: start point is well outside the cluster the end is in.
+        const spDist = sp ? distToCluster(sp.x, sp.y, endCluster) : Infinity;
+        toNodeId = spDist > EXTERNAL_DIST ? endCluster.id : nearestNode(ep.x, ep.y).id;
+      } else {
+        toNodeId = nearestNode(ep.x, ep.y).id;
+      }
+    }
+
+    return { ...edge, fromNodeId, toNodeId };
+  });
 };
 
 // ─── edge labels ────────────────────────────────────────────────────────────

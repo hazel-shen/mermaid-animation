@@ -267,7 +267,7 @@ const CanvasDiagram = () => {
     { value: 'gantt',     label: 'Gantt Chart' },
     { value: 'pie',       label: 'Pie Chart' },
     { value: 'gitgraph',  label: 'Git Graph' },
-    { value: 'mindmap',   label: 'Mind Map (TODO)' },
+    { value: 'mindmap',   label: 'Mind Map' },
   ];
 
   // UI state

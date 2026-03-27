@@ -30,11 +30,15 @@ export type DiagramNode = {
   height: number;
   color: string;
   stroke: string;
-  shape: 'rect' | 'circle' | 'endCircle' | 'diamond' | 'hexagon' | 'cylinder' | 'stadium' | 'subroutine' | 'roundRect' | 'note' | 'pie' | 'forkJoin' | 'mergeCircle';
+  shape: 'rect' | 'circle' | 'endCircle' | 'diamond' | 'hexagon' | 'cylinder' | 'stadium' | 'subroutine' | 'roundRect' | 'note' | 'pie' | 'forkJoin' | 'mergeCircle' | 'cloud' | 'bang' | 'reverseCircle' | 'highlightRect';
   /** Present only for class-diagram nodes; carries title + member rows */
   classLines?: ClassLine[];
   /** Present only for pie chart wedge nodes */
   pieWedge?: PieWedge;
+  /** Git graph: commit ID label text anchored below this node */
+  gitCommitLabel?: string;
+  /** Git graph: tag label text anchored above this node */
+  gitTagLabel?: string;
 };
 
 // link=訊息線(有粒子), structural=結構線(無粒子)
@@ -74,6 +78,15 @@ export type DiagramEdge = {
   toNodeId?: string;
   /** Skip node-border snapping for this edge (e.g. sequence message lines) */
   noSnap?: boolean;
+  /** Override the default stroke lineWidth for this edge */
+  lineWidth?: number;
+  /**
+   * Set by StateParser: the SVG element id of the composite-state cluster
+   * that directly contains this edge's <path>. Undefined for external transitions.
+   * Internal transitions (both endpoints inside the same cluster) must NOT receive
+   * a cluster toNodeId / fromNodeId — otherwise drawEdge clips them away.
+   */
+  parentClusterId?: string;
 };
 
 export type SeqLabel = {

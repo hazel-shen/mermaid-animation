@@ -83,10 +83,14 @@ export const parseSequenceNodes = (svgElement: SVGSVGElement): DiagramNode[] => 
   });
 
   // 4. Activation bars (active lifeline segments from activate/deactivate)
-  // Mermaid renders activation bars as rect.activation0, rect.activation1, etc.
-  svgElement.querySelectorAll<SVGRectElement>('rect[class^="activation"], rect[class*=" activation"]').forEach(rect => {
+  // Mermaid renders activation bars as rect.activationN (where N may be a
+  // sequential index or a pixel offset). Use a broad substring match to catch
+  // any variant: "activation0", "activation350", etc.
+  svgElement.querySelectorAll<SVGRectElement>('rect[class*="activation"]').forEach(rect => {
     const { cx, cy, w, h } = getRectGeom(rect, svgElement);
     if (w <= 0 || h <= 0) return;
+    // Sanity: activation bars are tall and narrow; skip stray wide rects
+    if (w > 40) return;
     extractedNodes.push({
       id: nextId('activation'),
       label: '',
@@ -435,7 +439,7 @@ export const parseSequenceEdges = (svgElement: SVGSVGElement, isPremium: boolean
         line.classList.contains('messageLine0') ||
         line.classList.contains('messageLine1');
       extractedEdges.push({
-        id: `edge-${Math.random()}`,
+        id: nextId('edge'),
         pathD: lineToPathD(line, svgElement),
         stroke: isPremium ? '#64748b' : '#333',
         type: 'link',
