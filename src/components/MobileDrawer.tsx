@@ -15,7 +15,6 @@ const SHAPE_OPTIONS: { value: ParticleShape; label: string }[] = [
 
 interface MobileDrawerProps {
   isOpen: boolean;
-  isPremium: boolean;
   isLoading: boolean;
   isRecording: boolean;
   particleSpeed: number;
@@ -24,7 +23,7 @@ interface MobileDrawerProps {
   particleShape: ParticleShape;
   onClose: () => void;
   onToggle: () => void;
-  onTogglePremium: () => void;
+  onExport: () => void;
   onRefresh: () => void;
   onDownload: (format: DownloadFormat) => void;
   onParticleSpeedChange: (value: number) => void;
@@ -53,7 +52,6 @@ export const MobileDrawerFAB: React.FC<Pick<MobileDrawerProps, 'isOpen' | 'onTog
 
 export const MobileDrawer: React.FC<MobileDrawerProps> = ({
   isOpen,
-  isPremium,
   isLoading,
   isRecording,
   particleSpeed,
@@ -62,7 +60,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
   particleShape,
   onClose,
   onToggle,
-  onTogglePremium,
+  onExport,
   onRefresh,
   onDownload,
   onParticleSpeedChange,
@@ -100,8 +98,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
         </div>
 
         <div className="px-5 pt-2 pb-8 flex flex-col gap-4">
-          {isPremium && (
-            <div className="flex flex-col gap-4 pb-4 border-b border-gray-100">
+          <div className="flex flex-col gap-4 pb-4 border-b border-gray-100">
               <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">粒子設定</p>
               <label className="flex items-center gap-3 text-sm text-slate-600 cursor-pointer">
                 <Gauge size={16} className="text-slate-400 flex-shrink-0" />
@@ -159,7 +156,6 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                 />
               </label>
             </div>
-          )}
 
           <div className="flex flex-col gap-3">
             <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">操作</p>
@@ -171,15 +167,11 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
               重新渲染
             </button>
             <button
-              onClick={onTogglePremium}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium border transition-colors ${
-                isPremium
-                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
-                  : 'bg-gray-50 text-slate-700 border-gray-200 hover:bg-gray-100'
-              }`}
+              onClick={() => { onExport(); onClose(); }}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium border bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 transition-colors"
             >
-              <span className="text-base">{isPremium ? '✨' : '◻'}</span>
-              {isPremium ? 'Export 模式（關閉切換 Draft）' : 'Draft 模式（點擊切換 Export）'}
+              <span className="text-base">✨</span>
+              匯出靜態圖（PNG）
             </button>
 
             {/* Download section */}

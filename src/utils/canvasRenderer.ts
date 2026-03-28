@@ -9,6 +9,18 @@ import type { ParticleShape } from './drawParticles';
 export type { ParticleShape };
 export { drawEdge };
 
+export type ExportBg = 'solid' | 'checkerboard' | 'transparent';
+
+const drawCheckerboard = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+  const size = 16;
+  for (let row = 0; row * size < h; row++) {
+    for (let col = 0; col * size < w; col++) {
+      ctx.fillStyle = (row + col) % 2 === 0 ? '#e5e7eb' : '#ffffff';
+      ctx.fillRect(col * size, row * size, size, size);
+    }
+  }
+};
+
 // Cloud shape centred at (0,0) fitting w×h.
 // N bumps placed on an ellipse; bump radius scales with the shorter axis so bumps
 // always fit the label regardless of aspect ratio.
@@ -601,6 +613,7 @@ export interface RenderFrameOptions {
   particleShape: ParticleShape;
   isRecording: boolean;
   hoveredNodeId: string | null;
+  exportBg?: ExportBg;
 }
 
 export const renderFrame = (
@@ -612,17 +625,31 @@ export const renderFrame = (
   showRec: boolean,
   opts: RenderFrameOptions
 ) => {
-  const { nodes, edges, particles, seqLabels, isPremium, particleColor, particleSize, particleShape, hoveredNodeId } = opts;
+  const { nodes, edges, particles, seqLabels, isPremium, particleColor, particleSize, particleShape, hoveredNodeId, exportBg } = opts;
 
-  ctx.fillStyle = isPremium ? '#f8fafc' : '#fff';
-  ctx.fillRect(0, 0, w, h);
+  if (exportBg === 'transparent') {
+    ctx.clearRect(0, 0, w, h);
+  } else if (exportBg === 'checkerboard') {
+    // "格紋" = 原圖樣式：灰背景 + 點格線
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(0, 0, w, h);
+  } else if (exportBg === 'solid') {
+    // 純色 = 純白背景
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+  } else {
+    // Live canvas (no exportBg)
+    ctx.fillStyle = isPremium ? '#f8fafc' : '#fff';
+    ctx.fillRect(0, 0, w, h);
+  }
 
   ctx.save();
   ctx.translate(tr.x, tr.y);
   ctx.scale(tr.scale, tr.scale);
   ctx.translate(offset.x, offset.y);
 
-  if (isPremium) drawGrid(ctx, w, h);
+  // 透明和純色匯出不畫格線；格紋和 live canvas 才畫
+  if (isPremium && exportBg !== 'transparent' && exportBg !== 'solid') drawGrid(ctx, w, h);
 
   // Clusters first (background layer) — largest area first so outer boxes don't overdraw inner ones
   nodes.filter(n => n.type === 'cluster')

@@ -14,14 +14,13 @@ const SHAPE_OPTIONS: { value: ParticleShape; label: string }[] = [
 ];
 
 interface AppHeaderProps {
-  isPremium: boolean;
   isLoading: boolean;
   isRecording: boolean;
   particleSpeed: number;
   particleColor: string;
   particleSize: number;
   particleShape: ParticleShape;
-  onTogglePremium: () => void;
+  onExport: () => void;
   onRefresh: () => void;
   onDownload: (format: DownloadFormat) => void;
   onParticleSpeedChange: (value: number) => void;
@@ -31,14 +30,13 @@ interface AppHeaderProps {
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
-  isPremium,
   isLoading,
   isRecording,
   particleSpeed,
   particleColor,
   particleSize,
   particleShape,
-  onTogglePremium,
+  onExport,
   onRefresh,
   onDownload,
   onParticleSpeedChange,
@@ -104,8 +102,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         <div className="hidden md:flex items-center gap-2 min-w-0 flex-1">
 
           {/* Particle controls */}
-          {isPremium && (
-            <div className="flex items-center gap-3 pl-3 ml-1 border-l border-gray-200 flex-shrink-0">
+          <div className="flex items-center gap-3 pl-3 ml-1 border-l border-gray-200 flex-shrink-0">
               {/* Speed + Size stacked */}
               <div className="flex flex-col gap-1">
                 <label className="flex items-center gap-1 text-xs text-slate-600 cursor-pointer" title="速度">
@@ -166,7 +163,6 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                 </label>
               </div>
             </div>
-          )}
 
           {/* Action buttons — pushed to right */}
           <div className="flex items-center gap-1 ml-auto flex-shrink-0">
@@ -179,15 +175,10 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               重新渲染
             </button>
             <button
-              onClick={onTogglePremium}
-              className={`px-2 py-1.5 rounded text-xs shadow-sm transition-all flex items-center gap-1 whitespace-nowrap border-0 ${
-                isPremium
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white'
-                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white opacity-60'
-              }`}
+              onClick={onExport}
+              className="px-2 py-1.5 rounded text-xs shadow-sm transition-all flex items-center gap-1 whitespace-nowrap border-0 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
             >
-              <span>{isPremium ? '✨' : '◻'}</span>
-              {isPremium ? 'Export' : 'Draft'}
+              ✨ Export
             </button>
 
             {/* Split download button */}

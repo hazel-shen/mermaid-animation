@@ -4,6 +4,7 @@ import { AppHeader } from './components/AppHeader';
 import { EditorSidebar } from './components/EditorSidebar';
 import { CanvasView } from './components/CanvasView';
 import { MobileDrawer } from './components/MobileDrawer';
+import { ExportModal } from './components/ExportModal';
 
 import { useMermaidParser } from './hooks/useMermaidParser';
 import { useCanvasTransform, useCanvasResize } from './hooks/useCanvasTransform';
@@ -12,7 +13,7 @@ import { useMediaRecorder } from './hooks/useMediaRecorder';
 import { useEditorResize } from './hooks/useEditorResize';
 
 import { renderFrame } from './utils/canvasRenderer';
-import type { ParticleShape } from './utils/canvasRenderer';
+import type { ParticleShape, ExportBg } from './utils/canvasRenderer';
 
 // --- 預設代碼 ---
 const SEQUENCE_CODE = `sequenceDiagram
@@ -273,7 +274,7 @@ const CanvasDiagram = () => {
   // UI state
   const [selectedSample, setSelectedSample] = useState('sequence');
   const [code, setCode] = useState(SEQUENCE_CODE);
-  const [isPremium, setIsPremium] = useState(true);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const [particleColor, setParticleColor] = useState('#2ea4ff');
   const [particleSpeed, setParticleSpeed] = useState(1);
   const [particleSize, setParticleSize] = useState(3);
@@ -291,7 +292,7 @@ const CanvasDiagram = () => {
 
   // --- Hooks ---
   const { nodes, edges, seqLabels, isLoading, errorMsg, renderMermaidToData, viewBox } =
-    useMermaidParser(code, isPremium, hiddenContainerRef as React.RefObject<HTMLDivElement>);
+    useMermaidParser(code, true, hiddenContainerRef as React.RefObject<HTMLDivElement>);
   // diagramType is available from useMermaidParser but not consumed at top-level (used internally by parsers)
 
   const particles = useParticleSystem(edges);
@@ -346,14 +347,14 @@ const CanvasDiagram = () => {
       const offset = (canvas as any).viewBoxOffset || { x: 0, y: 0 };
       const tr = transformRef.current;
 
-      if (isPremium) particles.forEach(p => p.update(particleSpeed));
+      particles.forEach(p => p.update(particleSpeed));
 
       renderFrame(ctx, w, h, tr, offset, isRecording, {
         nodes,
         edges,
         particles,
         seqLabels,
-        isPremium,
+        isPremium: true,
         particleColor,
         particleSpeed,
         particleSize,
@@ -368,17 +369,55 @@ const CanvasDiagram = () => {
     render();
     return () => cancelAnimationFrame(rafId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, particles, seqLabels, isPremium, isRecording, particleColor, particleSpeed, particleSize, particleShape, transformState]);
+  }, [nodes, edges, particles, seqLabels, isRecording, particleColor, particleSpeed, particleSize, particleShape, transformState]);
 
   // --- Download handler ---
   const handleDownload = useCallback((format: import('./hooks/useMediaRecorder').DownloadFormat) => {
     startDownload(
       canvasRef,
       diagramSizeRef,
-      { nodes, edges, particles, seqLabels, isPremium, particleColor, particleSpeed, particleSize, particleShape, isRecording, hoveredNodeId: hoveredNodeIdRef.current },
+      { nodes, edges, particles, seqLabels, isPremium: true, particleColor, particleSpeed, particleSize, particleShape, isRecording, hoveredNodeId: hoveredNodeIdRef.current },
       format
     );
-  }, [startDownload, nodes, edges, particles, seqLabels, isPremium, particleColor, particleSize, particleShape, isRecording, diagramSizeRef]);
+  }, [startDownload, nodes, edges, particles, seqLabels, particleColor, particleSize, particleShape, isRecording, diagramSizeRef]);
+
+  // --- Static PNG export handler ---
+  const handleExport = useCallback((exportBg: ExportBg) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const OUT_W = 1920;
+    const OUT_H = 1080;
+    const PADDING = 80;
+
+    const diagramOffset = (canvas as any).viewBoxOffset || { x: 0, y: 0 };
+    const { w: dw, h: dh } = diagramSizeRef.current;
+    const scale = dw > 0 && dh > 0
+      ? Math.min((OUT_W - PADDING) / dw, (OUT_H - PADDING) / dh)
+      : 1;
+    const tr = { x: (OUT_W - dw * scale) / 2, y: (OUT_H - dh * scale) / 2, scale };
+
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = OUT_W;
+    outCanvas.height = OUT_H;
+    const outCtx = outCanvas.getContext('2d')!;
+
+    renderFrame(outCtx, OUT_W, OUT_H, tr, diagramOffset, false, {
+      nodes, edges, particles, seqLabels,
+      isPremium: true,
+      particleColor, particleSpeed, particleSize, particleShape,
+      isRecording: false,
+      hoveredNodeId: null,
+      exportBg,
+    });
+
+    const link = document.createElement('a');
+    link.download = 'flowmotion.png';
+    link.href = outCanvas.toDataURL('image/png');
+    link.click();
+
+    setExportModalOpen(false);
+  }, [nodes, edges, particles, seqLabels, particleColor, particleSpeed, particleSize, particleShape, diagramSizeRef]);
 
   // --- Mouse event wrappers (bind hoveredNodeIdRef) ---
   const onMouseMove = useCallback(
@@ -399,14 +438,13 @@ const CanvasDiagram = () => {
       />
 
       <AppHeader
-        isPremium={isPremium}
         isLoading={isLoading}
         isRecording={isRecording}
         particleSpeed={particleSpeed}
         particleColor={particleColor}
         particleSize={particleSize}
         particleShape={particleShape}
-        onTogglePremium={() => setIsPremium(v => !v)}
+        onExport={() => setExportModalOpen(true)}
         onRefresh={renderMermaidToData}
         onDownload={handleDownload}
         onParticleSpeedChange={setParticleSpeed}
@@ -415,9 +453,15 @@ const CanvasDiagram = () => {
         onParticleShapeChange={setParticleShape}
       />
 
+      {exportModalOpen && (
+        <ExportModal
+          onConfirm={handleExport}
+          onClose={() => setExportModalOpen(false)}
+        />
+      )}
+
       <MobileDrawer
         isOpen={isControlBarOpen}
-        isPremium={isPremium}
         isLoading={isLoading}
         isRecording={isRecording}
         particleSpeed={particleSpeed}
@@ -426,7 +470,7 @@ const CanvasDiagram = () => {
         particleShape={particleShape}
         onClose={() => setIsControlBarOpen(false)}
         onToggle={() => setIsControlBarOpen(v => !v)}
-        onTogglePremium={() => setIsPremium(v => !v)}
+        onExport={() => setExportModalOpen(true)}
         onRefresh={renderMermaidToData}
         onDownload={handleDownload}
         onParticleSpeedChange={setParticleSpeed}
