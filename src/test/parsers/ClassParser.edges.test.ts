@@ -298,6 +298,92 @@ describe('parseClassEdges', () => {
     expect(edges[0].hasArrow).toBe(true);
   });
 
+  // ── fromNodeId / toNodeId resolution ─────────────────────────────────────
+
+  it('resolves fromNodeId and toNodeId from LS-/LE- class names on the path', () => {
+    // Add node groups so resolveNodeId can find them
+    const nodeDuck = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    nodeDuck.classList.add('node');
+    nodeDuck.id = 'classId-Duck-0';
+    svgElement.appendChild(nodeDuck);
+
+    const nodeLake = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    nodeLake.classList.add('node');
+    nodeLake.id = 'classId-Lake-0';
+    svgElement.appendChild(nodeLake);
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.classList.add('relation', 'LS-Duck', 'LE-Lake');
+    path.setAttribute('d', 'M 10 20 L 200 200');
+    svgElement.appendChild(path);
+
+    const edges = parseClassEdges(svgElement, false);
+
+    expect(edges[0].fromNodeId).toBe('classId-Duck-0');
+    expect(edges[0].toNodeId).toBe('classId-Lake-0');
+  });
+
+  it('resolves fromNodeId and toNodeId from ancestor group L-A-B-N id', () => {
+    const nodeAnimal = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    nodeAnimal.classList.add('node');
+    nodeAnimal.id = 'classId-Animal-0';
+    svgElement.appendChild(nodeAnimal);
+
+    const nodeFish = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    nodeFish.classList.add('node');
+    nodeFish.id = 'classId-Fish-0';
+    svgElement.appendChild(nodeFish);
+
+    const edgeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    edgeGroup.id = 'L-Animal-Fish-0';
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.classList.add('relation');
+    path.setAttribute('d', 'M 10 20 L 200 200');
+    edgeGroup.appendChild(path);
+    svgElement.appendChild(edgeGroup);
+
+    const edges = parseClassEdges(svgElement, false);
+
+    expect(edges[0].fromNodeId).toBe('classId-Animal-0');
+    expect(edges[0].toNodeId).toBe('classId-Fish-0');
+  });
+
+  it('resolves fromNodeId and toNodeId from element own id_<from>_<to>_N (Mermaid v11)', () => {
+    const nodeDuck = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    nodeDuck.classList.add('node');
+    nodeDuck.id = 'classId-Duck-35';
+    svgElement.appendChild(nodeDuck);
+
+    const nodeLake = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    nodeLake.classList.add('node');
+    nodeLake.id = 'classId-Lake-36';
+    svgElement.appendChild(nodeLake);
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.classList.add('relation');
+    path.id = 'id_Duck_Lake_2';
+    path.setAttribute('d', 'M 10 20 L 200 200');
+    svgElement.appendChild(path);
+
+    const edges = parseClassEdges(svgElement, false);
+
+    expect(edges[0].fromNodeId).toBe('classId-Duck-35');
+    expect(edges[0].toNodeId).toBe('classId-Lake-36');
+  });
+
+  it('leaves fromNodeId/toNodeId undefined when no matching node ids exist', () => {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.classList.add('relation', 'LS-Unknown', 'LE-Missing');
+    path.setAttribute('d', 'M 10 20 L 200 200');
+    svgElement.appendChild(path);
+
+    const edges = parseClassEdges(svgElement, false);
+
+    expect(edges[0].fromNodeId).toBeUndefined();
+    expect(edges[0].toNodeId).toBeUndefined();
+  });
+
   it('should apply parent translate transform to path.relation coordinates', () => {
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.setAttribute('transform', 'translate(100, 50)');

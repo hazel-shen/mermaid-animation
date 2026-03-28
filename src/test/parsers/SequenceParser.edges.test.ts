@@ -31,7 +31,74 @@ describe('parseSequenceEdges', () => {
       stroke: '#333',
       type: 'link',
       hasArrow: true,
+      arrowEnd: 'openArrow',  // no marker-end → open arrow (A->B style)
     });
+  });
+
+  // ── Arrow type detection ─────────────────────────────────────────────────
+
+  it('sets arrowEnd="default" for messageLine with url(#arrowhead) (->> / -->>)', () => {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.classList.add('messageLine0');
+    line.setAttribute('x1', '10'); line.setAttribute('y1', '20');
+    line.setAttribute('x2', '100'); line.setAttribute('y2', '20');
+    line.setAttribute('marker-end', 'url(#arrowhead)');
+    svgElement.appendChild(line);
+
+    const [edge] = parseSequenceEdges(svgElement, false);
+    expect(edge.arrowEnd).toBe('default');
+    expect(edge.hasArrow).toBe(true);
+  });
+
+  it('sets arrowEnd="openArrow" for messageLine with no marker-end (-> / -->)', () => {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.classList.add('messageLine1');
+    line.setAttribute('x1', '10'); line.setAttribute('y1', '20');
+    line.setAttribute('x2', '100'); line.setAttribute('y2', '20');
+    // no marker-end attribute
+    svgElement.appendChild(line);
+
+    const [edge] = parseSequenceEdges(svgElement, false);
+    expect(edge.arrowEnd).toBe('openArrow');
+    expect(edge.hasArrow).toBe(true);
+  });
+
+  it('sets arrowEnd="cross" for messageLine with url(#crosshead) (-x / --x)', () => {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.classList.add('messageLine0');
+    line.setAttribute('x1', '10'); line.setAttribute('y1', '20');
+    line.setAttribute('x2', '100'); line.setAttribute('y2', '20');
+    line.setAttribute('marker-end', 'url(#crosshead)');
+    svgElement.appendChild(line);
+
+    const [edge] = parseSequenceEdges(svgElement, false);
+    expect(edge.arrowEnd).toBe('cross');
+    expect(edge.hasArrow).toBe(true);
+  });
+
+  it('sets arrowEnd="halfCircle" for messageLine with url(#filled-head) (-) / --))', () => {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.classList.add('messageLine0');
+    line.setAttribute('x1', '10'); line.setAttribute('y1', '20');
+    line.setAttribute('x2', '100'); line.setAttribute('y2', '20');
+    line.setAttribute('marker-end', 'url(#filled-head)');
+    svgElement.appendChild(line);
+
+    const [edge] = parseSequenceEdges(svgElement, false);
+    expect(edge.arrowEnd).toBe('halfCircle');
+    expect(edge.hasArrow).toBe(true);
+  });
+
+  it('does not set arrowEnd on non-messageLine elements (flowchart-link)', () => {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.classList.add('flowchart-link');
+    path.setAttribute('d', 'M 10 20 L 100 50');
+    path.setAttribute('marker-end', 'url(#arrowhead)');
+    svgElement.appendChild(path);
+
+    const [edge] = parseSequenceEdges(svgElement, false);
+    expect(edge.hasArrow).toBe(true);
+    expect(edge.arrowEnd).toBeUndefined();
   });
 
   it('should parse path elements as links', () => {

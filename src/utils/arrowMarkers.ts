@@ -59,13 +59,45 @@ export const drawArrowMarker = (
       ctx.stroke();
       break;
     }
-    case 'dependency': {
-      // Open arrow (two lines, no fill)
+    case 'dependency':
+    case 'openArrow': {
+      // Open V arrow (two lines, no fill).
+      // 'dependency' = class diagram -->, 'openArrow' = sequence -> / -->
       const S = 10;
       ctx.beginPath();
       ctx.moveTo(-S * Math.cos(-0.45), -S * Math.sin(-0.45));
       ctx.lineTo(0, 0);
       ctx.lineTo(-S * Math.cos(0.45), -S * Math.sin(0.45));
+      ctx.stroke();
+      break;
+    }
+    case 'circle': {
+      // Hollow circle endpoint — flowchart --o
+      // Centre at (-R, 0) so the rightmost edge touches (0, 0) = node border.
+      const R = 5;
+      ctx.beginPath();
+      ctx.arc(-R, 0, R, 0, Math.PI * 2);
+      ctx.fillStyle = bgColor;
+      ctx.fill();
+      ctx.stroke();
+      break;
+    }
+    case 'cross': {
+      // × shape — flowchart --x / sequence -x
+      // Two diagonals crossing, centred at (-S, 0).
+      const S = 6;
+      ctx.beginPath();
+      ctx.moveTo(-S * 2, -S); ctx.lineTo(0,  S);
+      ctx.moveTo(-S * 2,  S); ctx.lineTo(0, -S);
+      ctx.stroke();
+      break;
+    }
+    case 'halfCircle': {
+      // ⌒ arc (right half of circle) — sequence -) / --)  fire-and-forget
+      // Arc centre at (-R, 0); right edge of arc = (0, 0) = node border.
+      const R = 8;
+      ctx.beginPath();
+      ctx.arc(-R, 0, R, -Math.PI / 2, Math.PI / 2);
       ctx.stroke();
       break;
     }
@@ -138,7 +170,11 @@ export const markerSetback = (marker: ArrowMarker | undefined): number => {
     case 'composition':
     case 'aggregation':  return 20;
     case 'extension':    return 12;
-    case 'dependency':   return 0;
+    case 'dependency':
+    case 'openArrow':    return 0;   // open arrow tip sits at the border
+    case 'circle':       return 10;  // diameter = 2R = 10, line stops at left edge
+    case 'cross':        return 0;   // × sits at the border
+    case 'halfCircle':   return 0;   // arc right edge sits at the border
     case 'erOne':        return 0;
     case 'erZeroOrOne':  return 0;
     case 'erMany':       return 0;

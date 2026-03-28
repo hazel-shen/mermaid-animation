@@ -236,6 +236,89 @@ export const parseClassEdges = (svgElement: SVGSVGElement, isPremium: boolean): 
   const edges: DiagramEdge[] = [];
   const seenPaths = new Set<string>();
 
+  // ── Node id collection (for fromNodeId/toNodeId border-snapping) ──────────
+  // Collect all node ids so edge endpoints can be snapped to exact borders
+  // via borderPoint() instead of the fragile fixed MARKER_OVERHANG heuristic.
+  const classNodeIds = new Set<string>();
+  svgElement.querySelectorAll('g.node, g.classGroup, g.cluster').forEach(g => {
+    if (g.id) classNodeIds.add(g.id);
+  });
+
+  // Resolve a short class name (e.g. "Duck") to its full node g.id
+  // (e.g. "classId-Duck-0") using the dagre-wrapper naming convention.
+  const resolveNodeId = (shortId?: string): string | undefined => {
+    if (!shortId) return undefined;
+    if (classNodeIds.has(shortId)) return shortId;
+    const pattern = new RegExp(`^classId-${shortId}-\\d+$`);
+    for (const nid of classNodeIds) {
+      if (pattern.test(nid)) return nid;
+    }
+    // Looser fallback: any id ending with "-<shortId>-N"
+    for (const nid of classNodeIds) {
+      if (nid.includes(`-${shortId}-`)) return nid;
+    }
+    return undefined;
+  };
+
+  // Extract source/target short ids from an edge element:
+  //   1. LS-<from> / LE-<to> class names (Mermaid v11 dagre-wrapper)
+  //   2. Ancestor <g id="L-<from>-<to>-N"> (same format as flowchart)
+  const edgeEndIds = (el: Element): { fromNodeId?: string; toNodeId?: string } => {
+    // 1. LS-/LE- class names (some Mermaid versions)
+    const cls = el.getAttribute('class') || '';
+    const lsMatch = cls.match(/\bLS-(\S+)\b/);
+    const leMatch = cls.match(/\bLE-(\S+)\b/);
+    if (lsMatch && leMatch) {
+      return { fromNodeId: resolveNodeId(lsMatch[1]), toNodeId: resolveNodeId(leMatch[1]) };
+    }
+
+    // 2. Element's own id: Mermaid v11 class diagram uses id_<from>_<to>_N
+    if (el.id) {
+      const mu = el.id.match(/^id_(.+)_(\d+)$/);
+      if (mu) {
+        const inner = mu[1];
+        const sep = inner.indexOf('_');
+        if (sep > 0) {
+          return {
+            fromNodeId: resolveNodeId(inner.slice(0, sep)),
+            toNodeId:   resolveNodeId(inner.slice(sep + 1)),
+          };
+        }
+      }
+    }
+
+    // 3. Walk ancestors: L-<from>-<to>-N (v10) or L_<from>_<to>_N (v11)
+    let g: Element | null = el.parentElement;
+    while (g && g.tagName.toLowerCase() !== 'svg') {
+      if (g.id) {
+        const m = g.id.match(/^L-(.+)-(\d+)$/);
+        if (m) {
+          const inner = m[1];
+          const sep = inner.indexOf('-');
+          if (sep > 0) {
+            return {
+              fromNodeId: resolveNodeId(inner.slice(0, sep)),
+              toNodeId:   resolveNodeId(inner.slice(sep + 1)),
+            };
+          }
+        }
+        const mu = g.id.match(/^L_(.+)_(\d+)$/);
+        if (mu) {
+          const inner = mu[1];
+          const sep = inner.indexOf('_');
+          if (sep > 0) {
+            return {
+              fromNodeId: resolveNodeId(inner.slice(0, sep)),
+              toNodeId:   resolveNodeId(inner.slice(sep + 1)),
+            };
+          }
+        }
+      }
+      g = g.parentElement;
+    }
+    return {};
+  };
+
   const addEdge = (el: Element, d: string) => {
     if (!d || d.length <= 10 || seenPaths.has(d) || isInsideDefs(el)) return;
     seenPaths.add(d);
@@ -259,6 +342,8 @@ export const parseClassEdges = (svgElement: SVGSVGElement, isPremium: boolean): 
     const arrowStart = markerAttrToType(el.getAttribute('marker-start'));
     const hasArrow = arrowEnd !== 'none' || arrowStart !== 'none';
 
+    const { fromNodeId, toNodeId } = edgeEndIds(el);
+
     edges.push({
       id: nextId('class-edge'),
       pathD: d,
@@ -268,6 +353,8 @@ export const parseClassEdges = (svgElement: SVGSVGElement, isPremium: boolean): 
       hasArrow,
       arrowEnd: arrowEnd !== 'none' ? arrowEnd : undefined,
       arrowStart: arrowStart !== 'none' ? arrowStart : undefined,
+      fromNodeId,
+      toNodeId,
     });
   };
 

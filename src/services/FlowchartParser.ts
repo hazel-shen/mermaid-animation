@@ -145,13 +145,21 @@ const collectNodeIds = (svgElement: SVGSVGElement): Set<string> => {
  */
 const edgeEndIds = (el: Element): { fromNodeId?: string; toNodeId?: string } => {
   const tryParse = (id: string): { fromNodeId: string; toNodeId: string } | null => {
-    // Format: L-<from>-<to>-<index>
+    // Format: L-<from>-<to>-<index>  (Mermaid v10, hyphens)
     const m = id.match(/^L-(.+)-(\d+)$/);
-    if (!m) return null;
-    const inner = m[1]; // "<from>-<to>"
-    const sep = inner.indexOf('-');
-    if (sep <= 0) return null;
-    return { fromNodeId: inner.slice(0, sep), toNodeId: inner.slice(sep + 1) };
+    if (m) {
+      const inner = m[1];
+      const sep = inner.indexOf('-');
+      if (sep > 0) return { fromNodeId: inner.slice(0, sep), toNodeId: inner.slice(sep + 1) };
+    }
+    // Format: L_<from>_<to>_<index>  (Mermaid v11, underscores)
+    const mu = id.match(/^L_(.+)_(\d+)$/);
+    if (mu) {
+      const inner = mu[1];
+      const sep = inner.indexOf('_');
+      if (sep > 0) return { fromNodeId: inner.slice(0, sep), toNodeId: inner.slice(sep + 1) };
+    }
+    return null;
   };
 
   // 1. Try the element's own id (new Mermaid)
@@ -186,6 +194,20 @@ export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolea
   const nodeIds = collectNodeIds(svgElement);
 
 
+  // Resolve short id (e.g. "W0") → full node g.id (e.g. "flowchart-W0-0")
+  const resolve = (shortId?: string): string | undefined => {
+    if (!shortId) return undefined;
+    if (nodeIds.has(shortId)) return shortId;
+    const pattern = new RegExp(`^flowchart-${shortId}-\\d+$`);
+    for (const nid of nodeIds) {
+      if (pattern.test(nid)) return nid;
+    }
+    for (const nid of nodeIds) {
+      if (nid.includes(`-${shortId}-`)) return nid;
+    }
+    return shortId;
+  };
+
   const processEdge = (el: Element, type: EdgeType) => {
     const { stroke, dash } = extractEdgeStyle(el, isPremium);
     let d = "";
@@ -198,32 +220,45 @@ export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolea
     }
 
     if (d && d.length > 10) {
-      const markerAttr = el.getAttribute('marker-end') || window.getComputedStyle(el).markerEnd || '';
-      // Only treat as arrow if the marker is a genuine arrowhead (not a circle/cross marker).
-      const isNonArrowMarker = /circle|cross/i.test(markerAttr);
-      const hasArrow = type === 'link' && markerAttr !== '' && markerAttr !== 'none' && !isNonArrowMarker;
+      const markerEnd   = el.getAttribute('marker-end')   || window.getComputedStyle(el).markerEnd   || '';
+      const markerStart = el.getAttribute('marker-start') || window.getComputedStyle(el).markerStart || '';
+
+      const hasEnd   = markerEnd   !== '' && markerEnd   !== 'none';
+      const hasStart = markerStart !== '' && markerStart !== 'none';
+      const isCircle = (m: string) => /circle/i.test(m);
+      const isCross  = (m: string) => /cross/i.test(m);
+
+      // Resolve each marker end to a concrete ArrowMarker type.
+      // circle/cross are endpoint shapes, not arrowheads — set arrowEnd/arrowStart explicitly.
+      // For standard bidirectional <--> both ends must be explicit so drawEdge's
+      // `!edge.arrowStart` guard doesn't suppress the end arrow.
+      let arrowEnd:   import('../types').ArrowMarker | undefined;
+      let arrowStart: import('../types').ArrowMarker | undefined;
+      let hasArrow = false;
+
+      if (type === 'link') {
+        if (hasEnd) {
+          if      (isCircle(markerEnd)) arrowEnd = 'circle';
+          else if (isCross(markerEnd))  arrowEnd = 'cross';
+          else if (hasStart)            arrowEnd = 'default'; // bidirectional: must be explicit
+          else                          hasArrow  = true;      // unidirectional: legacy path
+        }
+        if (hasStart) {
+          if      (isCircle(markerStart)) arrowStart = 'circle';
+          else if (isCross(markerStart))  arrowStart = 'cross';
+          else                            arrowStart = 'default';
+        }
+      }
 
       // Attach node ids so drawEdge can snap the arrowhead to the box border
       const { fromNodeId, toNodeId } = type === 'link' ? edgeEndIds(el) : {};
 
-      // Resolve short id (e.g. "W0") → full node g.id (e.g. "flowchart-W0-0")
-      const resolve = (shortId?: string): string | undefined => {
-        if (!shortId) return undefined;
-        if (nodeIds.has(shortId)) return shortId;
-        // Match "flowchart-<shortId>-<digit>" pattern
-        const pattern = new RegExp(`^flowchart-${shortId}-\\d+$`);
-        for (const nid of nodeIds) {
-          if (pattern.test(nid)) return nid;
-        }
-        // Looser: contains "-<shortId>-"
-        for (const nid of nodeIds) {
-          if (nid.includes(`-${shortId}-`)) return nid;
-        }
-        return shortId;
-      };
 
       extractedEdges.push({
-        id: nextId('edge'), pathD: d, stroke, type, dash, hasArrow,
+        id: nextId('edge'), pathD: d, stroke, type, dash,
+        hasArrow: hasArrow || !!arrowEnd || !!arrowStart,
+        arrowEnd,
+        arrowStart,
         fromNodeId: resolve(fromNodeId),
         toNodeId:   resolve(toNodeId),
       });

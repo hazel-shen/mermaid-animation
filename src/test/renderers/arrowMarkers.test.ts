@@ -44,6 +44,22 @@ describe('markerSetback', () => {
   it('returns 0 for erZeroOrMany', () => {
     expect(markerSetback('erZeroOrMany')).toBe(0);
   });
+
+  it('returns 0 for openArrow (V tip sits at border, no fill gap)', () => {
+    expect(markerSetback('openArrow')).toBe(0);
+  });
+
+  it('returns 10 for circle (diameter 2R=10 — line stops at left edge of circle)', () => {
+    expect(markerSetback('circle')).toBe(10);
+  });
+
+  it('returns 0 for cross (× sits at the border)', () => {
+    expect(markerSetback('cross')).toBe(0);
+  });
+
+  it('returns 0 for halfCircle (arc right edge sits at border)', () => {
+    expect(markerSetback('halfCircle')).toBe(0);
+  });
 });
 
 // ── drawArrowMarker — smoke tests ─────────────────────────────────────────────
@@ -68,6 +84,7 @@ const makeCtx = () => ({
 
 const MARKERS: ArrowMarker[] = [
   'extension', 'composition', 'aggregation', 'dependency', 'default',
+  'circle', 'cross', 'openArrow', 'halfCircle',
   'erOne', 'erZeroOrOne', 'erMany', 'erZeroOrMany',
 ];
 

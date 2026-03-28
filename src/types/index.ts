@@ -45,21 +45,27 @@ export type DiagramNode = {
 export type EdgeType = 'link' | 'structural';
 
 /**
- * Arrow marker shapes used by class diagrams.
+ * Arrow marker shapes used across all diagram types.
  * 'none' = no arrowhead drawn on that end.
  */
 export type ArrowMarker =
   | 'none'
-  | 'extension'      // hollow triangle (inheritance <|--)
-  | 'composition'    // filled diamond (*--)
-  | 'aggregation'    // hollow diamond (o--)
-  | 'dependency'     // open arrow (-->)
-  | 'default'        // generic filled triangle
+  | 'extension'      // hollow triangle        class: inheritance  <|--
+  | 'composition'    // filled diamond          class: composition  *--
+  | 'aggregation'    // hollow diamond          class: aggregation  o--
+  | 'dependency'     // open V arrow (class)    class: dependency   -->
+  | 'default'        // generic filled triangle flowchart/sequence/state
+  // Flowchart endpoint markers
+  | 'circle'         // hollow circle           flowchart: --o
+  | 'cross'          // × shape                 flowchart: --x  / sequence: -x
+  // Sequence diagram arrow markers
+  | 'openArrow'      // open V arrow (sequence) sequence: ->  -->
+  | 'halfCircle'     // ⌒ arc (fire-and-forget) sequence: -)  --)
   // ER diagram cardinality markers
-  | 'erOne'          // exactly one  ‖ (two perpendicular ticks)
-  | 'erZeroOrOne'    // zero or one  o| (circle + tick)
-  | 'erMany'         // one or more  }| (crow's foot + tick)
-  | 'erZeroOrMany';  // zero or more }o (crow's foot + circle)
+  | 'erOne'          // exactly one  ‖          er: ||
+  | 'erZeroOrOne'    // zero or one  o|         er: o|
+  | 'erMany'         // one or more  }|         er: }|
+  | 'erZeroOrMany';  // zero or more }o         er: }o
 
 export type DiagramEdge = {
   id: string;

@@ -309,6 +309,58 @@ describe('parseFlowchartEdges', () => {
     expect(edge.hasArrow).toBe(true);
   });
 
+  it('sets arrowEnd="circle" for circle marker-end (--o)', () => {
+    const g = el('g'); g.classList.add('edgePath');
+    const path = el<SVGPathElement>('path');
+    path.setAttribute('d', 'M 10 10 L 100 100');
+    path.setAttribute('marker-end', 'url(#flowchart-circleEnd)');
+    g.appendChild(path); svgElement.appendChild(g);
+
+    const [edge] = parseFlowchartEdges(svgElement, false);
+    expect(edge.arrowEnd).toBe('circle');
+    expect(edge.hasArrow).toBe(true);
+  });
+
+  it('sets arrowEnd="cross" for cross marker-end (--x)', () => {
+    const g = el('g'); g.classList.add('edgePath');
+    const path = el<SVGPathElement>('path');
+    path.setAttribute('d', 'M 10 10 L 100 100');
+    path.setAttribute('marker-end', 'url(#flowchart-crossEnd)');
+    g.appendChild(path); svgElement.appendChild(g);
+
+    const [edge] = parseFlowchartEdges(svgElement, false);
+    expect(edge.arrowEnd).toBe('cross');
+    expect(edge.hasArrow).toBe(true);
+  });
+
+  it('sets arrowEnd="default" and arrowStart="default" for bidirectional <-->', () => {
+    const g = el('g'); g.classList.add('edgePath');
+    const path = el<SVGPathElement>('path');
+    path.setAttribute('d', 'M 10 10 L 100 100');
+    path.setAttribute('marker-end',   'url(#arrow)');
+    path.setAttribute('marker-start', 'url(#arrow)');
+    g.appendChild(path); svgElement.appendChild(g);
+
+    const [edge] = parseFlowchartEdges(svgElement, false);
+    expect(edge.arrowEnd).toBe('default');
+    expect(edge.arrowStart).toBe('default');
+    expect(edge.hasArrow).toBe(true);
+  });
+
+  it('sets arrowStart="circle" for circle marker-start (o--)', () => {
+    const g = el('g'); g.classList.add('edgePath');
+    const path = el<SVGPathElement>('path');
+    path.setAttribute('d', 'M 10 10 L 100 100');
+    path.setAttribute('marker-end',   'url(#arrow)');
+    path.setAttribute('marker-start', 'url(#flowchart-circleStart)');
+    g.appendChild(path); svgElement.appendChild(g);
+
+    const [edge] = parseFlowchartEdges(svgElement, false);
+    expect(edge.arrowStart).toBe('circle');
+    // end is still regular arrow: bidirectional explicit path
+    expect(edge.arrowEnd).toBe('default');
+  });
+
   it('uses premium stroke fallback when isPremium=true', () => {
     const g = el('g'); g.classList.add('edgePath');
     const path = el<SVGPathElement>('path');
@@ -326,6 +378,25 @@ describe('parseFlowchartEdges', () => {
     g.appendChild(path); svgElement.appendChild(g);
     const [edge] = parseFlowchartEdges(svgElement, false);
     expect(edge.stroke).toBe('#333');
+  });
+
+  it('resolves fromNodeId/toNodeId from Mermaid v11 underscore id (L_A_B_0)', () => {
+    // Mermaid v11 uses underscore-delimited edge ids: L_<from>_<to>_<index>
+    const nodeA = el('g'); nodeA.classList.add('node'); nodeA.id = 'flowchart-A-0';
+    svgElement.appendChild(nodeA);
+    const nodeB = el('g'); nodeB.classList.add('node'); nodeB.id = 'flowchart-B-1';
+    svgElement.appendChild(nodeB);
+
+    const path = el<SVGPathElement>('path');
+    path.classList.add('flowchart-link');
+    path.id = 'L_A_B_0';
+    path.setAttribute('d', 'M 10 10 L 100 100');
+    path.setAttribute('marker-end', 'url(#flowchart-v2-pointEnd)');
+    svgElement.appendChild(path);
+
+    const [edge] = parseFlowchartEdges(svgElement, false);
+    expect(edge.fromNodeId).toBe('flowchart-A-0');
+    expect(edge.toNodeId).toBe('flowchart-B-1');
   });
 
   it('parses dash pattern from strokeDasharray', () => {
