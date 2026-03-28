@@ -1,6 +1,9 @@
 // --- 節點類型 ---
 export type NodeType = 'node' | 'cluster' | 'actor' | 'note';
 
+/** Sequence-diagram-specific sub-roles that need special rendering order. */
+export type NodeKind = 'stepNum' | 'activation';
+
 /** A single rendered line inside a class-diagram node box. */
 export type ClassLine = {
   text?: string;
@@ -31,6 +34,8 @@ export type DiagramNode = {
   color: string;
   stroke: string;
   shape: 'rect' | 'circle' | 'endCircle' | 'diamond' | 'hexagon' | 'cylinder' | 'stadium' | 'subroutine' | 'roundRect' | 'note' | 'pie' | 'forkJoin' | 'mergeCircle' | 'cloud' | 'bang' | 'reverseCircle' | 'highlightRect';
+  /** Sequence-diagram sub-role for rendering-order control. Undefined for all other nodes. */
+  nodeKind?: NodeKind;
   /** Present only for class-diagram nodes; carries title + member rows */
   classLines?: ClassLine[];
   /** Present only for pie chart wedge nodes */

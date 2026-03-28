@@ -271,8 +271,8 @@ export const drawNode = (
   const { x, y, width, height, color, stroke, shape, label } = node;
   const isHovered = node.id === hoveredId;
 
-  const isStepNum = node.id.startsWith('stepNum-');
-  const isActivation = node.id.startsWith('activation-');
+  const isStepNum = node.nodeKind === 'stepNum';
+  const isActivation = node.nodeKind === 'activation';
 
   if (isHovered && !isStepNum && !isActivation) {
     ctx.shadowColor = particleColor;
@@ -672,14 +672,14 @@ export const renderFrame = (
 
   // Normal nodes + notes (step numbers always on top)
   nodes
-    .filter(n => n.type !== 'cluster' && !n.id.startsWith('stepNum-') && !n.id.startsWith('activation-'))
+    .filter(n => n.type !== 'cluster' && n.nodeKind !== 'stepNum' && n.nodeKind !== 'activation')
     .sort((a, _b) => (a.type === 'note' ? 1 : 0))
     .forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
 
-  nodes.filter(n => n.id.startsWith('activation-'))
+  nodes.filter(n => n.nodeKind === 'activation')
     .forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
 
-  nodes.filter(n => n.id.startsWith('stepNum-'))
+  nodes.filter(n => n.nodeKind === 'stepNum')
     .forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
 
   if (seqLabels.length > 0) {

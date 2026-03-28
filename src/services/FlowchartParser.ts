@@ -51,17 +51,33 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
     // commands (M...a...a...l...a...l — no separate ellipse element).
     // Detect by checking the path d attribute contains multiple arc ('a') commands.
     const isCylinderPath = tagName === 'path' &&
-      ((shapeEl.getAttribute('d') || '').match(/\ba\b/gi) || []).length >= 2;
+      ((shapeEl.getAttribute('d') || '').match(/\ba/gi) || []).length >= 2;
 
     if (isCylinderPath || (ellipse && !svgCircle)) {
       shape = 'cylinder';
     } else if (tagName === 'circle') {
       shape = 'circle';
     } else if (tagName === 'polygon') {
-      // Count point pairs: 4 = diamond {}, 6 = hexagon {{}}
       const nums = (shapeEl.getAttribute('points') || '')
-        .replace(/,/g, ' ').trim().split(/\s+/).filter(Boolean);
-      shape = Math.floor(nums.length / 2) <= 4 ? 'diamond' : 'hexagon';
+        .replace(/,/g, ' ').trim().split(/\s+/).filter(Boolean).map(Number);
+      const pointCount = Math.floor(nums.length / 2);
+      if (pointCount <= 4) {
+        shape = 'diamond';        // {text} — rhombus
+      } else {
+        // Distinguish hexagon {{text}} from subroutine [[text]]:
+        // Mermaid hexagon has left/right tip points at the vertical midpoint.
+        // Subroutine is rectangular — all points sit at the top or bottom extent.
+        const ys: number[] = [];
+        for (let i = 1; i < nums.length; i += 2) ys.push(nums[i]);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+        const span = maxY - minY;
+        const hasMidPoint = span > 0 && ys.some(y => {
+          const norm = (y - minY) / span;  // 0 = top, 1 = bottom
+          return norm > 0.2 && norm < 0.8; // has a point in the middle band
+        });
+        shape = hasMidPoint ? 'hexagon' : 'subroutine';
+      }
     } else if (tagName === 'rect') {
       const rx = parseFloat((shapeEl as SVGRectElement).getAttribute('rx') || '0');
       if (rx >= height * 0.45) {
@@ -69,11 +85,22 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
       } else if (rx >= 4) {
         shape = 'roundRect';        // (text) — moderately rounded
       } else {
-        shape = 'rect';             // [text] — sharp corners
+        // Subroutine [[text]]: Mermaid adds two inner vertical <line> elements
+        // alongside the rect to draw the double-border effect.
+        shape = g.querySelectorAll('line').length >= 2 ? 'subroutine' : 'rect';
       }
     } else {
-      // path fallback — treat as roundRect
-      shape = 'roundRect';
+      // path fallback (Mermaid v11 bezier-curve shapes)
+      const d = shapeEl.getAttribute('d') || '';
+      if (g.querySelectorAll('line').length >= 2) {
+        // Subroutine [[text]] v11: path with inner <line> elements
+        shape = 'subroutine';
+      } else if (!/[LHVlhv]/.test(d)) {
+        // Stadium ([text]): fully rounded ends → only M/C/Z, no straight-line segments
+        shape = 'stadium';
+      } else {
+        shape = 'roundRect';
+      }
     }
 
     let label = "";

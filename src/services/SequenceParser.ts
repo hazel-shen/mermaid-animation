@@ -93,6 +93,7 @@ export const parseSequenceNodes = (svgElement: SVGSVGElement): DiagramNode[] => 
     if (w > 40) return;
     extractedNodes.push({
       id: nextId('activation'),
+      nodeKind: 'activation',
       label: '',
       type: 'node',
       shape: 'rect',
@@ -231,6 +232,7 @@ export const parseSequenceStepNumbers = (svgElement: SVGSVGElement): DiagramNode
 
     stepNodes.push({
       id: nextId('stepNum'),
+      nodeKind: 'stepNum',
       label: text,
       type: 'node',
       shape: 'circle',
@@ -260,6 +262,7 @@ export const parseSequenceStepNumbers = (svgElement: SVGSVGElement): DiagramNode
 
     stepNodes.push({
       id: nextId('stepNum'),
+      nodeKind: 'stepNum',
       label,
       type: 'node',
       shape: 'circle',

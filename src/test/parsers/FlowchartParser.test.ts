@@ -77,6 +77,60 @@ describe('parseFlowchartNodes', () => {
     expect(node.shape).toBe('rect');
   });
 
+  it('detects rectangular polygon (no midpoint y) as shape "subroutine"', () => {
+    // Subroutine [[text]]: Mermaid renders as polygon whose points sit only at
+    // the top and bottom extents — no point in the vertical middle band.
+    const g = el('g'); g.classList.add('node'); g.id = 'sub1';
+    const poly = el<SVGPolygonElement>('polygon');
+    // 8-point rectangular polygon: all ys are either 0 (top) or 50 (bottom)
+    poly.setAttribute('points', '8,0 92,0 100,0 100,50 92,50 8,50 0,50 0,0');
+    g.appendChild(poly); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('subroutine');
+  });
+
+  it('detects bezier-only path (no L/H/V, no arcs) as shape "stadium" (Mermaid v11)', () => {
+    const g = el('g'); g.classList.add('node'); g.id = 'stad1';
+    const p = el<SVGPathElement>('path');
+    // Only M and C commands — no straight-line segments, no arcs
+    p.setAttribute('d', 'M-21 -19 C-10 -19, 1 -19, 10 -10 C20 0, 20 0, 10 10 C1 19, -10 19, -21 19 C-32 10, -32 0, -21 -19 Z');
+    g.appendChild(p); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('stadium');
+  });
+
+  it('detects path with L commands (no arcs) as shape "roundRect" (Mermaid v11)', () => {
+    const g = el('g'); g.classList.add('node'); g.id = 'rr1';
+    const p = el<SVGPathElement>('path');
+    // Has L (straight line) commands → roundRect not stadium
+    p.setAttribute('d', 'M 4 0 L 96 0 C 100 0 100 4 100 4 L 100 46 C 100 50 96 50 96 50 L 4 50 Z');
+    g.appendChild(p); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('roundRect');
+  });
+
+  it('detects rect with rx=0 + two inner lines as shape "subroutine"', () => {
+    const g = el('g'); g.classList.add('node'); g.id = 'sub2';
+    const r = el<SVGRectElement>('rect'); r.setAttribute('rx', '0');
+    g.appendChild(r);
+    g.appendChild(el('line'));
+    g.appendChild(el('line'));
+    svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('subroutine');
+  });
+
+  it('detects path (no arcs) + two inner lines as shape "subroutine" (Mermaid v11)', () => {
+    const g = el('g'); g.classList.add('node'); g.id = 'sub3';
+    const p = el<SVGPathElement>('path'); p.setAttribute('d', 'M 0 0 L 100 0 L 100 50 L 0 50 Z');
+    g.appendChild(p);
+    g.appendChild(el('line'));
+    g.appendChild(el('line'));
+    svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('subroutine');
+  });
+
   it('detects rect with rx=8 as shape "roundRect"', () => {
     const g = el('g'); g.classList.add('node'); g.id = 'n2';
     const r = el<SVGRectElement>('rect'); r.setAttribute('rx', '8');

@@ -102,6 +102,15 @@ export const useMermaidParser = (
         // Step number circles
         const stepNodes = parseSequenceStepNumbers(svgElement);
         extractedNodes.push(...stepNodes);
+        // [DEBUG]
+        console.log('[SequenceParser]', {
+          actors:      svgElement.querySelectorAll('rect.actor').length,
+          nodes:       extractedNodes.length,
+          edges:       extractedEdges.length,
+          firstNode:   extractedNodes[0]
+            ? { x: extractedNodes[0].x, y: extractedNodes[0].y, w: extractedNodes[0].width, h: extractedNodes[0].height, color: extractedNodes[0].color, shape: extractedNodes[0].shape }
+            : null,
+        });
         break;
       }
 
