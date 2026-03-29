@@ -214,6 +214,51 @@ describe('parseFlowchartNodes', () => {
     expect(node.shape).toBe('trapezoidAlt');
   });
 
+  it('detects 5-point polygon with 1 mid-Y point as shape "asymmetric" (>text])', () => {
+    // >text]: flat left, right-pointing tip at mid-Y
+    // 5 points: top-left, top-right, right-tip, bottom-right, bottom-left
+    const g = el('g'); g.classList.add('node'); g.id = 'asym1';
+    const poly = el<SVGPolygonElement>('polygon');
+    poly.setAttribute('points', '0,0 80,0 100,25 80,50 0,50');
+    g.appendChild(poly); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('asymmetric');
+  });
+
+  it('detects Mermaid v11 path (with L) with degenerate vertical bezier as shape "asymmetric" (>text])', () => {
+    // Mermaid v11 renders >text] as a <path>; the flat right edge is a bezier
+    // where all three x-coords of one C segment are equal (degenerate = vertical line).
+    // This path has L commands (hasLinear=true), using the y-span threshold branch.
+    const g = el('g'); g.classList.add('node'); g.id = 'asym2';
+    const path = el<SVGPathElement>('path');
+    path.setAttribute('d', 'M-50,-20 L49,-20 C49,-20 49,0 49,20 L-50,20 C-40,20 -40,0 -40,-20 Z');
+    g.appendChild(path); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('asymmetric');
+  });
+
+  it('detects Mermaid v11 pure-bezier path (no L) with degenerate C as shape "asymmetric" (>text])', () => {
+    // Pure M/C/Z path (no L commands): hasLinear=false branch — any degenerate C qualifies.
+    // This mirrors actual Mermaid v11 output for >text] where the entire outline is bezier curves.
+    const g = el('g'); g.classList.add('node'); g.id = 'asym3';
+    const path = el<SVGPathElement>('path');
+    // All curves, no L: degenerate right edge C49,... C49,... C49,...
+    path.setAttribute('d', 'M-50,-20 C-58,-20 -49,0 -58,20 C-30,20 -10,20 49,20 C49,20 49,0 49,-20 C10,-20 -30,-20 -50,-20 Z');
+    g.appendChild(path); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('asymmetric');
+  });
+
+  it('does NOT detect pure-bezier path without degenerate C as "asymmetric" (stadium)', () => {
+    // Stadium path: only M/C/Z, no L, no degenerate C → should be stadium not asymmetric
+    const g = el('g'); g.classList.add('node'); g.id = 'stad2';
+    const path = el<SVGPathElement>('path');
+    path.setAttribute('d', 'M-50,0 C-50,-20 -30,-20 0,-20 C30,-20 50,-20 50,0 C50,20 30,20 0,20 C-30,20 -50,20 -50,0 Z');
+    g.appendChild(path); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('stadium');
+  });
+
   it('detects polygon with 6 points as shape "hexagon"', () => {
     const g = el('g'); g.classList.add('node'); g.id = 'n7';
     const poly = el<SVGPolygonElement>('polygon');

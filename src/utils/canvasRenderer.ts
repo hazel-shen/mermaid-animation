@@ -549,6 +549,17 @@ export const drawNode = (
     ctx.lineTo(br, b);
     ctx.lineTo(bl, b);
     ctx.closePath();
+  } else if (shape === 'asymmetric') {
+    // >text] : flat right edge, concave left notch pointing right
+    const notch = height * 0.45;
+    const l = x - width / 2, r2 = x + width / 2;
+    const t = y - height / 2, b  = y + height / 2;
+    ctx.moveTo(l,            t);
+    ctx.lineTo(r2,           t);   // top-right (flat top)
+    ctx.lineTo(r2,           b);   // flat right edge
+    ctx.lineTo(l,            b);   // bottom-left
+    ctx.lineTo(l + notch,    y);   // concave notch on left side
+    ctx.closePath();
   } else if (shape === 'stadium') {
     const r = height / 2;
     ctx.roundRect(x - width / 2, y - height / 2, width, height, r);

@@ -97,8 +97,17 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
           }
         }
       } else {
-        // > 4 points: hexagon {{text}} vs subroutine [[text]]
-        shape = hasMidPoint ? 'hexagon' : 'subroutine';
+        // > 4 points: distinguish by number of mid-Y vertices
+        // hexagon {{text}} has tip on BOTH left and right → 2 mid-Y points
+        // asymmetric >text]  has tip on right side only  → 1 mid-Y point
+        // subroutine [[text]] all points at top/bottom   → 0 mid-Y points
+        const midCount = ys.filter(y => {
+          const norm = (y - minY) / span;
+          return norm > 0.2 && norm < 0.8;
+        }).length;
+        if (midCount >= 2)      shape = 'hexagon';
+        else if (midCount === 1) shape = 'asymmetric'; // >text]
+        else                     shape = 'subroutine';
       }
     } else if (tagName === 'rect') {
       const rx = parseFloat((shapeEl as SVGRectElement).getAttribute('rx') || '0');
@@ -117,11 +126,44 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
       if (g.querySelectorAll('line').length >= 2) {
         // Subroutine [[text]] v11: path with inner <line> elements
         shape = 'subroutine';
-      } else if (!/[LHVlhv]/.test(d)) {
-        // Stadium ([text]): fully rounded ends → only M/C/Z, no straight-line segments
-        shape = 'stadium';
       } else {
-        shape = 'roundRect';
+        // Asymmetric >text]: Mermaid v11 renders the flat right edge as a degenerate
+        // vertical bezier — all three x-coords of one C segment are equal.
+        const hasLinear = /[LHVlhv]/.test(d);
+        const checkDegenC = (seg: string): boolean => {
+          if (!seg.trimStart().startsWith('C') && !seg.trimStart().startsWith('c')) return false;
+          const nums = seg.replace(/^[Cc]\s*/, '').split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+          if (nums.length < 6) return false;
+          return Math.abs(nums[0] - nums[2]) < 1 && Math.abs(nums[2] - nums[4]) < 1;
+        };
+        let isAsymmetric = false;
+        if (!hasLinear) {
+          // Pure bezier path (M/C/Z only): any degenerate C qualifies.
+          // roundRect always has L commands, so no false-positive risk here.
+          isAsymmetric = d.split(/(?=[Cc])/).some(checkDegenC);
+        } else {
+          // Path with linear segments: guard against roundRect corner beziers
+          // (which also have equal x-coords but tiny y-span ≈ corner radius).
+          const allPathNums = d.replace(/[A-Za-z]/g, ' ').split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+          const pathYs = allPathNums.filter((_, i) => i % 2 === 1);
+          const pathYRange = pathYs.length ? Math.max(...pathYs) - Math.min(...pathYs) : 0;
+          if (pathYRange > 0) {
+            isAsymmetric = d.split(/(?=[Cc])/).some(seg => {
+              if (!checkDegenC(seg)) return false;
+              const nums = seg.replace(/^[Cc]\s*/, '').split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+              const segYSpan = Math.max(nums[1], nums[3], nums[5]) - Math.min(nums[1], nums[3], nums[5]);
+              return segYSpan / pathYRange >= 0.25;
+            });
+          }
+        }
+        if (isAsymmetric) {
+          shape = 'asymmetric';
+        } else if (!hasLinear) {
+          // Stadium ([text]): fully rounded ends → only M/C/Z, no straight-line segments
+          shape = 'stadium';
+        } else {
+          shape = 'roundRect';
+        }
       }
     }
 
