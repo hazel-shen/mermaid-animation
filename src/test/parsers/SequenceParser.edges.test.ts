@@ -300,6 +300,22 @@ describe('parseSequenceEdges', () => {
     expect(edges).toEqual([]);
   });
 
+  it('should skip lines inside g.actor-man (stick figure body/arm/leg lines)', () => {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.classList.add('actor-man');
+
+    // Horizontal arm line — would normally be picked up as fallback link
+    const armLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    armLine.setAttribute('x1', '10'); armLine.setAttribute('y1', '50');
+    armLine.setAttribute('x2', '90'); armLine.setAttribute('y2', '50');
+    g.appendChild(armLine);
+
+    svgElement.appendChild(g);
+
+    const edges = parseSequenceEdges(svgElement, false);
+    expect(edges.length).toBe(0);
+  });
+
   it('should parse fallback horizontal line not matched by class selectors', () => {
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     // No class — will be caught by the fallback scan

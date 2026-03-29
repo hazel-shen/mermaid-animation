@@ -292,6 +292,49 @@ export const drawNode = (
     return;
   }
 
+  if (shape === 'actorMan') {
+    // Stick figure proportions anchored to headR so positions are always
+    // correct regardless of the overall bounding box dimensions.
+    // Mermaid SVG reference: head r=15, arms at y=25, body end y=45, legs end y=65.
+    const headR     = width / 3;
+    const topY      = y - height / 2;
+    const headCY    = topY + headR;          // head centre
+    const armY      = headCY + headR * 1.5;  // arms just below head
+    const bodyEnd   = headCY + headR * 2.4;  // shorter body
+    const legEnd    = headCY + headR * 3.5;  // shorter legs
+
+    ctx.strokeStyle = isHovered ? particleColor : stroke;
+    ctx.fillStyle   = color;
+    ctx.lineWidth   = isHovered ? 3 : 2;
+    ctx.shadowBlur  = 0;
+
+    // Head
+    ctx.beginPath();
+    ctx.arc(x, headCY, headR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Body + arms + legs
+    ctx.beginPath();
+    ctx.moveTo(x, headCY + headR); ctx.lineTo(x, bodyEnd);              // body
+    ctx.moveTo(x - headR, armY);   ctx.lineTo(x + headR, armY);         // arms
+    ctx.moveTo(x, bodyEnd);        ctx.lineTo(x - headR, legEnd);       // left leg
+    ctx.moveTo(x, bodyEnd);        ctx.lineTo(x + headR, legEnd);       // right leg
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.setLineDash([]);
+
+    // Label below the figure
+    ctx.fillStyle    = getLuminance(color) < 0.35 ? '#f1f5f9' : '#1e293b';
+    ctx.font         = '12px Red Hat Text';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(label, x, legEnd + 4);
+    return;
+  }
+
   if (shape === 'cloud' || shape === 'bang') {
     ctx.save();
     ctx.translate(x, y);

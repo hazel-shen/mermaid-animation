@@ -71,7 +71,7 @@ export const parseSequenceNodes = (svgElement: SVGSVGElement): DiagramNode[] => 
     const txt = g.querySelector<SVGTextElement>('text');
     if (txt) label = txt.textContent?.trim() || label;
 
-    extractedNodes.push({ id: g.id || nextId('actor-man'), label, type: 'actor', shape: 'circle', x: cx, y: cy, width: bw, height: bh, color: '#ECECFF', stroke: '#9370DB' });
+    extractedNodes.push({ id: g.id || nextId('actor-man'), label, type: 'actor', shape: 'actorMan', x: cx, y: cy, width: bw, height: bh, color: '#ECECFF', stroke: '#9370DB' });
   });
 
   // 3. Note boxes
@@ -438,6 +438,7 @@ export const parseSequenceEdges = (svgElement: SVGSVGElement, isPremium: boolean
   svgElement.querySelectorAll('line').forEach(line => {
     if (processedElements.has(line)) return;
     if (line.classList.contains('loopLine')) return;
+    if (line.closest('g.actor-man')) return;
     const lx1 = parseFloat(line.getAttribute('x1') || '0');
     const lx2 = parseFloat(line.getAttribute('x2') || '0');
     const ly1 = parseFloat(line.getAttribute('y1') || '0');
