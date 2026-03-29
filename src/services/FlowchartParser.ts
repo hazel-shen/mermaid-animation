@@ -61,21 +61,43 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
       const nums = (shapeEl.getAttribute('points') || '')
         .replace(/,/g, ' ').trim().split(/\s+/).filter(Boolean).map(Number);
       const pointCount = Math.floor(nums.length / 2);
+      const xs: number[] = [];
+      const ys: number[] = [];
+      for (let i = 0; i < nums.length - 1; i += 2) { xs.push(nums[i]); ys.push(nums[i + 1]); }
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      const span = maxY - minY;
+      const hasMidPoint = span > 0 && ys.some(y => {
+        const norm = (y - minY) / span;
+        return norm > 0.2 && norm < 0.8;
+      });
       if (pointCount <= 4) {
-        shape = 'diamond';        // {text} — rhombus
+        if (hasMidPoint) {
+          shape = 'diamond'; // {text} — rhombus: left/right vertices at mid-Y
+        } else {
+          // 4 corner points — classify as parallelogram / trapezoid / subroutine
+          const tol = span * 0.1;
+          const topXs = xs.filter((_, i) => ys[i] - minY < tol);
+          const botXs = xs.filter((_, i) => maxY - ys[i] < tol);
+          if (topXs.length === 2 && botXs.length === 2) {
+            const topLeft = Math.min(...topXs);
+            const topRight = Math.max(...topXs);
+            const botLeft = Math.min(...botXs);
+            const botRight = Math.max(...botXs);
+            const shiftLeft  = topLeft  - botLeft;   // >0 → top leans right
+            const shiftRight = topRight - botRight;   // >0 → top leans right
+            const sk = span * 0.15; // minimum skew to distinguish from rect
+            if      (shiftLeft >  sk && shiftRight >  sk) shape = 'parallelogram';    // [/text/]
+            else if (shiftLeft < -sk && shiftRight < -sk) shape = 'parallelogramAlt'; // [\text\]
+            else if (shiftLeft >  sk && shiftRight < -sk) shape = 'trapezoid';        // [/text\] wider bottom
+            else if (shiftLeft < -sk && shiftRight >  sk) shape = 'trapezoidAlt';     // [\text/] wider top
+            else shape = 'subroutine'; // rectangular 4-point polygon
+          } else {
+            shape = 'diamond'; // fallback for unusual point distributions
+          }
+        }
       } else {
-        // Distinguish hexagon {{text}} from subroutine [[text]]:
-        // Mermaid hexagon has left/right tip points at the vertical midpoint.
-        // Subroutine is rectangular — all points sit at the top or bottom extent.
-        const ys: number[] = [];
-        for (let i = 1; i < nums.length; i += 2) ys.push(nums[i]);
-        const minY = Math.min(...ys);
-        const maxY = Math.max(...ys);
-        const span = maxY - minY;
-        const hasMidPoint = span > 0 && ys.some(y => {
-          const norm = (y - minY) / span;  // 0 = top, 1 = bottom
-          return norm > 0.2 && norm < 0.8; // has a point in the middle band
-        });
+        // > 4 points: hexagon {{text}} vs subroutine [[text]]
         shape = hasMidPoint ? 'hexagon' : 'subroutine';
       }
     } else if (tagName === 'rect') {

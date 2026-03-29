@@ -170,6 +170,50 @@ describe('parseFlowchartNodes', () => {
     expect(node.shape).toBe('diamond');
   });
 
+  it('detects parallelogram [/text/] polygon as shape "parallelogram"', () => {
+    // Real Mermaid output: top-edge shifted right relative to bottom-edge
+    // points from console: -19.5,0  114.35,0  133.85,-39  0,-39
+    const g = el('g'); g.classList.add('node'); g.id = 'par1';
+    const poly = el<SVGPolygonElement>('polygon');
+    poly.setAttribute('points', '-19.5,0 114.35,0 133.85,-39 0,-39');
+    g.appendChild(poly); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('parallelogram');
+  });
+
+  it('detects parallelogramAlt [\\text\\] polygon as shape "parallelogramAlt"', () => {
+    // Top-edge shifted left relative to bottom-edge
+    // points from console: 0,0  158.14,0  138.64,-39  -19.5,-39
+    const g = el('g'); g.classList.add('node'); g.id = 'par2';
+    const poly = el<SVGPolygonElement>('polygon');
+    poly.setAttribute('points', '0,0 158.14,0 138.64,-39 -19.5,-39');
+    g.appendChild(poly); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('parallelogramAlt');
+  });
+
+  it('detects trapezoid [/text\\] polygon as shape "trapezoid" (wider bottom)', () => {
+    // Top narrower, bottom wider
+    // points from console: -19.5,0  102.77,0  83.27,-39  0,-39
+    const g = el('g'); g.classList.add('node'); g.id = 'trap1';
+    const poly = el<SVGPolygonElement>('polygon');
+    poly.setAttribute('points', '-19.5,0 102.77,0 83.27,-39 0,-39');
+    g.appendChild(poly); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('trapezoid');
+  });
+
+  it('detects trapezoidAlt [\\text/] polygon as shape "trapezoidAlt" (wider top)', () => {
+    // Top wider, bottom narrower
+    // points from console: 0,0  122.56,0  149.56,-54  -27,-54
+    const g = el('g'); g.classList.add('node'); g.id = 'trap2';
+    const poly = el<SVGPolygonElement>('polygon');
+    poly.setAttribute('points', '0,0 122.56,0 149.56,-54 -27,-54');
+    g.appendChild(poly); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('trapezoidAlt');
+  });
+
   it('detects polygon with 6 points as shape "hexagon"', () => {
     const g = el('g'); g.classList.add('node'); g.id = 'n7';
     const poly = el<SVGPolygonElement>('polygon');

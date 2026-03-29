@@ -33,7 +33,7 @@ export type DiagramNode = {
   height: number;
   color: string;
   stroke: string;
-  shape: 'rect' | 'circle' | 'endCircle' | 'diamond' | 'hexagon' | 'cylinder' | 'stadium' | 'subroutine' | 'roundRect' | 'note' | 'pie' | 'forkJoin' | 'mergeCircle' | 'cloud' | 'bang' | 'reverseCircle' | 'highlightRect' | 'actorMan';
+  shape: 'rect' | 'circle' | 'endCircle' | 'diamond' | 'hexagon' | 'cylinder' | 'stadium' | 'subroutine' | 'roundRect' | 'note' | 'pie' | 'forkJoin' | 'mergeCircle' | 'cloud' | 'bang' | 'reverseCircle' | 'highlightRect' | 'actorMan' | 'parallelogram' | 'parallelogramAlt' | 'trapezoid' | 'trapezoidAlt';
   /** Sequence-diagram sub-role for rendering-order control. Undefined for all other nodes. */
   nodeKind?: NodeKind;
   /** Present only for class-diagram nodes; carries title + member rows */

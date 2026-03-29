@@ -525,6 +525,30 @@ export const drawNode = (
     ctx.lineTo(x - hw + tip, y + hh);
     ctx.lineTo(x - hw,       y);
     ctx.closePath();
+  } else if (shape === 'parallelogram' || shape === 'parallelogramAlt' ||
+             shape === 'trapezoid'     || shape === 'trapezoidAlt') {
+    const skew = height * 0.3;
+    const l = x - width / 2, r2 = x + width / 2;
+    const t = y - height / 2, b  = y + height / 2;
+    let tl: number, tr: number, bl: number, br: number;
+    if (shape === 'parallelogram') {
+      // [/text/]: top-edge shifted right, bottom-edge shifted right
+      tl = l + skew; tr = r2;        bl = l;        br = r2 - skew;
+    } else if (shape === 'parallelogramAlt') {
+      // [\text\]: top-edge shifted left, bottom-edge shifted left
+      tl = l;        tr = r2 - skew; bl = l + skew; br = r2;
+    } else if (shape === 'trapezoid') {
+      // [/text\]: top narrower, bottom wider
+      tl = l + skew; tr = r2 - skew; bl = l;        br = r2;
+    } else {
+      // [\text/]: top wider, bottom narrower
+      tl = l;        tr = r2;        bl = l + skew; br = r2 - skew;
+    }
+    ctx.moveTo(tl, t);
+    ctx.lineTo(tr, t);
+    ctx.lineTo(br, b);
+    ctx.lineTo(bl, b);
+    ctx.closePath();
   } else if (shape === 'stadium') {
     const r = height / 2;
     ctx.roundRect(x - width / 2, y - height / 2, width, height, r);
