@@ -10,6 +10,7 @@ export type DiagramType =
   | 'mindmap'
   | 'gitgraph'
   | 'sankey'
+  | 'c4'
   | 'generic';
 
 export const getDiagramType = (code: string): DiagramType => {
@@ -32,6 +33,7 @@ export const getDiagramType = (code: string): DiagramType => {
   if (/^mindmap/.test(firstLine)) return 'mindmap';
   if (/^gitgraph/.test(firstLine)) return 'gitgraph';
   if (/^sankey-beta/.test(firstLine)) return 'sankey';
+  if (/^c4context|^c4container|^c4component|^c4dynamic|^c4deployment/.test(firstLine)) return 'c4';
 
   return 'generic';
 };

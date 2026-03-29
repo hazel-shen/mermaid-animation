@@ -21,6 +21,8 @@ import { parsePieNodes, parsePieEdges, parsePieLabels } from '../services/PiePar
 import { parseMindmapNodes, parseMindmapEdges, snapMindmapEdgesToNodes } from '../services/MindmapParser';
 // Git Graph
 import { parseGitGraphNodes, parseGitGraphEdges, parseGitGraphLabels, snapGitArrowsToNodes, expandGitBranchSpacing, regenGitArrowPaths } from '../services/GitGraphParser';
+// C4
+import { parseC4Nodes, parseC4Edges, parseC4EdgeLabels, parseC4NodeLabels } from '../services/C4Parser';
 // Generic fallback
 import { parseGeneric } from '../services/GenericParser';
 
@@ -194,6 +196,22 @@ export const useMermaidParser = (
         extractedEdges = regenGitArrowPaths(extractedEdges, extractedNodes);
         // 4. Place labels at fixed offsets from expanded node centres
         extractedLabels = parseGitGraphLabels(svgElement, extractedNodes);
+        break;
+      }
+
+      case 'c4': {
+        extractedNodes = parseC4Nodes(svgElement, premium);
+        extractedEdges = parseC4Edges(svgElement, premium);
+        extractedLabels = [
+          ...parseC4NodeLabels(svgElement),
+          ...parseC4EdgeLabels(svgElement),
+        ];
+        // Fallback to generic if parsing yielded nothing
+        if (extractedNodes.length === 0 && extractedEdges.length === 0) {
+          const gen = parseGeneric(svgElement, premium);
+          extractedNodes = gen.nodes;
+          extractedEdges = gen.edges;
+        }
         break;
       }
 
