@@ -51,17 +51,64 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
     // commands (M...a...a...l...a...l — no separate ellipse element).
     // Detect by checking the path d attribute contains multiple arc ('a') commands.
     const isCylinderPath = tagName === 'path' &&
-      ((shapeEl.getAttribute('d') || '').match(/\ba\b/gi) || []).length >= 2;
+      ((shapeEl.getAttribute('d') || '').match(/\ba/gi) || []).length >= 2;
 
     if (isCylinderPath || (ellipse && !svgCircle)) {
       shape = 'cylinder';
     } else if (tagName === 'circle') {
       shape = 'circle';
     } else if (tagName === 'polygon') {
-      // Count point pairs: 4 = diamond {}, 6 = hexagon {{}}
       const nums = (shapeEl.getAttribute('points') || '')
-        .replace(/,/g, ' ').trim().split(/\s+/).filter(Boolean);
-      shape = Math.floor(nums.length / 2) <= 4 ? 'diamond' : 'hexagon';
+        .replace(/,/g, ' ').trim().split(/\s+/).filter(Boolean).map(Number);
+      const pointCount = Math.floor(nums.length / 2);
+      const xs: number[] = [];
+      const ys: number[] = [];
+      for (let i = 0; i < nums.length - 1; i += 2) { xs.push(nums[i]); ys.push(nums[i + 1]); }
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      const span = maxY - minY;
+      const hasMidPoint = span > 0 && ys.some(y => {
+        const norm = (y - minY) / span;
+        return norm > 0.2 && norm < 0.8;
+      });
+      if (pointCount <= 4) {
+        if (hasMidPoint) {
+          shape = 'diamond'; // {text} — rhombus: left/right vertices at mid-Y
+        } else {
+          // 4 corner points — classify as parallelogram / trapezoid / subroutine
+          const tol = span * 0.1;
+          const topXs = xs.filter((_, i) => ys[i] - minY < tol);
+          const botXs = xs.filter((_, i) => maxY - ys[i] < tol);
+          if (topXs.length === 2 && botXs.length === 2) {
+            const topLeft = Math.min(...topXs);
+            const topRight = Math.max(...topXs);
+            const botLeft = Math.min(...botXs);
+            const botRight = Math.max(...botXs);
+            const shiftLeft  = topLeft  - botLeft;   // >0 → top leans right
+            const shiftRight = topRight - botRight;   // >0 → top leans right
+            const sk = span * 0.15; // minimum skew to distinguish from rect
+            if      (shiftLeft >  sk && shiftRight >  sk) shape = 'parallelogram';    // [/text/]
+            else if (shiftLeft < -sk && shiftRight < -sk) shape = 'parallelogramAlt'; // [\text\]
+            else if (shiftLeft >  sk && shiftRight < -sk) shape = 'trapezoid';        // [/text\] wider bottom
+            else if (shiftLeft < -sk && shiftRight >  sk) shape = 'trapezoidAlt';     // [\text/] wider top
+            else shape = 'subroutine'; // rectangular 4-point polygon
+          } else {
+            shape = 'diamond'; // fallback for unusual point distributions
+          }
+        }
+      } else {
+        // > 4 points: distinguish by number of mid-Y vertices
+        // hexagon {{text}} has tip on BOTH left and right → 2 mid-Y points
+        // asymmetric >text]  has tip on right side only  → 1 mid-Y point
+        // subroutine [[text]] all points at top/bottom   → 0 mid-Y points
+        const midCount = ys.filter(y => {
+          const norm = (y - minY) / span;
+          return norm > 0.2 && norm < 0.8;
+        }).length;
+        if (midCount >= 2)      shape = 'hexagon';
+        else if (midCount === 1) shape = 'asymmetric'; // >text]
+        else                     shape = 'subroutine';
+      }
     } else if (tagName === 'rect') {
       const rx = parseFloat((shapeEl as SVGRectElement).getAttribute('rx') || '0');
       if (rx >= height * 0.45) {
@@ -69,11 +116,55 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
       } else if (rx >= 4) {
         shape = 'roundRect';        // (text) — moderately rounded
       } else {
-        shape = 'rect';             // [text] — sharp corners
+        // Subroutine [[text]]: Mermaid adds two inner vertical <line> elements
+        // alongside the rect to draw the double-border effect.
+        shape = g.querySelectorAll('line').length >= 2 ? 'subroutine' : 'rect';
       }
     } else {
-      // path fallback — treat as roundRect
-      shape = 'roundRect';
+      // path fallback (Mermaid v11 bezier-curve shapes)
+      const d = shapeEl.getAttribute('d') || '';
+      if (g.querySelectorAll('line').length >= 2) {
+        // Subroutine [[text]] v11: path with inner <line> elements
+        shape = 'subroutine';
+      } else {
+        // Asymmetric >text]: Mermaid v11 renders the flat right edge as a degenerate
+        // vertical bezier — all three x-coords of one C segment are equal.
+        const hasLinear = /[LHVlhv]/.test(d);
+        const checkDegenC = (seg: string): boolean => {
+          if (!seg.trimStart().startsWith('C') && !seg.trimStart().startsWith('c')) return false;
+          const nums = seg.replace(/^[Cc]\s*/, '').split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+          if (nums.length < 6) return false;
+          return Math.abs(nums[0] - nums[2]) < 1 && Math.abs(nums[2] - nums[4]) < 1;
+        };
+        let isAsymmetric = false;
+        if (!hasLinear) {
+          // Pure bezier path (M/C/Z only): any degenerate C qualifies.
+          // roundRect always has L commands, so no false-positive risk here.
+          isAsymmetric = d.split(/(?=[Cc])/).some(checkDegenC);
+        } else {
+          // Path with linear segments: guard against roundRect corner beziers
+          // (which also have equal x-coords but tiny y-span ≈ corner radius).
+          const allPathNums = d.replace(/[A-Za-z]/g, ' ').split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+          const pathYs = allPathNums.filter((_, i) => i % 2 === 1);
+          const pathYRange = pathYs.length ? Math.max(...pathYs) - Math.min(...pathYs) : 0;
+          if (pathYRange > 0) {
+            isAsymmetric = d.split(/(?=[Cc])/).some(seg => {
+              if (!checkDegenC(seg)) return false;
+              const nums = seg.replace(/^[Cc]\s*/, '').split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+              const segYSpan = Math.max(nums[1], nums[3], nums[5]) - Math.min(nums[1], nums[3], nums[5]);
+              return segYSpan / pathYRange >= 0.25;
+            });
+          }
+        }
+        if (isAsymmetric) {
+          shape = 'asymmetric';
+        } else if (!hasLinear) {
+          // Stadium ([text]): fully rounded ends → only M/C/Z, no straight-line segments
+          shape = 'stadium';
+        } else {
+          shape = 'roundRect';
+        }
+      }
     }
 
     let label = "";
@@ -145,13 +236,21 @@ const collectNodeIds = (svgElement: SVGSVGElement): Set<string> => {
  */
 const edgeEndIds = (el: Element): { fromNodeId?: string; toNodeId?: string } => {
   const tryParse = (id: string): { fromNodeId: string; toNodeId: string } | null => {
-    // Format: L-<from>-<to>-<index>
+    // Format: L-<from>-<to>-<index>  (Mermaid v10, hyphens)
     const m = id.match(/^L-(.+)-(\d+)$/);
-    if (!m) return null;
-    const inner = m[1]; // "<from>-<to>"
-    const sep = inner.indexOf('-');
-    if (sep <= 0) return null;
-    return { fromNodeId: inner.slice(0, sep), toNodeId: inner.slice(sep + 1) };
+    if (m) {
+      const inner = m[1];
+      const sep = inner.indexOf('-');
+      if (sep > 0) return { fromNodeId: inner.slice(0, sep), toNodeId: inner.slice(sep + 1) };
+    }
+    // Format: L_<from>_<to>_<index>  (Mermaid v11, underscores)
+    const mu = id.match(/^L_(.+)_(\d+)$/);
+    if (mu) {
+      const inner = mu[1];
+      const sep = inner.indexOf('_');
+      if (sep > 0) return { fromNodeId: inner.slice(0, sep), toNodeId: inner.slice(sep + 1) };
+    }
+    return null;
   };
 
   // 1. Try the element's own id (new Mermaid)
@@ -186,6 +285,20 @@ export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolea
   const nodeIds = collectNodeIds(svgElement);
 
 
+  // Resolve short id (e.g. "W0") → full node g.id (e.g. "flowchart-W0-0")
+  const resolve = (shortId?: string): string | undefined => {
+    if (!shortId) return undefined;
+    if (nodeIds.has(shortId)) return shortId;
+    const pattern = new RegExp(`^flowchart-${shortId}-\\d+$`);
+    for (const nid of nodeIds) {
+      if (pattern.test(nid)) return nid;
+    }
+    for (const nid of nodeIds) {
+      if (nid.includes(`-${shortId}-`)) return nid;
+    }
+    return shortId;
+  };
+
   const processEdge = (el: Element, type: EdgeType) => {
     const { stroke, dash } = extractEdgeStyle(el, isPremium);
     let d = "";
@@ -198,32 +311,45 @@ export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolea
     }
 
     if (d && d.length > 10) {
-      const markerAttr = el.getAttribute('marker-end') || window.getComputedStyle(el).markerEnd || '';
-      // Only treat as arrow if the marker is a genuine arrowhead (not a circle/cross marker).
-      const isNonArrowMarker = /circle|cross/i.test(markerAttr);
-      const hasArrow = type === 'link' && markerAttr !== '' && markerAttr !== 'none' && !isNonArrowMarker;
+      const markerEnd   = el.getAttribute('marker-end')   || window.getComputedStyle(el).markerEnd   || '';
+      const markerStart = el.getAttribute('marker-start') || window.getComputedStyle(el).markerStart || '';
+
+      const hasEnd   = markerEnd   !== '' && markerEnd   !== 'none';
+      const hasStart = markerStart !== '' && markerStart !== 'none';
+      const isCircle = (m: string) => /circle/i.test(m);
+      const isCross  = (m: string) => /cross/i.test(m);
+
+      // Resolve each marker end to a concrete ArrowMarker type.
+      // circle/cross are endpoint shapes, not arrowheads — set arrowEnd/arrowStart explicitly.
+      // For standard bidirectional <--> both ends must be explicit so drawEdge's
+      // `!edge.arrowStart` guard doesn't suppress the end arrow.
+      let arrowEnd:   import('../types').ArrowMarker | undefined;
+      let arrowStart: import('../types').ArrowMarker | undefined;
+      let hasArrow = false;
+
+      if (type === 'link') {
+        if (hasEnd) {
+          if      (isCircle(markerEnd)) arrowEnd = 'circle';
+          else if (isCross(markerEnd))  arrowEnd = 'cross';
+          else if (hasStart)            arrowEnd = 'default'; // bidirectional: must be explicit
+          else                          hasArrow  = true;      // unidirectional: legacy path
+        }
+        if (hasStart) {
+          if      (isCircle(markerStart)) arrowStart = 'circle';
+          else if (isCross(markerStart))  arrowStart = 'cross';
+          else                            arrowStart = 'default';
+        }
+      }
 
       // Attach node ids so drawEdge can snap the arrowhead to the box border
       const { fromNodeId, toNodeId } = type === 'link' ? edgeEndIds(el) : {};
 
-      // Resolve short id (e.g. "W0") → full node g.id (e.g. "flowchart-W0-0")
-      const resolve = (shortId?: string): string | undefined => {
-        if (!shortId) return undefined;
-        if (nodeIds.has(shortId)) return shortId;
-        // Match "flowchart-<shortId>-<digit>" pattern
-        const pattern = new RegExp(`^flowchart-${shortId}-\\d+$`);
-        for (const nid of nodeIds) {
-          if (pattern.test(nid)) return nid;
-        }
-        // Looser: contains "-<shortId>-"
-        for (const nid of nodeIds) {
-          if (nid.includes(`-${shortId}-`)) return nid;
-        }
-        return shortId;
-      };
 
       extractedEdges.push({
-        id: nextId('edge'), pathD: d, stroke, type, dash, hasArrow,
+        id: nextId('edge'), pathD: d, stroke, type, dash,
+        hasArrow: hasArrow || !!arrowEnd || !!arrowStart,
+        arrowEnd,
+        arrowStart,
         fromNodeId: resolve(fromNodeId),
         toNodeId:   resolve(toNodeId),
       });

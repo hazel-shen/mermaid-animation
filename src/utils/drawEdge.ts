@@ -3,14 +3,37 @@ import { getPathEnd, getPathStart, tokenisePath } from './pathUtils';
 import { drawArrowMarker, markerSetback } from './arrowMarkers';
 import { getLuminance } from './colorUtils';
 
+/** Ray–convex-polygon intersection. Returns the nearest border point, or null. */
+const rayPolyIntersect = (
+  cx: number, cy: number, dx: number, dy: number,
+  verts: [number, number][],
+): { x: number; y: number } | null => {
+  let minT = Infinity;
+  for (let i = 0; i < verts.length; i++) {
+    const [ax, ay] = verts[i];
+    const [bx, by] = verts[(i + 1) % verts.length];
+    const ex = bx - ax, ey = by - ay;
+    const det = dy * ex - dx * ey;
+    if (Math.abs(det) < 1e-10) continue;
+    const tVal = (ex * (ay - cy) - ey * (ax - cx)) / det;
+    const sVal = (dx * (ay - cy) - dy * (ax - cx)) / det;
+    if (tVal > 1e-10 && sVal >= -1e-10 && sVal <= 1 + 1e-10) {
+      minT = Math.min(minT, tVal);
+    }
+  }
+  return isFinite(minT) ? { x: cx + dx * minT, y: cy + dy * minT } : null;
+};
+
 /**
  * Projects outward from the node centre along `angle` and returns the exact
  * intersection with the node's bounding border.
- * - cloud/bang: ellipse border (rx = w/2, ry = h/2)
- * - circle:     circle border
- * - others:     rectangle border
+ * - cloud/bang/circle: ellipse border
+ * - diamond:           L1-norm border
+ * - asymmetric:        pentagon (concave left notch)
+ * - parallelogram/trapezoid variants: quadrilateral with skewed edges
+ * - others:            rectangle border
  */
-const borderPoint = (angle: number, node: DiagramNode): { x: number; y: number } => {
+export const borderPoint = (angle: number, node: DiagramNode): { x: number; y: number } => {
   const { x: cx, y: cy, width, height, shape } = node;
   const dx = Math.cos(angle);
   const dy = Math.sin(angle);
@@ -29,6 +52,42 @@ const borderPoint = (angle: number, node: DiagramNode): { x: number; y: number }
     const denom = Math.abs(dx) / hw + Math.abs(dy) / hh;
     const t = denom > 0 ? 1 / denom : hw;
     return { x: cx + dx * t, y: cy + dy * t };
+  }
+
+  if (shape === 'asymmetric') {
+    // Pentagon: top-left, top-right, bottom-right, bottom-left, left-notch
+    // notch depth matches canvasRenderer: height * 0.45 = hh * 0.9
+    const notch = hh * 0.9;
+    const l = cx - hw, r2 = cx + hw, t2 = cy - hh, b = cy + hh;
+    const pt = rayPolyIntersect(cx, cy, dx, dy, [
+      [l,          t2],
+      [r2,         t2],
+      [r2,         b],
+      [l,          b],
+      [l + notch,  cy],
+    ]);
+    if (pt) return pt;
+  }
+
+  if (shape === 'parallelogram' || shape === 'parallelogramAlt' ||
+      shape === 'trapezoid'     || shape === 'trapezoidAlt') {
+    // Quadrilateral with skewed corners; skew matches canvasRenderer: height * 0.3 = hh * 0.6
+    const skew = hh * 0.6;
+    const l = cx - hw, r2 = cx + hw, t2 = cy - hh, b = cy + hh;
+    let tl: number, tr: number, bl: number, br: number;
+    if (shape === 'parallelogram') {
+      tl = l + skew; tr = r2;        bl = l;        br = r2 - skew;
+    } else if (shape === 'parallelogramAlt') {
+      tl = l;        tr = r2 - skew; bl = l + skew; br = r2;
+    } else if (shape === 'trapezoid') {
+      tl = l + skew; tr = r2 - skew; bl = l;        br = r2;
+    } else {
+      tl = l;        tr = r2;        bl = l + skew; br = r2 - skew;
+    }
+    const pt = rayPolyIntersect(cx, cy, dx, dy, [
+      [tl, t2], [tr, t2], [br, b], [bl, b],
+    ]);
+    if (pt) return pt;
   }
 
   const tx = dx !== 0 ? hw / Math.abs(dx) : Infinity;

@@ -1,6 +1,9 @@
 // --- 節點類型 ---
 export type NodeType = 'node' | 'cluster' | 'actor' | 'note';
 
+/** Sequence-diagram-specific sub-roles that need special rendering order. */
+export type NodeKind = 'stepNum' | 'activation';
+
 /** A single rendered line inside a class-diagram node box. */
 export type ClassLine = {
   text?: string;
@@ -30,7 +33,9 @@ export type DiagramNode = {
   height: number;
   color: string;
   stroke: string;
-  shape: 'rect' | 'circle' | 'endCircle' | 'diamond' | 'hexagon' | 'cylinder' | 'stadium' | 'subroutine' | 'roundRect' | 'note' | 'pie' | 'forkJoin' | 'mergeCircle' | 'cloud' | 'bang' | 'reverseCircle' | 'highlightRect';
+  shape: 'rect' | 'circle' | 'endCircle' | 'diamond' | 'hexagon' | 'cylinder' | 'stadium' | 'subroutine' | 'roundRect' | 'note' | 'pie' | 'forkJoin' | 'mergeCircle' | 'cloud' | 'bang' | 'reverseCircle' | 'highlightRect' | 'actorMan' | 'parallelogram' | 'parallelogramAlt' | 'trapezoid' | 'trapezoidAlt' | 'asymmetric';
+  /** Sequence-diagram sub-role for rendering-order control. Undefined for all other nodes. */
+  nodeKind?: NodeKind;
   /** Present only for class-diagram nodes; carries title + member rows */
   classLines?: ClassLine[];
   /** Present only for pie chart wedge nodes */
@@ -45,21 +50,27 @@ export type DiagramNode = {
 export type EdgeType = 'link' | 'structural';
 
 /**
- * Arrow marker shapes used by class diagrams.
+ * Arrow marker shapes used across all diagram types.
  * 'none' = no arrowhead drawn on that end.
  */
 export type ArrowMarker =
   | 'none'
-  | 'extension'      // hollow triangle (inheritance <|--)
-  | 'composition'    // filled diamond (*--)
-  | 'aggregation'    // hollow diamond (o--)
-  | 'dependency'     // open arrow (-->)
-  | 'default'        // generic filled triangle
+  | 'extension'      // hollow triangle        class: inheritance  <|--
+  | 'composition'    // filled diamond          class: composition  *--
+  | 'aggregation'    // hollow diamond          class: aggregation  o--
+  | 'dependency'     // open V arrow (class)    class: dependency   -->
+  | 'default'        // generic filled triangle flowchart/sequence/state
+  // Flowchart endpoint markers
+  | 'circle'         // hollow circle           flowchart: --o
+  | 'cross'          // × shape                 flowchart: --x  / sequence: -x
+  // Sequence diagram arrow markers
+  | 'openArrow'      // open V arrow (sequence) sequence: ->  -->
+  | 'halfCircle'     // ⌒ arc (fire-and-forget) sequence: -)  --)
   // ER diagram cardinality markers
-  | 'erOne'          // exactly one  ‖ (two perpendicular ticks)
-  | 'erZeroOrOne'    // zero or one  o| (circle + tick)
-  | 'erMany'         // one or more  }| (crow's foot + tick)
-  | 'erZeroOrMany';  // zero or more }o (crow's foot + circle)
+  | 'erOne'          // exactly one  ‖          er: ||
+  | 'erZeroOrOne'    // zero or one  o|         er: o|
+  | 'erMany'         // one or more  }|         er: }|
+  | 'erZeroOrMany';  // zero or more }o         er: }o
 
 export type DiagramEdge = {
   id: string;

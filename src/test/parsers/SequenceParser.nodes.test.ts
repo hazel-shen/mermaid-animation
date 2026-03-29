@@ -69,7 +69,7 @@ describe('parseSequenceNodes', () => {
       id: 'actor-bob',
       label: 'Bob',
       type: 'actor',
-      shape: 'circle',
+      shape: 'actorMan',
       color: '#ECECFF',
       stroke: '#9370DB',
     });
@@ -207,6 +207,7 @@ describe('parseSequenceNodes', () => {
     expect(nodes.length).toBe(1);
     expect(nodes[0]).toMatchObject({
       type: 'node',
+      nodeKind: 'activation',
       shape: 'rect',
       x: 60,
       y: 130,

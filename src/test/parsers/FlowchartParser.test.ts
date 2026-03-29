@@ -77,6 +77,60 @@ describe('parseFlowchartNodes', () => {
     expect(node.shape).toBe('rect');
   });
 
+  it('detects rectangular polygon (no midpoint y) as shape "subroutine"', () => {
+    // Subroutine [[text]]: Mermaid renders as polygon whose points sit only at
+    // the top and bottom extents — no point in the vertical middle band.
+    const g = el('g'); g.classList.add('node'); g.id = 'sub1';
+    const poly = el<SVGPolygonElement>('polygon');
+    // 8-point rectangular polygon: all ys are either 0 (top) or 50 (bottom)
+    poly.setAttribute('points', '8,0 92,0 100,0 100,50 92,50 8,50 0,50 0,0');
+    g.appendChild(poly); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('subroutine');
+  });
+
+  it('detects bezier-only path (no L/H/V, no arcs) as shape "stadium" (Mermaid v11)', () => {
+    const g = el('g'); g.classList.add('node'); g.id = 'stad1';
+    const p = el<SVGPathElement>('path');
+    // Only M and C commands — no straight-line segments, no arcs
+    p.setAttribute('d', 'M-21 -19 C-10 -19, 1 -19, 10 -10 C20 0, 20 0, 10 10 C1 19, -10 19, -21 19 C-32 10, -32 0, -21 -19 Z');
+    g.appendChild(p); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('stadium');
+  });
+
+  it('detects path with L commands (no arcs) as shape "roundRect" (Mermaid v11)', () => {
+    const g = el('g'); g.classList.add('node'); g.id = 'rr1';
+    const p = el<SVGPathElement>('path');
+    // Has L (straight line) commands → roundRect not stadium
+    p.setAttribute('d', 'M 4 0 L 96 0 C 100 0 100 4 100 4 L 100 46 C 100 50 96 50 96 50 L 4 50 Z');
+    g.appendChild(p); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('roundRect');
+  });
+
+  it('detects rect with rx=0 + two inner lines as shape "subroutine"', () => {
+    const g = el('g'); g.classList.add('node'); g.id = 'sub2';
+    const r = el<SVGRectElement>('rect'); r.setAttribute('rx', '0');
+    g.appendChild(r);
+    g.appendChild(el('line'));
+    g.appendChild(el('line'));
+    svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('subroutine');
+  });
+
+  it('detects path (no arcs) + two inner lines as shape "subroutine" (Mermaid v11)', () => {
+    const g = el('g'); g.classList.add('node'); g.id = 'sub3';
+    const p = el<SVGPathElement>('path'); p.setAttribute('d', 'M 0 0 L 100 0 L 100 50 L 0 50 Z');
+    g.appendChild(p);
+    g.appendChild(el('line'));
+    g.appendChild(el('line'));
+    svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('subroutine');
+  });
+
   it('detects rect with rx=8 as shape "roundRect"', () => {
     const g = el('g'); g.classList.add('node'); g.id = 'n2';
     const r = el<SVGRectElement>('rect'); r.setAttribute('rx', '8');
@@ -114,6 +168,95 @@ describe('parseFlowchartNodes', () => {
     g.appendChild(poly); svgElement.appendChild(g);
     const [node] = parseFlowchartNodes(svgElement, false);
     expect(node.shape).toBe('diamond');
+  });
+
+  it('detects parallelogram [/text/] polygon as shape "parallelogram"', () => {
+    // Real Mermaid output: top-edge shifted right relative to bottom-edge
+    // points from console: -19.5,0  114.35,0  133.85,-39  0,-39
+    const g = el('g'); g.classList.add('node'); g.id = 'par1';
+    const poly = el<SVGPolygonElement>('polygon');
+    poly.setAttribute('points', '-19.5,0 114.35,0 133.85,-39 0,-39');
+    g.appendChild(poly); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('parallelogram');
+  });
+
+  it('detects parallelogramAlt [\\text\\] polygon as shape "parallelogramAlt"', () => {
+    // Top-edge shifted left relative to bottom-edge
+    // points from console: 0,0  158.14,0  138.64,-39  -19.5,-39
+    const g = el('g'); g.classList.add('node'); g.id = 'par2';
+    const poly = el<SVGPolygonElement>('polygon');
+    poly.setAttribute('points', '0,0 158.14,0 138.64,-39 -19.5,-39');
+    g.appendChild(poly); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('parallelogramAlt');
+  });
+
+  it('detects trapezoid [/text\\] polygon as shape "trapezoid" (wider bottom)', () => {
+    // Top narrower, bottom wider
+    // points from console: -19.5,0  102.77,0  83.27,-39  0,-39
+    const g = el('g'); g.classList.add('node'); g.id = 'trap1';
+    const poly = el<SVGPolygonElement>('polygon');
+    poly.setAttribute('points', '-19.5,0 102.77,0 83.27,-39 0,-39');
+    g.appendChild(poly); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('trapezoid');
+  });
+
+  it('detects trapezoidAlt [\\text/] polygon as shape "trapezoidAlt" (wider top)', () => {
+    // Top wider, bottom narrower
+    // points from console: 0,0  122.56,0  149.56,-54  -27,-54
+    const g = el('g'); g.classList.add('node'); g.id = 'trap2';
+    const poly = el<SVGPolygonElement>('polygon');
+    poly.setAttribute('points', '0,0 122.56,0 149.56,-54 -27,-54');
+    g.appendChild(poly); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('trapezoidAlt');
+  });
+
+  it('detects 5-point polygon with 1 mid-Y point as shape "asymmetric" (>text])', () => {
+    // >text]: flat left, right-pointing tip at mid-Y
+    // 5 points: top-left, top-right, right-tip, bottom-right, bottom-left
+    const g = el('g'); g.classList.add('node'); g.id = 'asym1';
+    const poly = el<SVGPolygonElement>('polygon');
+    poly.setAttribute('points', '0,0 80,0 100,25 80,50 0,50');
+    g.appendChild(poly); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('asymmetric');
+  });
+
+  it('detects Mermaid v11 path (with L) with degenerate vertical bezier as shape "asymmetric" (>text])', () => {
+    // Mermaid v11 renders >text] as a <path>; the flat right edge is a bezier
+    // where all three x-coords of one C segment are equal (degenerate = vertical line).
+    // This path has L commands (hasLinear=true), using the y-span threshold branch.
+    const g = el('g'); g.classList.add('node'); g.id = 'asym2';
+    const path = el<SVGPathElement>('path');
+    path.setAttribute('d', 'M-50,-20 L49,-20 C49,-20 49,0 49,20 L-50,20 C-40,20 -40,0 -40,-20 Z');
+    g.appendChild(path); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('asymmetric');
+  });
+
+  it('detects Mermaid v11 pure-bezier path (no L) with degenerate C as shape "asymmetric" (>text])', () => {
+    // Pure M/C/Z path (no L commands): hasLinear=false branch — any degenerate C qualifies.
+    // This mirrors actual Mermaid v11 output for >text] where the entire outline is bezier curves.
+    const g = el('g'); g.classList.add('node'); g.id = 'asym3';
+    const path = el<SVGPathElement>('path');
+    // All curves, no L: degenerate right edge C49,... C49,... C49,...
+    path.setAttribute('d', 'M-50,-20 C-58,-20 -49,0 -58,20 C-30,20 -10,20 49,20 C49,20 49,0 49,-20 C10,-20 -30,-20 -50,-20 Z');
+    g.appendChild(path); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('asymmetric');
+  });
+
+  it('does NOT detect pure-bezier path without degenerate C as "asymmetric" (stadium)', () => {
+    // Stadium path: only M/C/Z, no L, no degenerate C → should be stadium not asymmetric
+    const g = el('g'); g.classList.add('node'); g.id = 'stad2';
+    const path = el<SVGPathElement>('path');
+    path.setAttribute('d', 'M-50,0 C-50,-20 -30,-20 0,-20 C30,-20 50,-20 50,0 C50,20 30,20 0,20 C-30,20 -50,20 -50,0 Z');
+    g.appendChild(path); svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.shape).toBe('stadium');
   });
 
   it('detects polygon with 6 points as shape "hexagon"', () => {
@@ -309,6 +452,58 @@ describe('parseFlowchartEdges', () => {
     expect(edge.hasArrow).toBe(true);
   });
 
+  it('sets arrowEnd="circle" for circle marker-end (--o)', () => {
+    const g = el('g'); g.classList.add('edgePath');
+    const path = el<SVGPathElement>('path');
+    path.setAttribute('d', 'M 10 10 L 100 100');
+    path.setAttribute('marker-end', 'url(#flowchart-circleEnd)');
+    g.appendChild(path); svgElement.appendChild(g);
+
+    const [edge] = parseFlowchartEdges(svgElement, false);
+    expect(edge.arrowEnd).toBe('circle');
+    expect(edge.hasArrow).toBe(true);
+  });
+
+  it('sets arrowEnd="cross" for cross marker-end (--x)', () => {
+    const g = el('g'); g.classList.add('edgePath');
+    const path = el<SVGPathElement>('path');
+    path.setAttribute('d', 'M 10 10 L 100 100');
+    path.setAttribute('marker-end', 'url(#flowchart-crossEnd)');
+    g.appendChild(path); svgElement.appendChild(g);
+
+    const [edge] = parseFlowchartEdges(svgElement, false);
+    expect(edge.arrowEnd).toBe('cross');
+    expect(edge.hasArrow).toBe(true);
+  });
+
+  it('sets arrowEnd="default" and arrowStart="default" for bidirectional <-->', () => {
+    const g = el('g'); g.classList.add('edgePath');
+    const path = el<SVGPathElement>('path');
+    path.setAttribute('d', 'M 10 10 L 100 100');
+    path.setAttribute('marker-end',   'url(#arrow)');
+    path.setAttribute('marker-start', 'url(#arrow)');
+    g.appendChild(path); svgElement.appendChild(g);
+
+    const [edge] = parseFlowchartEdges(svgElement, false);
+    expect(edge.arrowEnd).toBe('default');
+    expect(edge.arrowStart).toBe('default');
+    expect(edge.hasArrow).toBe(true);
+  });
+
+  it('sets arrowStart="circle" for circle marker-start (o--)', () => {
+    const g = el('g'); g.classList.add('edgePath');
+    const path = el<SVGPathElement>('path');
+    path.setAttribute('d', 'M 10 10 L 100 100');
+    path.setAttribute('marker-end',   'url(#arrow)');
+    path.setAttribute('marker-start', 'url(#flowchart-circleStart)');
+    g.appendChild(path); svgElement.appendChild(g);
+
+    const [edge] = parseFlowchartEdges(svgElement, false);
+    expect(edge.arrowStart).toBe('circle');
+    // end is still regular arrow: bidirectional explicit path
+    expect(edge.arrowEnd).toBe('default');
+  });
+
   it('uses premium stroke fallback when isPremium=true', () => {
     const g = el('g'); g.classList.add('edgePath');
     const path = el<SVGPathElement>('path');
@@ -326,6 +521,25 @@ describe('parseFlowchartEdges', () => {
     g.appendChild(path); svgElement.appendChild(g);
     const [edge] = parseFlowchartEdges(svgElement, false);
     expect(edge.stroke).toBe('#333');
+  });
+
+  it('resolves fromNodeId/toNodeId from Mermaid v11 underscore id (L_A_B_0)', () => {
+    // Mermaid v11 uses underscore-delimited edge ids: L_<from>_<to>_<index>
+    const nodeA = el('g'); nodeA.classList.add('node'); nodeA.id = 'flowchart-A-0';
+    svgElement.appendChild(nodeA);
+    const nodeB = el('g'); nodeB.classList.add('node'); nodeB.id = 'flowchart-B-1';
+    svgElement.appendChild(nodeB);
+
+    const path = el<SVGPathElement>('path');
+    path.classList.add('flowchart-link');
+    path.id = 'L_A_B_0';
+    path.setAttribute('d', 'M 10 10 L 100 100');
+    path.setAttribute('marker-end', 'url(#flowchart-v2-pointEnd)');
+    svgElement.appendChild(path);
+
+    const [edge] = parseFlowchartEdges(svgElement, false);
+    expect(edge.fromNodeId).toBe('flowchart-A-0');
+    expect(edge.toNodeId).toBe('flowchart-B-1');
   });
 
   it('parses dash pattern from strokeDasharray', () => {

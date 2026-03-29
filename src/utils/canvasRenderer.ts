@@ -11,15 +11,6 @@ export { drawEdge };
 
 export type ExportBg = 'solid' | 'checkerboard' | 'transparent';
 
-const drawCheckerboard = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-  const size = 16;
-  for (let row = 0; row * size < h; row++) {
-    for (let col = 0; col * size < w; col++) {
-      ctx.fillStyle = (row + col) % 2 === 0 ? '#e5e7eb' : '#ffffff';
-      ctx.fillRect(col * size, row * size, size, size);
-    }
-  }
-};
 
 // Cloud shape centred at (0,0) fitting w×h.
 // N bumps placed on an ellipse; bump radius scales with the shorter axis so bumps
@@ -271,8 +262,8 @@ export const drawNode = (
   const { x, y, width, height, color, stroke, shape, label } = node;
   const isHovered = node.id === hoveredId;
 
-  const isStepNum = node.id.startsWith('stepNum-');
-  const isActivation = node.id.startsWith('activation-');
+  const isStepNum = node.nodeKind === 'stepNum';
+  const isActivation = node.nodeKind === 'activation';
 
   if (isHovered && !isStepNum && !isActivation) {
     ctx.shadowColor = particleColor;
@@ -289,6 +280,98 @@ export const drawNode = (
 
   if (shape === 'pie') {
     drawPieWedge(ctx, node, premium, hoveredId, particleColor);
+    return;
+  }
+
+  if (shape === 'actorMan') {
+    // Stick figure proportions anchored to headR so positions are always
+    // correct regardless of the overall bounding box dimensions.
+    // Mermaid SVG reference: head r=15, arms at y=25, body end y=45, legs end y=65.
+    const headR     = width / 3;
+    const topY      = y - height / 2;
+    const headCY    = topY + headR;          // head centre
+    const armY      = headCY + headR * 1.5;  // arms just below head
+    const bodyEnd   = headCY + headR * 2.4;  // shorter body
+    const legEnd    = headCY + headR * 3.5;  // shorter legs
+
+    ctx.strokeStyle = isHovered ? particleColor : stroke;
+    ctx.fillStyle   = color;
+    ctx.lineWidth   = isHovered ? 3 : 2;
+    ctx.shadowBlur  = 0;
+
+    // Head
+    ctx.beginPath();
+    ctx.arc(x, headCY, headR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Body + arms + legs
+    ctx.beginPath();
+    ctx.moveTo(x, headCY + headR); ctx.lineTo(x, bodyEnd);              // body
+    ctx.moveTo(x - headR, armY);   ctx.lineTo(x + headR, armY);         // arms
+    ctx.moveTo(x, bodyEnd);        ctx.lineTo(x - headR, legEnd);       // left leg
+    ctx.moveTo(x, bodyEnd);        ctx.lineTo(x + headR, legEnd);       // right leg
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.setLineDash([]);
+
+    // Label below the figure
+    ctx.fillStyle    = getLuminance(color) < 0.35 ? '#f1f5f9' : '#1e293b';
+    ctx.font         = '12px Red Hat Text';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(label, x, legEnd + 4);
+    return;
+  }
+
+  if (shape === 'cylinder') {
+    const rx = width / 2;
+    const ry = Math.max(6, height * 0.18);
+    const top = y - height / 2;
+    const bot = y + height / 2;
+    const topCy = top + ry;
+    const botCy = bot - ry;
+    const strokeColor = isHovered ? particleColor : stroke;
+    const lw = isHovered ? 3 : 2;
+
+    ctx.setLineDash([]);
+    ctx.lineWidth = lw;
+    ctx.fillStyle = color;
+    ctx.strokeStyle = strokeColor;
+
+    // Body rectangle (filled, no stroke — sides drawn separately)
+    ctx.fillRect(x - rx, topCy, width, botCy - topCy);
+
+    // Bottom ellipse: fill + only the lower arc visible
+    ctx.beginPath();
+    ctx.ellipse(x, botCy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x, botCy, rx, ry, 0, 0, Math.PI); // lower half arc
+    ctx.stroke();
+
+    // Side lines
+    ctx.beginPath();
+    ctx.moveTo(x - rx, topCy);
+    ctx.lineTo(x - rx, botCy);
+    ctx.moveTo(x + rx, topCy);
+    ctx.lineTo(x + rx, botCy);
+    ctx.stroke();
+
+    // Top ellipse (drawn last to cover top of side lines)
+    ctx.beginPath();
+    ctx.ellipse(x, topCy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.setLineDash([]);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    drawNodeLabel(ctx, node, label, shape, x, y, width, height);
     return;
   }
 
@@ -433,11 +516,44 @@ export const drawNode = (
     ctx.lineTo(x - hw + tip, y + hh);
     ctx.lineTo(x - hw,       y);
     ctx.closePath();
+  } else if (shape === 'parallelogram' || shape === 'parallelogramAlt' ||
+             shape === 'trapezoid'     || shape === 'trapezoidAlt') {
+    const skew = height * 0.3;
+    const l = x - width / 2, r2 = x + width / 2;
+    const t = y - height / 2, b  = y + height / 2;
+    let tl: number, tr: number, bl: number, br: number;
+    if (shape === 'parallelogram') {
+      // [/text/]: top-edge shifted right, bottom-edge shifted right
+      tl = l + skew; tr = r2;        bl = l;        br = r2 - skew;
+    } else if (shape === 'parallelogramAlt') {
+      // [\text\]: top-edge shifted left, bottom-edge shifted left
+      tl = l;        tr = r2 - skew; bl = l + skew; br = r2;
+    } else if (shape === 'trapezoid') {
+      // [/text\]: top narrower, bottom wider
+      tl = l + skew; tr = r2 - skew; bl = l;        br = r2;
+    } else {
+      // [\text/]: top wider, bottom narrower
+      tl = l;        tr = r2;        bl = l + skew; br = r2 - skew;
+    }
+    ctx.moveTo(tl, t);
+    ctx.lineTo(tr, t);
+    ctx.lineTo(br, b);
+    ctx.lineTo(bl, b);
+    ctx.closePath();
+  } else if (shape === 'asymmetric') {
+    // >text] : flat right edge, concave left notch pointing right
+    const notch = height * 0.45;
+    const l = x - width / 2, r2 = x + width / 2;
+    const t = y - height / 2, b  = y + height / 2;
+    ctx.moveTo(l,            t);
+    ctx.lineTo(r2,           t);   // top-right (flat top)
+    ctx.lineTo(r2,           b);   // flat right edge
+    ctx.lineTo(l,            b);   // bottom-left
+    ctx.lineTo(l + notch,    y);   // concave notch on left side
+    ctx.closePath();
   } else if (shape === 'stadium') {
     const r = height / 2;
     ctx.roundRect(x - width / 2, y - height / 2, width, height, r);
-  } else if (shape === 'cylinder') {
-    ctx.rect(0, 0, 0, 0);
   } else if (shape === 'subroutine') {
     const r = 4;
     ctx.roundRect(x - width / 2, y - height / 2, width, height, r);
@@ -461,6 +577,30 @@ export const drawNode = (
   ctx.fill();
   ctx.stroke();
 
+  if (shape === 'note') {
+    const fold = 10;
+    const foldX = x + width / 2 - fold;
+    const foldY = y - height / 2 + fold;
+    // Fold triangle fill (same as note bg so it looks like a bent corner)
+    ctx.beginPath();
+    ctx.moveTo(foldX, y - height / 2);
+    ctx.lineTo(x + width / 2, foldY);
+    ctx.lineTo(foldX, foldY);
+    ctx.closePath();
+    ctx.fillStyle = stroke;
+    ctx.globalAlpha = 0.25;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    // Fold crease line
+    ctx.beginPath();
+    ctx.moveTo(foldX, y - height / 2);
+    ctx.lineTo(foldX, foldY);
+    ctx.lineTo(x + width / 2, foldY);
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
   if (shape === 'subroutine') {
     const inset = 8;
     const top = y - height / 2;
@@ -473,46 +613,6 @@ export const drawNode = (
     ctx.stroke();
   }
 
-  if (shape === 'cylinder') {
-    const rx = width / 2;
-    const ry = Math.max(6, height * 0.20);
-    const top = y - height / 2;
-    const bot = y + height / 2;
-    const topCy = top + ry;
-    const botCy = bot - ry;
-
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = stroke;
-    ctx.fillStyle = color;
-
-    ctx.fillRect(x - rx, topCy, width, botCy - topCy);
-
-    ctx.beginPath();
-    ctx.ellipse(x, botCy, rx, ry, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(x, botCy, rx, ry, 0, 0, Math.PI);
-    ctx.strokeStyle = stroke;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.ellipse(x, botCy, rx, ry, 0, Math.PI, Math.PI * 2);
-    ctx.strokeStyle = color;
-    ctx.stroke();
-    ctx.strokeStyle = stroke;
-
-    ctx.beginPath();
-    ctx.moveTo(x - rx, topCy);
-    ctx.lineTo(x - rx, botCy);
-    ctx.moveTo(x + rx, topCy);
-    ctx.lineTo(x + rx, botCy);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.ellipse(x, topCy, rx, ry, 0, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.stroke();
-  }
 
   if (isHovered) {
     ctx.lineWidth = 2;
@@ -672,14 +772,14 @@ export const renderFrame = (
 
   // Normal nodes + notes (step numbers always on top)
   nodes
-    .filter(n => n.type !== 'cluster' && !n.id.startsWith('stepNum-') && !n.id.startsWith('activation-'))
+    .filter(n => n.type !== 'cluster' && n.nodeKind !== 'stepNum' && n.nodeKind !== 'activation')
     .sort((a, _b) => (a.type === 'note' ? 1 : 0))
     .forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
 
-  nodes.filter(n => n.id.startsWith('activation-'))
+  nodes.filter(n => n.nodeKind === 'activation')
     .forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
 
-  nodes.filter(n => n.id.startsWith('stepNum-'))
+  nodes.filter(n => n.nodeKind === 'stepNum')
     .forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
 
   if (seqLabels.length > 0) {

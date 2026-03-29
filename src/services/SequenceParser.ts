@@ -71,7 +71,7 @@ export const parseSequenceNodes = (svgElement: SVGSVGElement): DiagramNode[] => 
     const txt = g.querySelector<SVGTextElement>('text');
     if (txt) label = txt.textContent?.trim() || label;
 
-    extractedNodes.push({ id: g.id || nextId('actor-man'), label, type: 'actor', shape: 'circle', x: cx, y: cy, width: bw, height: bh, color: '#ECECFF', stroke: '#9370DB' });
+    extractedNodes.push({ id: g.id || nextId('actor-man'), label, type: 'actor', shape: 'actorMan', x: cx, y: cy, width: bw, height: bh, color: '#ECECFF', stroke: '#9370DB' });
   });
 
   // 3. Note boxes
@@ -93,6 +93,7 @@ export const parseSequenceNodes = (svgElement: SVGSVGElement): DiagramNode[] => 
     if (w > 40) return;
     extractedNodes.push({
       id: nextId('activation'),
+      nodeKind: 'activation',
       label: '',
       type: 'node',
       shape: 'rect',
@@ -231,6 +232,7 @@ export const parseSequenceStepNumbers = (svgElement: SVGSVGElement): DiagramNode
 
     stepNodes.push({
       id: nextId('stepNum'),
+      nodeKind: 'stepNum',
       label: text,
       type: 'node',
       shape: 'circle',
@@ -260,6 +262,7 @@ export const parseSequenceStepNumbers = (svgElement: SVGSVGElement): DiagramNode
 
     stepNodes.push({
       id: nextId('stepNum'),
+      nodeKind: 'stepNum',
       label,
       type: 'node',
       shape: 'circle',
@@ -380,13 +383,25 @@ export const parseSequenceEdges = (svgElement: SVGSVGElement, isPremium: boolean
     }
 
     if (d && d.length > 4) {
-      const markerAttr = el.getAttribute('marker-end');
-      const hasArrow = type === 'link' && (
-        markerAttr != null ||
-        el.classList.contains('messageLine0') ||
-        el.classList.contains('messageLine1')
-      );
-      extractedEdges.push({ id: nextId('edge'), pathD: d, stroke, type, dash, hasArrow, noSnap: type === 'link' });
+      const markerAttr = el.getAttribute('marker-end') || '';
+      const isMessageLine = el.classList.contains('messageLine0') || el.classList.contains('messageLine1');
+
+      let arrowEnd: import('../types').ArrowMarker | undefined;
+      if (type === 'link' && isMessageLine) {
+        if (/crosshead/i.test(markerAttr)) {
+          arrowEnd = 'cross';
+        } else if (/filled-head/i.test(markerAttr)) {
+          arrowEnd = 'halfCircle';
+        } else if (/arrowhead/i.test(markerAttr)) {
+          arrowEnd = 'default';
+        } else {
+          // No marker-end attribute → open arrow (A->B style)
+          arrowEnd = 'openArrow';
+        }
+      }
+
+      const hasArrow = type === 'link' && (!!arrowEnd || markerAttr !== '');
+      extractedEdges.push({ id: nextId('edge'), pathD: d, stroke, type, dash, hasArrow, arrowEnd, noSnap: type === 'link' });
     }
   };
 
@@ -423,6 +438,7 @@ export const parseSequenceEdges = (svgElement: SVGSVGElement, isPremium: boolean
   svgElement.querySelectorAll('line').forEach(line => {
     if (processedElements.has(line)) return;
     if (line.classList.contains('loopLine')) return;
+    if (line.closest('g.actor-man')) return;
     const lx1 = parseFloat(line.getAttribute('x1') || '0');
     const lx2 = parseFloat(line.getAttribute('x2') || '0');
     const ly1 = parseFloat(line.getAttribute('y1') || '0');
@@ -435,16 +451,21 @@ export const parseSequenceEdges = (svgElement: SVGSVGElement, isPremium: boolean
       processEdge(line, 'structural');
     } else if (dx > 10 && dy < dx * 0.3) {
       // Horizontal line — message line missed by class selectors
-      const hasArrow = line.getAttribute('marker-end') != null ||
-        line.classList.contains('messageLine0') ||
-        line.classList.contains('messageLine1');
+      const markerAttr2 = line.getAttribute('marker-end') || '';
+      let arrowEnd2: import('../types').ArrowMarker | undefined;
+      if (/crosshead/i.test(markerAttr2))      arrowEnd2 = 'cross';
+      else if (/filled-head/i.test(markerAttr2)) arrowEnd2 = 'halfCircle';
+      else if (/arrowhead/i.test(markerAttr2))   arrowEnd2 = 'default';
+      else if (line.classList.contains('messageLine0') || line.classList.contains('messageLine1'))
+                                                 arrowEnd2 = 'openArrow';
       extractedEdges.push({
         id: nextId('edge'),
         pathD: lineToPathD(line, svgElement),
         stroke: isPremium ? '#64748b' : '#333',
         type: 'link',
         dash: line.classList.contains('messageLine1') ? [3, 3] : undefined,
-        hasArrow,
+        hasArrow: !!arrowEnd2,
+        arrowEnd: arrowEnd2,
         noSnap: true,
       });
     }
