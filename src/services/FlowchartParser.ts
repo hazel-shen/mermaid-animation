@@ -129,33 +129,23 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
       } else {
         // Asymmetric >text]: Mermaid v11 renders the flat right edge as a degenerate
         // vertical bezier — all three x-coords of one C segment are equal.
+        // Two threshold tiers based on whether the path has linear (L/H/V) segments:
+        //   - With L (roundRect): corner beziers span ≈8% → threshold 25% safely excludes them
+        //   - Pure bezier (stadium ([text])): arc beziers span ≈50% → threshold 60% excludes them;
+        //     >text] flat wall spans ≈70-100% → passes both thresholds
         const hasLinear = /[LHVlhv]/.test(d);
-        const checkDegenC = (seg: string): boolean => {
+        const allPathNums = (d.match(/-?[\d.]+/g) || []).map(Number);
+        const pathYs = allPathNums.filter((_, i) => i % 2 === 1);
+        const pathYRange = pathYs.length ? Math.max(...pathYs) - Math.min(...pathYs) : 0;
+        const ySpanThreshold = hasLinear ? 0.25 : 0.6;
+        const isAsymmetric = pathYRange > 0 && d.split(/(?=[Cc])/).some(seg => {
           if (!seg.trimStart().startsWith('C') && !seg.trimStart().startsWith('c')) return false;
           const nums = seg.replace(/^[Cc]\s*/, '').split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
           if (nums.length < 6) return false;
-          return Math.abs(nums[0] - nums[2]) < 1 && Math.abs(nums[2] - nums[4]) < 1;
-        };
-        let isAsymmetric = false;
-        if (!hasLinear) {
-          // Pure bezier path (M/C/Z only): any degenerate C qualifies.
-          // roundRect always has L commands, so no false-positive risk here.
-          isAsymmetric = d.split(/(?=[Cc])/).some(checkDegenC);
-        } else {
-          // Path with linear segments: guard against roundRect corner beziers
-          // (which also have equal x-coords but tiny y-span ≈ corner radius).
-          const allPathNums = d.replace(/[A-Za-z]/g, ' ').split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
-          const pathYs = allPathNums.filter((_, i) => i % 2 === 1);
-          const pathYRange = pathYs.length ? Math.max(...pathYs) - Math.min(...pathYs) : 0;
-          if (pathYRange > 0) {
-            isAsymmetric = d.split(/(?=[Cc])/).some(seg => {
-              if (!checkDegenC(seg)) return false;
-              const nums = seg.replace(/^[Cc]\s*/, '').split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
-              const segYSpan = Math.max(nums[1], nums[3], nums[5]) - Math.min(nums[1], nums[3], nums[5]);
-              return segYSpan / pathYRange >= 0.25;
-            });
-          }
-        }
+          if (Math.abs(nums[0] - nums[2]) >= 1 || Math.abs(nums[2] - nums[4]) >= 1) return false;
+          const segYSpan = Math.max(nums[1], nums[3], nums[5]) - Math.min(nums[1], nums[3], nums[5]);
+          return segYSpan / pathYRange >= ySpanThreshold;
+        });
         if (isAsymmetric) {
           shape = 'asymmetric';
         } else if (!hasLinear) {
@@ -301,6 +291,14 @@ export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolea
 
   const processEdge = (el: Element, type: EdgeType) => {
     const { stroke, dash } = extractEdgeStyle(el, isPremium);
+
+    // Detect thick edges (==>) — Mermaid adds class "edge-thickness-thick"
+    // or sets a stroke-width > 2 via computed style.
+    const cls = el.getAttribute('class') || '';
+    const computedSW = parseFloat(window.getComputedStyle(el).strokeWidth || '0');
+    const isThick = cls.includes('edge-thickness-thick') || computedSW > 2;
+    const lineWidth = isThick ? 3.5 : undefined;
+
     let d = "";
 
     const tagName = el.tagName.toLowerCase();
@@ -352,6 +350,7 @@ export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolea
         arrowStart,
         fromNodeId: resolve(fromNodeId),
         toNodeId:   resolve(toNodeId),
+        lineWidth,
       });
     }
   };

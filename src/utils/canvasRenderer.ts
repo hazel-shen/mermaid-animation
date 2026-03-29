@@ -326,6 +326,54 @@ export const drawNode = (
     return;
   }
 
+  if (shape === 'c4Person') {
+    // Rounded rect background box
+    ctx.beginPath();
+    ctx.roundRect(x - width / 2, y - height / 2, width, height, 8);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = isHovered ? particleColor : stroke;
+    ctx.lineWidth = isHovered ? 3 : 1.5;
+    ctx.setLineDash([]);
+    ctx.stroke();
+
+    // Clear shadow before drawing icon so it doesn't bleed onto silhouette
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    const iconColor = getLuminance(color) < 0.35 ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.75)';
+    const iconR = Math.min(width * 0.09, height * 0.13, 16);
+    const iconCX = x;
+    const iconTopY = y - height / 2 + iconR * 2.8;
+
+    // Head
+    ctx.beginPath();
+    ctx.arc(iconCX, iconTopY, iconR, 0, Math.PI * 2);
+    ctx.fillStyle = iconColor;
+    ctx.fill();
+
+    // Body (shoulders / torso)
+    const bodyW = iconR * 2.4;
+    const bodyH = iconR * 1.8;
+    const bodyY = iconTopY + iconR * 1.5;
+    ctx.beginPath();
+    ctx.roundRect(iconCX - bodyW / 2, bodyY, bodyW, bodyH, iconR * 0.4);
+    ctx.fillStyle = iconColor;
+    ctx.fill();
+
+    // Bold name label anchored just below the icon body
+    const labelY = bodyY + bodyH + iconR * 0.3;
+    ctx.fillStyle = iconColor;
+    ctx.font = `bold ${Math.max(11, iconR * 0.9)}px Red Hat Text, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(label, iconCX, labelY);
+
+    // Non-bold text (<<person>>, description) is rendered via SeqLabel
+    // from parseC4NodeLabels at their original SVG positions.
+    return;
+  }
+
   if (shape === 'cylinder') {
     const rx = width / 2;
     const ry = Math.max(6, height * 0.18);

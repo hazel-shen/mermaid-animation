@@ -271,10 +271,10 @@ describe('parseGanttEdges', () => {
     expect(flows).toHaveLength(1);
   });
 
-  it('flow edge type="link", hasArrow=false, noSnap=true', () => {
+  it('flow edge type="structural", hasArrow=false, noSnap=true', () => {
     makeTaskRect('task task0', 'des1', mockBBox(0, 0, 200, 20));
     const [e] = parseGanttEdges(svg, false).filter(e => e.id.startsWith('gantt-flow'));
-    expect(e.type).toBe('link');
+    expect(e.type).toBe('structural');
     expect(e.hasArrow).toBe(false);
     expect(e.noSnap).toBe(true);
   });

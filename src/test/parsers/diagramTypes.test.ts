@@ -56,6 +56,10 @@ describe('getDiagramType', () => {
     expect(getDiagramType('sankey-beta\n  A,B,10')).toBe('sankey');
   });
 
+  it('detects sankey from "sankey" (non-beta keyword)', () => {
+    expect(getDiagramType('sankey\n  A,B,10')).toBe('sankey');
+  });
+
   it('returns generic for unknown diagram type', () => {
     expect(getDiagramType('unknownDiagram\n  foo')).toBe('generic');
   });
@@ -86,6 +90,16 @@ describe('getDiagramType', () => {
   it('skips multiple %% lines and front-matter together', () => {
     const code = '%%{init: {}}%%\n%% author: me\n\nerDiagram\n  A ||--o{ B : rel';
     expect(getDiagramType(code)).toBe('er');
+  });
+
+  it('skips --- YAML front-matter block and reads diagram keyword after it', () => {
+    const code = '---\nconfig:\n  sankey:\n    showValues: false\n---\nsankey-beta\nA,B,10';
+    expect(getDiagramType(code)).toBe('sankey');
+  });
+
+  it('skips --- front-matter and detects flowchart after it', () => {
+    const code = '---\nconfig:\n  theme: default\n---\nflowchart LR\n  A --> B';
+    expect(getDiagramType(code)).toBe('flowchart');
   });
 
   it('trims leading and trailing whitespace from each line', () => {

@@ -21,6 +21,8 @@ import { parsePieNodes, parsePieEdges, parsePieLabels } from '../services/PiePar
 import { parseMindmapNodes, parseMindmapEdges, snapMindmapEdgesToNodes } from '../services/MindmapParser';
 // Git Graph
 import { parseGitGraphNodes, parseGitGraphEdges, parseGitGraphLabels, snapGitArrowsToNodes, expandGitBranchSpacing, regenGitArrowPaths } from '../services/GitGraphParser';
+// C4
+import { parseC4Nodes, parseC4Edges, parseC4EdgeLabels, parseC4NodeLabels } from '../services/C4Parser';
 // Generic fallback
 import { parseGeneric } from '../services/GenericParser';
 
@@ -197,8 +199,36 @@ export const useMermaidParser = (
         break;
       }
 
+      case 'c4': {
+        extractedNodes = parseC4Nodes(svgElement, premium);
+        extractedEdges = parseC4Edges(svgElement, premium);
+        extractedLabels = [
+          ...parseC4NodeLabels(svgElement),
+          ...parseC4EdgeLabels(svgElement),
+        ];
+        // Fallback to generic if parsing yielded nothing
+        if (extractedNodes.length === 0 && extractedEdges.length === 0) {
+          const gen = parseGeneric(svgElement, premium);
+          extractedNodes = gen.nodes;
+          extractedEdges = gen.edges;
+        }
+        break;
+      }
+
+      case 'sankey': {
+        // TODO: implement SankeyParser
+        //   - nodes  : source/target labels (rendered as rounded rects on each side)
+        //   - edges  : flow bands (width proportional to value, curved paths)
+        //   - labels : value annotations on each band
+        // For now fall through to the generic SVG parser as a placeholder.
+        const gen = parseGeneric(svgElement, premium);
+        extractedNodes = gen.nodes;
+        extractedEdges = gen.edges;
+        break;
+      }
+
       default: {
-        // Generic DFS fallback for sankey, unknown types, etc.
+        // Generic DFS fallback for unknown diagram types.
         const gen = parseGeneric(svgElement, premium);
         extractedNodes = gen.nodes;
         extractedEdges = gen.edges;

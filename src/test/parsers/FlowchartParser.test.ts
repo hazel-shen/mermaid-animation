@@ -225,10 +225,8 @@ describe('parseFlowchartNodes', () => {
     expect(node.shape).toBe('asymmetric');
   });
 
-  it('detects Mermaid v11 path (with L) with degenerate vertical bezier as shape "asymmetric" (>text])', () => {
-    // Mermaid v11 renders >text] as a <path>; the flat right edge is a bezier
-    // where all three x-coords of one C segment are equal (degenerate = vertical line).
-    // This path has L commands (hasLinear=true), using the y-span threshold branch.
+  it('detects path (with L) with degenerate C spanning 100% height as "asymmetric"', () => {
+    // degenerate C y-span = 40, pathYRange = 40 → ratio 100% ≥ 60% threshold
     const g = el('g'); g.classList.add('node'); g.id = 'asym2';
     const path = el<SVGPathElement>('path');
     path.setAttribute('d', 'M-50,-20 L49,-20 C49,-20 49,0 49,20 L-50,20 C-40,20 -40,0 -40,-20 Z');
@@ -237,20 +235,20 @@ describe('parseFlowchartNodes', () => {
     expect(node.shape).toBe('asymmetric');
   });
 
-  it('detects Mermaid v11 pure-bezier path (no L) with degenerate C as shape "asymmetric" (>text])', () => {
-    // Pure M/C/Z path (no L commands): hasLinear=false branch — any degenerate C qualifies.
-    // This mirrors actual Mermaid v11 output for >text] where the entire outline is bezier curves.
+  it('detects pure-bezier path (no L) with degenerate C spanning 100% height as "asymmetric"', () => {
+    // Mirrors actual Mermaid v11 >text] output: all-curve outline, degenerate right edge
+    // degenerate C y-span = 40, pathYRange = 40 → ratio 100% ≥ 60% threshold
     const g = el('g'); g.classList.add('node'); g.id = 'asym3';
     const path = el<SVGPathElement>('path');
-    // All curves, no L: degenerate right edge C49,... C49,... C49,...
     path.setAttribute('d', 'M-50,-20 C-58,-20 -49,0 -58,20 C-30,20 -10,20 49,20 C49,20 49,0 49,-20 C10,-20 -30,-20 -50,-20 Z');
     g.appendChild(path); svgElement.appendChild(g);
     const [node] = parseFlowchartNodes(svgElement, false);
     expect(node.shape).toBe('asymmetric');
   });
 
-  it('does NOT detect pure-bezier path without degenerate C as "asymmetric" (stadium)', () => {
-    // Stadium path: only M/C/Z, no L, no degenerate C → should be stadium not asymmetric
+  it('does NOT detect stadium pure-bezier path (circular arcs, ~50% y-span) as "asymmetric"', () => {
+    // Stadium ([text]) in Mermaid v11: pure M/C/Z path, circular arc beziers span ~50% of height.
+    // 50% < 60% threshold → correctly classified as stadium, not asymmetric.
     const g = el('g'); g.classList.add('node'); g.id = 'stad2';
     const path = el<SVGPathElement>('path');
     path.setAttribute('d', 'M-50,0 C-50,-20 -30,-20 0,-20 C30,-20 50,-20 50,0 C50,20 30,20 0,20 C-30,20 -50,20 -50,0 Z');
@@ -540,6 +538,25 @@ describe('parseFlowchartEdges', () => {
     const [edge] = parseFlowchartEdges(svgElement, false);
     expect(edge.fromNodeId).toBe('flowchart-A-0');
     expect(edge.toNodeId).toBe('flowchart-B-1');
+  });
+
+  it('sets lineWidth=3.5 for edge-thickness-thick class (==> thick edge)', () => {
+    const g = el('g'); g.classList.add('edgePath');
+    const path = el<SVGPathElement>('path');
+    path.setAttribute('class', 'edge-thickness-thick');
+    path.setAttribute('d', 'M 10 10 L 100 100');
+    g.appendChild(path); svgElement.appendChild(g);
+    const [edge] = parseFlowchartEdges(svgElement, false);
+    expect(edge.lineWidth).toBe(3.5);
+  });
+
+  it('leaves lineWidth undefined for normal edges', () => {
+    const g = el('g'); g.classList.add('edgePath');
+    const path = el<SVGPathElement>('path');
+    path.setAttribute('d', 'M 10 10 L 100 100');
+    g.appendChild(path); svgElement.appendChild(g);
+    const [edge] = parseFlowchartEdges(svgElement, false);
+    expect(edge.lineWidth).toBeUndefined();
   });
 
   it('parses dash pattern from strokeDasharray', () => {
