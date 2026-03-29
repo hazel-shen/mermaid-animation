@@ -11,6 +11,22 @@ import type { DiagramNode, DiagramEdge, ClassLine, SeqLabel, ArrowMarker } from 
 import { getCumulativeTransform } from './svgUtils';
 import { extractComputedColors, rectCenter, nextId, applyTranslateToPathD } from '../utils/parser-base';
 
+/**
+ * Extracts visible text from the first foreignObject found in `root`.
+ * Uses innerHTML → temp div to reliably cross the SVG/HTML namespace boundary.
+ */
+const extractForeignObjectText = (root: Element): string => {
+  const fo = root.querySelector('foreignObject');
+  if (!fo) return '';
+  const contentDiv = fo.querySelector('div');
+  if (contentDiv) {
+    const temp = document.createElement('div');
+    temp.innerHTML = contentDiv.innerHTML;
+    return temp.textContent?.trim() ?? '';
+  }
+  return (fo as unknown as HTMLElement).innerText?.trim() || fo.textContent?.trim() || '';
+};
+
 /** Returns true if the element is a descendant of a <defs> or <marker> element. */
 const isInsideDefs = (el: Element): boolean => {
   let cur = el.parentElement;
@@ -50,12 +66,14 @@ export const parseClassNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
 
       // Center: the node's cumulative transform gives absolute SVG coordinates
       const { x: cx, y: cy } = getCumulativeTransform(g, svgElement);
+      // Mermaid renders notes with id="note0", "note1", … and class="node undefined"
+      const isNoteNode = /^note\d*$/.test(g.id) || (g.getAttribute('class') || '').includes('note');
 
       const pathStyle = window.getComputedStyle(outlinePath);
-      const color = (pathStyle.fill && pathStyle.fill !== 'none' && pathStyle.fill !== 'rgb(0, 0, 0)')
-        ? pathStyle.fill : (isPremium ? '#f8fafc' : '#fff4dd');
+      const validFill = pathStyle.fill && pathStyle.fill !== 'none' && pathStyle.fill !== 'rgb(0, 0, 0)';
+      const color = validFill ? pathStyle.fill : (isNoteNode ? '#fffde7' : (isPremium ? '#f8fafc' : '#fff4dd'));
       const stroke = (pathStyle.stroke && pathStyle.stroke !== 'none')
-        ? pathStyle.stroke : (isPremium ? '#94a3b8' : '#aaa');
+        ? pathStyle.stroke : (isNoteNode ? '#e6c84a' : (isPremium ? '#94a3b8' : '#aaa'));
 
       // classLines from v11 group structure
       const classLines: ClassLine[] = [];
@@ -68,13 +86,20 @@ export const parseClassNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
       const memberItems = getGroupItems('g.members-group');
       const methodItems = getGroupItems('g.methods-group');
 
-      titleItems.forEach((t, i) => classLines.push({ text: t, bold: i === 0 }));
-      classLines.push({ text: '', divider: true });
-      memberItems.forEach(t => classLines.push({ text: t }));
-      classLines.push({ text: '', divider: true });
-      methodItems.forEach(t => classLines.push({ text: t }));
+      if (isNoteNode && titleItems.length === 0 && memberItems.length === 0 && methodItems.length === 0) {
+        // Note nodes keep their text in a foreignObject (not inside group elements).
+        // Use innerHTML → temp div to cross the SVG/HTML namespace boundary reliably.
+        const noteText = extractForeignObjectText(g);
+        if (noteText) classLines.push({ text: noteText, bold: true });
+      } else {
+        titleItems.forEach((t, i) => classLines.push({ text: t, bold: i === 0 }));
+        classLines.push({ text: '', divider: true });
+        memberItems.forEach(t => classLines.push({ text: t }));
+        classLines.push({ text: '', divider: true });
+        methodItems.forEach(t => classLines.push({ text: t }));
+      }
 
-      const label = titleItems[0] || '';
+      const label = classLines.find(l => l.bold)?.text || titleItems[0] || '';
       const nodeId = g.id || nextId('class-v11');
       if (!seenIds.has(nodeId)) {
         seenIds.add(nodeId);
@@ -442,6 +467,29 @@ export const parseClassEdgeLabels = (svgElement: SVGSVGElement, isPremium: boole
       color: cardColor,
       align: 'center',
       bgColor,
+    });
+  });
+
+  // ── v1 renderer notes: <g class="note"> with rect + text ─────────────────
+  svgElement.querySelectorAll<SVGGElement>('g.note').forEach(g => {
+    if (g.classList.contains('node')) return; // v11 notes handled above
+    const rect = g.querySelector<SVGRectElement>('rect');
+    if (!rect) return;
+    const geom = rectCenter(rect, svgElement);
+    if (!geom) return;
+    const text = Array.from(g.querySelectorAll<SVGTextElement>('text'))
+      .map(t => t.textContent?.trim() || '')
+      .filter(Boolean)
+      .join(' ');
+    if (!text) return;
+    labels.push({
+      text,
+      x: geom.cx,
+      y: geom.cy,
+      fontSize: 12,
+      bold: false,
+      color: textColor,
+      align: 'center',
     });
   });
 
