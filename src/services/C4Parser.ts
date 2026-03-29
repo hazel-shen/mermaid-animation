@@ -36,7 +36,7 @@ const insideBoundaryGroup = (el: Element): boolean => {
  *
  * Returns boundaries first (rendered as cluster background layer), then elements.
  */
-export const parseC4Nodes = (svgElement: SVGSVGElement, isPremium: boolean): DiagramNode[] => {
+export const parseC4Nodes = (svgElement: SVGSVGElement, _isPremium: boolean): DiagramNode[] => {
   const nodes: DiagramNode[] = [];
 
   // --- 1. Boundaries → cluster nodes (background layer) --------------------
@@ -282,8 +282,6 @@ export const parseC4NodeLabels = (svgElement: SVGSVGElement): SeqLabel[] => {
     // at SVG positions. Bold name is drawn directly in the c4Person canvas block
     // so it stays anchored below the icon figure.
     // Non-person nodes: skip bold name (drawNodeLabel handles it).
-    const isPersonNode = !!g.querySelector('image');
-
     Array.from(g.querySelectorAll<SVGTextElement>('text')).forEach(t => {
       const text = t.textContent?.trim() ?? '';
       if (!text) return;
