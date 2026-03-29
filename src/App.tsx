@@ -39,27 +39,7 @@ const SEQUENCE_CODE = `sequenceDiagram
         API-->>Browser: 新 JWT Token
     end`;
 
-const FLOWCHART_CODE = `flowchart LR
-    Dev[👨‍💻 開發者] -->|git push| Repo[📦 Git Repo]
-    Repo -->|trigger| CI[🔧 CI Pipeline]
-
-    CI --> Test[✅ 自動測試]
-    CI --> Lint[📋 程式碼檢查]
-    CI --> Build[🏗️ 建置映像]
-
-    Test -->|pass| Gate{品質門檻}
-    Lint -->|pass| Gate
-    Build -->|success| Gate
-
-    Gate -->|通過| Staging[🧪 Staging]
-    Gate -->|失敗| Notify[📧 通知開發者]
-
-    Staging -->|人工審核| Prod[🚀 Production]
-
-    style Prod fill:#22c55e,color:#fff,stroke:#15803d
-    style Notify fill:#ef4444,color:#fff,stroke:#b91c1c`;
-
-const ARCH_CODE = `flowchart TB
+const FLOWCHART_CODE = `flowchart TB
     Client([🌐 用戶端])
 
     subgraph Edge["邊緣層"]
@@ -77,7 +57,7 @@ const ARCH_CODE = `flowchart TB
     subgraph Data["資料層"]
         PG[(PostgreSQL)]
         Cache[(Redis)]
-        Queue([Message Queue])
+        Queue[(Message Queue)]
     end
 
     Client --> CDN --> LB --> GW
@@ -88,6 +68,8 @@ const ARCH_CODE = `flowchart TB
     User --> PG
     User --> Cache
     Notify --> Queue`;
+
+const ARCH_CODE = FLOWCHART_CODE;
 
 const CLASS_CODE = `classDiagram
     class User {
