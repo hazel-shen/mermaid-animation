@@ -540,6 +540,25 @@ describe('parseFlowchartEdges', () => {
     expect(edge.toNodeId).toBe('flowchart-B-1');
   });
 
+  it('sets lineWidth=3.5 for edge-thickness-thick class (==> thick edge)', () => {
+    const g = el('g'); g.classList.add('edgePath');
+    const path = el<SVGPathElement>('path');
+    path.setAttribute('class', 'edge-thickness-thick');
+    path.setAttribute('d', 'M 10 10 L 100 100');
+    g.appendChild(path); svgElement.appendChild(g);
+    const [edge] = parseFlowchartEdges(svgElement, false);
+    expect(edge.lineWidth).toBe(3.5);
+  });
+
+  it('leaves lineWidth undefined for normal edges', () => {
+    const g = el('g'); g.classList.add('edgePath');
+    const path = el<SVGPathElement>('path');
+    path.setAttribute('d', 'M 10 10 L 100 100');
+    g.appendChild(path); svgElement.appendChild(g);
+    const [edge] = parseFlowchartEdges(svgElement, false);
+    expect(edge.lineWidth).toBeUndefined();
+  });
+
   it('parses dash pattern from strokeDasharray', () => {
     vi.spyOn(window, 'getComputedStyle').mockReturnValue({
       stroke: 'none',

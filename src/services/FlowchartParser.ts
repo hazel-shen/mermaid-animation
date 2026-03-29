@@ -291,6 +291,14 @@ export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolea
 
   const processEdge = (el: Element, type: EdgeType) => {
     const { stroke, dash } = extractEdgeStyle(el, isPremium);
+
+    // Detect thick edges (==>) — Mermaid adds class "edge-thickness-thick"
+    // or sets a stroke-width > 2 via computed style.
+    const cls = el.getAttribute('class') || '';
+    const computedSW = parseFloat(window.getComputedStyle(el).strokeWidth || '0');
+    const isThick = cls.includes('edge-thickness-thick') || computedSW > 2;
+    const lineWidth = isThick ? 3.5 : undefined;
+
     let d = "";
 
     const tagName = el.tagName.toLowerCase();
@@ -342,6 +350,7 @@ export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolea
         arrowStart,
         fromNodeId: resolve(fromNodeId),
         toNodeId:   resolve(toNodeId),
+        lineWidth,
       });
     }
   };
