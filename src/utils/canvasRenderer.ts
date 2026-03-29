@@ -11,15 +11,6 @@ export { drawEdge };
 
 export type ExportBg = 'solid' | 'checkerboard' | 'transparent';
 
-const drawCheckerboard = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-  const size = 16;
-  for (let row = 0; row * size < h; row++) {
-    for (let col = 0; col * size < w; col++) {
-      ctx.fillStyle = (row + col) % 2 === 0 ? '#e5e7eb' : '#ffffff';
-      ctx.fillRect(col * size, row * size, size, size);
-    }
-  }
-};
 
 // Cloud shape centred at (0,0) fitting w×h.
 // N bumps placed on an ellipse; bump radius scales with the shorter axis so bumps
