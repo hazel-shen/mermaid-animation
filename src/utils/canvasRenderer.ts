@@ -504,6 +504,30 @@ export const drawNode = (
   ctx.fill();
   ctx.stroke();
 
+  if (shape === 'note') {
+    const fold = 10;
+    const foldX = x + width / 2 - fold;
+    const foldY = y - height / 2 + fold;
+    // Fold triangle fill (same as note bg so it looks like a bent corner)
+    ctx.beginPath();
+    ctx.moveTo(foldX, y - height / 2);
+    ctx.lineTo(x + width / 2, foldY);
+    ctx.lineTo(foldX, foldY);
+    ctx.closePath();
+    ctx.fillStyle = stroke;
+    ctx.globalAlpha = 0.25;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    // Fold crease line
+    ctx.beginPath();
+    ctx.moveTo(foldX, y - height / 2);
+    ctx.lineTo(foldX, foldY);
+    ctx.lineTo(x + width / 2, foldY);
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
   if (shape === 'subroutine') {
     const inset = 8;
     const top = y - height / 2;
