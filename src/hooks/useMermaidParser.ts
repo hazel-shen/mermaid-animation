@@ -215,8 +215,20 @@ export const useMermaidParser = (
         break;
       }
 
+      case 'sankey': {
+        // TODO: implement SankeyParser
+        //   - nodes  : source/target labels (rendered as rounded rects on each side)
+        //   - edges  : flow bands (width proportional to value, curved paths)
+        //   - labels : value annotations on each band
+        // For now fall through to the generic SVG parser as a placeholder.
+        const gen = parseGeneric(svgElement, premium);
+        extractedNodes = gen.nodes;
+        extractedEdges = gen.edges;
+        break;
+      }
+
       default: {
-        // Generic DFS fallback for sankey, unknown types, etc.
+        // Generic DFS fallback for unknown diagram types.
         const gen = parseGeneric(svgElement, premium);
         extractedNodes = gen.nodes;
         extractedEdges = gen.edges;

@@ -14,8 +14,15 @@ export type DiagramType =
   | 'generic';
 
 export const getDiagramType = (code: string): DiagramType => {
-  const lines = code.trim().split('\n');
-  // Skip %%{init: ...}%% front-matter directives and blank/comment lines
+  let lines = code.trim().split('\n');
+
+  // Skip YAML front-matter block (--- ... ---) used by Mermaid config directives
+  if (lines[0]?.trim() === '---') {
+    const closingIdx = lines.findIndex((l, i) => i > 0 && l.trim() === '---');
+    if (closingIdx > 0) lines = lines.slice(closingIdx + 1);
+  }
+
+  // Skip %%{init: ...}%% directives and blank/comment lines
   const firstMeaningfulLine = lines
     .map(l => l.trim())
     .find(l => l.length > 0 && !l.startsWith('%%'))
@@ -32,7 +39,7 @@ export const getDiagramType = (code: string): DiagramType => {
   if (/^pie/.test(firstLine)) return 'pie';
   if (/^mindmap/.test(firstLine)) return 'mindmap';
   if (/^gitgraph/.test(firstLine)) return 'gitgraph';
-  if (/^sankey-beta/.test(firstLine)) return 'sankey';
+  if (/^sankey/.test(firstLine)) return 'sankey';
   if (/^c4context|^c4container|^c4component|^c4dynamic|^c4deployment/.test(firstLine)) return 'c4';
 
   return 'generic';
