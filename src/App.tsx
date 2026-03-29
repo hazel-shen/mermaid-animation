@@ -17,134 +17,112 @@ import type { ParticleShape, ExportBg } from './utils/canvasRenderer';
 
 // --- 預設代碼 ---
 const SEQUENCE_CODE = `sequenceDiagram
-    participant App
+    actor User
+    participant Browser
     participant API
-    
-    rect rgb(240, 240, 240)
-        Note right of App: 初始化連線
-        App->>API: 建立連線 (Sync)
-        API-->>App: 連線已確認
-    end
-    
-    loop 每 30 秒執行一次
-        App->>API: 獲取最新數據
-        API-->>App: 回傳數據內容
+    participant Auth
+    participant DB
+
+    User->>Browser: 輸入帳號密碼
+    Browser->>API: POST /auth/login
+    API->>Auth: 驗證憑證
+    Auth->>DB: 查詢使用者
+    DB-->>Auth: 回傳使用者資料
+    Auth-->>API: 驗證成功
+    API-->>Browser: 回傳 JWT Token
+    Browser-->>User: 登入成功 ✓
+
+    Note over Browser,API: Token 有效期 1 小時
+
+    loop Token 即將過期
+        Browser->>API: POST /auth/refresh
+        API-->>Browser: 新 JWT Token
     end`;
 
-const FLOWCHART_CODE = `graph LR
-    W0["Week 0<br/>GCP: 100%"]
-    W1["Week 1<br/>GCP: 60%"]
-    W2["Week 2<br/>GCP: 25%"]
-    W3["Week 3<br/>GCP: 5%"]
-    W4["Week 4<br/>GCP: 0.8%"]
-    
-    W0 --> W1 --> W2 --> W3 --> W4
-    
-    style W0 fill:#4285f4,color:#fff,stroke:#333
-    style W1 fill:#7aa9f7,color:#fff,stroke:#333
-    style W2 fill:#f7c47a,color:#000,stroke:#333
-    style W3 fill:#ffb347,color:#000,stroke:#333
-    style W4 fill:#ff9900,color:#000,stroke:#333,stroke-width:4px`;
+const FLOWCHART_CODE = `flowchart LR
+    Dev[👨‍💻 開發者] -->|git push| Repo[📦 Git Repo]
+    Repo -->|trigger| CI[🔧 CI Pipeline]
+
+    CI --> Test[✅ 自動測試]
+    CI --> Lint[📋 程式碼檢查]
+    CI --> Build[🏗️ 建置映像]
+
+    Test -->|pass| Gate{品質門檻}
+    Lint -->|pass| Gate
+    Build -->|success| Gate
+
+    Gate -->|通過| Staging[🧪 Staging]
+    Gate -->|失敗| Notify[📧 通知開發者]
+
+    Staging -->|人工審核| Prod[🚀 Production]
+
+    style Prod fill:#22c55e,color:#fff,stroke:#15803d
+    style Notify fill:#ef4444,color:#fff,stroke:#b91c1c`;
 
 const ARCH_CODE = `flowchart TB
-    subgraph Devices[" "]
-        D1[設備 A<br/>已切到 AWS]
-        D2[設備 B<br/>還在 GCP]
+    Client([🌐 用戶端])
+
+    subgraph Edge["邊緣層"]
+        CDN[CDN]
+        LB[Load Balancer]
     end
-    
-    subgraph DNS_Layer[" "]
-        DNS_SVC[DNS Server<br/>指向 AWS]
+
+    subgraph Services["應用服務"]
+        GW[API Gateway]
+        Auth[認證服務]
+        User[用戶服務]
+        Notify[通知服務]
     end
-    
-    subgraph AWS_Stack["AWS - 主要服務"]
-        AWS_LB[ALB]
-        AWS_APP[EKS Pods]
-        AWS_DB[(RDS)]
+
+    subgraph Data["資料層"]
+        PG[(PostgreSQL)]
+        Cache[(Redis)]
+        Queue([Message Queue])
     end
-    
-    subgraph Sync_Layer["同步層"]
-        MQ[Message Queue]
-        SW[Sync Workers]
-    end
-    
-    subgraph GCP_Stack["GCP - 備份服務"]
-        GCP_LB[GCP LB]
-        GCP_APP[GKE Pods]
-        GCP_DB[(Cloud SQL)]
-    end
-    
-    subgraph Monitor_Layer["監控"]
-        MON[Prometheus + Grafana]
-    end
-    
-    D1 --> DNS_SVC
-    DNS_SVC --> AWS_LB
-    AWS_LB --> AWS_APP
-    AWS_APP --> AWS_DB
-    
-    D2 --> GCP_LB
-    GCP_LB --> GCP_APP
-    GCP_APP --> GCP_DB
-    
-    AWS_APP -.-> MQ
-    MQ -.-> SW
-    SW -.-> GCP_APP
-    
-    AWS_DB -.-> MON
-    GCP_DB -.-> MON
-    
-    style AWS_DB fill:#ff9900
-    style GCP_DB fill:#4285f4,opacity:0.6`;
+
+    Client --> CDN --> LB --> GW
+    GW --> Auth
+    GW --> User
+    GW --> Notify
+    Auth --> Cache
+    User --> PG
+    User --> Cache
+    Notify --> Queue`;
 
 const CLASS_CODE = `classDiagram
-    class Portfolio {
-        +String owner
-        +float totalValue
-        +updateTotalValue()
-        +getAllocation() Map
-    }
-
-    class Account {
-        +String brokerName
-        +String currency
-        +float balance
-        +deposit(amount)
-    }
-
-    class Asset {
-        <<abstract>>
-        +String symbol
+    class User {
+        +String id
         +String name
-        +float currentPrice
-        +int quantity
-        +getMarketValue() float
+        +String email
+        +login() bool
+        +logout()
     }
 
-    class ETF {
-        +String expenseRatio
-        +String region
-        +String indexTracked
-        +rebalance()
+    class Post {
+        +String id
+        +String title
+        +String content
+        +Date publishedAt
+        +publish()
+        +archive()
     }
 
-    class Cash {
-        +float interestRate
+    class Comment {
+        +String id
+        +String content
+        +edit(content)
+        +delete()
     }
 
-    class Transaction {
-        +DateTime timestamp
-        +String type
-        +float price
-        +int units
-        +record()
+    class Tag {
+        +String name
+        +String color
     }
 
-    %% 關係定義
-    Portfolio "1" *-- "many" Account : manages
-    Account "1" o-- "many" Asset : holds
-    Asset <|-- ETF : inheritance
-    Asset <|-- Cash : inheritance
-    Asset "1" -- "many" Transaction : generates`;
+    User "1" --> "many" Post : writes
+    User "1" --> "many" Comment : posts
+    Post "1" --> "many" Comment : has
+    Post "many" <--> "many" Tag : tagged`;
 
 const STATE_CODE = `stateDiagram-v2
     [*] --> Idle
@@ -207,19 +185,27 @@ const PIE_CODE = `pie title 技術棧佔比
     "Other" : 5`;
 
 const MINDMAP_CODE = `mindmap
-  root((專案架構))
-    前端
-      React
-      TypeScript
-      Canvas
-    後端
-      Node.js
-      REST API
-      資料庫
-    工具
-      Git
-      Docker
-      CI/CD`;
+  root((系統設計))
+    可靠性
+      備援機制
+      錯誤處理
+      健康檢查
+      限流熔斷
+    可擴展性
+      水平擴展
+      快取策略
+      負載均衡
+      資料分片
+    效能
+      資料庫索引
+      CDN 加速
+      非同步處理
+      連線池
+    安全性
+      身份驗證
+      授權控制
+      資料加密
+      稽核日誌`;
 
 const GITGRAPH_CODE = `gitGraph
     commit id: "初始提交"
