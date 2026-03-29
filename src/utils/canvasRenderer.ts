@@ -335,6 +335,55 @@ export const drawNode = (
     return;
   }
 
+  if (shape === 'cylinder') {
+    const rx = width / 2;
+    const ry = Math.max(6, height * 0.18);
+    const top = y - height / 2;
+    const bot = y + height / 2;
+    const topCy = top + ry;
+    const botCy = bot - ry;
+    const strokeColor = isHovered ? particleColor : stroke;
+    const lw = isHovered ? 3 : 2;
+
+    ctx.setLineDash([]);
+    ctx.lineWidth = lw;
+    ctx.fillStyle = color;
+    ctx.strokeStyle = strokeColor;
+
+    // Body rectangle (filled, no stroke — sides drawn separately)
+    ctx.fillRect(x - rx, topCy, width, botCy - topCy);
+
+    // Bottom ellipse: fill + only the lower arc visible
+    ctx.beginPath();
+    ctx.ellipse(x, botCy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x, botCy, rx, ry, 0, 0, Math.PI); // lower half arc
+    ctx.stroke();
+
+    // Side lines
+    ctx.beginPath();
+    ctx.moveTo(x - rx, topCy);
+    ctx.lineTo(x - rx, botCy);
+    ctx.moveTo(x + rx, topCy);
+    ctx.lineTo(x + rx, botCy);
+    ctx.stroke();
+
+    // Top ellipse (drawn last to cover top of side lines)
+    ctx.beginPath();
+    ctx.ellipse(x, topCy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.setLineDash([]);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    drawNodeLabel(ctx, node, label, shape, x, y, width, height);
+    return;
+  }
+
   if (shape === 'cloud' || shape === 'bang') {
     ctx.save();
     ctx.translate(x, y);
@@ -479,8 +528,6 @@ export const drawNode = (
   } else if (shape === 'stadium') {
     const r = height / 2;
     ctx.roundRect(x - width / 2, y - height / 2, width, height, r);
-  } else if (shape === 'cylinder') {
-    ctx.rect(0, 0, 0, 0);
   } else if (shape === 'subroutine') {
     const r = 4;
     ctx.roundRect(x - width / 2, y - height / 2, width, height, r);
@@ -540,46 +587,6 @@ export const drawNode = (
     ctx.stroke();
   }
 
-  if (shape === 'cylinder') {
-    const rx = width / 2;
-    const ry = Math.max(6, height * 0.20);
-    const top = y - height / 2;
-    const bot = y + height / 2;
-    const topCy = top + ry;
-    const botCy = bot - ry;
-
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = stroke;
-    ctx.fillStyle = color;
-
-    ctx.fillRect(x - rx, topCy, width, botCy - topCy);
-
-    ctx.beginPath();
-    ctx.ellipse(x, botCy, rx, ry, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(x, botCy, rx, ry, 0, 0, Math.PI);
-    ctx.strokeStyle = stroke;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.ellipse(x, botCy, rx, ry, 0, Math.PI, Math.PI * 2);
-    ctx.strokeStyle = color;
-    ctx.stroke();
-    ctx.strokeStyle = stroke;
-
-    ctx.beginPath();
-    ctx.moveTo(x - rx, topCy);
-    ctx.lineTo(x - rx, botCy);
-    ctx.moveTo(x + rx, topCy);
-    ctx.lineTo(x + rx, botCy);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.ellipse(x, topCy, rx, ry, 0, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.stroke();
-  }
 
   if (isHovered) {
     ctx.lineWidth = 2;
