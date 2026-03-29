@@ -28,6 +28,7 @@ describe('parseSequenceStepNumbers', () => {
     expect(nodes[0]).toMatchObject({
       label: '1',
       type: 'node',
+      nodeKind: 'stepNum',
       shape: 'circle',
       x: 50,
       y: 80,
@@ -73,6 +74,7 @@ describe('parseSequenceStepNumbers', () => {
     expect(nodes[0]).toMatchObject({
       label: '2',
       type: 'node',
+      nodeKind: 'stepNum',
       shape: 'circle',
       x: 30,
       y: 40,
