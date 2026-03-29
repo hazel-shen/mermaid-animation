@@ -161,7 +161,7 @@ export const parseGanttEdges = (svgElement: SVGSVGElement, isPremium: boolean): 
       id: nextId('gantt-flow'),
       pathD: `M ${left} ${cy} L ${right} ${cy}`,
       stroke,
-      type: 'link',
+      type: 'structural',
       hasArrow: false,
       noSnap: true,
     });
