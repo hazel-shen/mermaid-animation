@@ -458,6 +458,47 @@ describe('parseClassNodes', () => {
     expect(titleIdx).toBeLessThan(memberIdx);
   });
 
+  it('should parse v11 note node (id="note0") and extract text via foreignObject', () => {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.classList.add('node');
+    g.id = 'note0';
+    g.setAttribute('transform', 'translate(400, 100)');
+
+    // v11 note shape: g.basic.label-container > path (M -halfW -halfH ...)
+    const basic = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    basic.classList.add('basic');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M -90 -20 L 80 -20 L 90 -10 L 90 20 L -90 20 Z');
+    basic.appendChild(path);
+    g.appendChild(basic);
+
+    // Note text lives in g.label > foreignObject (not in g.label-group)
+    const labelG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    labelG.classList.add('label');
+    const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+    fo.setAttribute('width', '180');
+    const div = document.createElement('div');
+    div.textContent = '校園管理系統範例';
+    fo.appendChild(div);
+    labelG.appendChild(fo);
+    g.appendChild(labelG);
+    svgElement.appendChild(g);
+
+    const nodes = parseClassNodes(svgElement, false);
+    expect(nodes.length).toBe(1);
+    expect(nodes[0].id).toBe('note0');
+    // Width = 90*2 = 180, height = 20*2 = 40
+    expect(nodes[0].width).toBe(180);
+    expect(nodes[0].height).toBe(40);
+    // Note fallback color
+    expect(nodes[0].color).toBe('#fffde7');
+    expect(nodes[0].stroke).toBe('#e6c84a');
+    // Text extracted into classLines
+    expect(nodes[0].classLines).toBeDefined();
+    expect(nodes[0].classLines!.some(l => l.text === '校園管理系統範例' && l.bold === true)).toBe(true);
+    expect(nodes[0].label).toBe('校園管理系統範例');
+  });
+
   it('should parse classLines from g.label foreignObjects in v2 nodes', () => {
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.classList.add('node');
