@@ -23,6 +23,8 @@ import { parseMindmapNodes, parseMindmapEdges, snapMindmapEdgesToNodes } from '.
 import { parseGitGraphNodes, parseGitGraphEdges, parseGitGraphLabels, snapGitArrowsToNodes, expandGitBranchSpacing, regenGitArrowPaths } from '../services/GitGraphParser';
 // C4
 import { parseC4Nodes, parseC4Edges, parseC4EdgeLabels, parseC4NodeLabels } from '../services/C4Parser';
+// Sankey
+import { parseSankeyNodes, parseSankeyEdges, parseSankeyLabels, inferSankeyNodeColors } from '../services/SankeyParser';
 // Generic fallback
 import { parseGeneric } from '../services/GenericParser';
 
@@ -216,14 +218,11 @@ export const useMermaidParser = (
       }
 
       case 'sankey': {
-        // TODO: implement SankeyParser
-        //   - nodes  : source/target labels (rendered as rounded rects on each side)
-        //   - edges  : flow bands (width proportional to value, curved paths)
-        //   - labels : value annotations on each band
-        // For now fall through to the generic SVG parser as a placeholder.
-        const gen = parseGeneric(svgElement, premium);
-        extractedNodes = gen.nodes;
-        extractedEdges = gen.edges;
+        extractedNodes = parseSankeyNodes(svgElement);
+        extractedEdges = parseSankeyEdges(svgElement);
+        extractedLabels = parseSankeyLabels(svgElement);
+        // Infer colors for any node bars whose fill couldn't be resolved from CSS
+        extractedNodes = inferSankeyNodeColors(extractedNodes, extractedEdges);
         break;
       }
 
@@ -267,8 +266,12 @@ export const useMermaidParser = (
       const maxX = Math.max(...xs);
       const minY = Math.min(...ys);
       const maxY = Math.max(...ys);
-      const PAD = 80; // room for branch label pills, commit-ID labels below commits, lifelines
+      const PAD = 80;
       setViewBox({ x: minX - PAD, y: minY - PAD, width: maxX - minX + PAD * 2, height: maxY - minY + PAD * 2 });
+    } else if (type === 'sankey') {
+      // Add vertical breathing room at top and bottom only.
+      const VPAD = 80;
+      setViewBox({ x: vb.x, y: vb.y - VPAD, width: vb.width, height: vb.height + VPAD * 2 });
     } else {
       setViewBox({ x: vb.x, y: vb.y, width: vb.width, height: vb.height });
     }
@@ -298,6 +301,7 @@ export const useMermaidParser = (
     try {
       const id = 'mermaid-hidden-' + Math.round(Math.random() * 10000);
       hiddenContainerRef.current.innerHTML = '';
+
       const { svg } = await (window as any).mermaid.render(id, code);
 
       if (hiddenContainerRef.current) {

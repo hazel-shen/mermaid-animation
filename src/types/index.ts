@@ -98,6 +98,16 @@ export type DiagramEdge = {
    * a cluster toNodeId / fromNodeId — otherwise drawEdge clips them away.
    */
   parentClusterId?: string;
+  /**
+   * Set by SankeyParser: signals Sankey rendering in drawEdge (value = same as pathD).
+   * When present, drawEdge strokes the path as a thick band instead of a thin arrow line.
+   */
+  sankeyFillPath?: string;
+  /**
+   * Set by SankeyParser: [sourceColor, targetColor] extracted from the SVG linearGradient.
+   * Used by drawEdge to create a canvas CanvasGradient matching the original SVG appearance.
+   */
+  sankeyGradient?: [string, string];
 };
 
 export type SeqLabel = {

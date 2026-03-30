@@ -50,6 +50,83 @@ npm run dev
 npm run deploy
 ```
 
+## Testing
+
+Tests are written with [Vitest](https://vitest.dev/) and run in a jsdom environment.
+
+### Run all tests
+
+```bash
+npm test
+```
+
+### Run all tests once (CI mode, no watch)
+
+```bash
+npx vitest run
+```
+
+### Run a single test file
+
+```bash
+npx vitest run src/test/parsers/SankeyParser.test.ts
+```
+
+### Run tests matching a name pattern
+
+```bash
+# Run all tests whose name contains "inferSankeyNodeColors"
+npx vitest run -t "inferSankeyNodeColors"
+```
+
+### Interactive UI mode
+
+```bash
+npm run test:ui
+```
+
+### Coverage report
+
+```bash
+npm run test:coverage
+```
+
+### Test file locations
+
+```bash
+src/test/
+├── parsers/
+│   ├── SankeyParser.test.ts          ← parseSankeyNodes / parseSankeyEdges / inferSankeyNodeColors / parseSankeyLabels
+│   ├── GanttParser.test.ts
+│   ├── PieParser.test.ts
+│   ├── FlowchartParser.test.ts
+│   ├── ClassParser.nodes.test.ts
+│   ├── ClassParser.edges.test.ts
+│   ├── ClassParser.edgeLabels.test.ts
+│   ├── ErParser.test.ts
+│   ├── StateParser.test.ts
+│   ├── SequenceParser.nodes.test.ts
+│   ├── SequenceParser.edges.test.ts
+│   ├── SequenceParser.messageLabels.test.ts
+│   ├── SequenceParser.loopFrames.test.ts
+│   ├── SequenceParser.stepNumbers.test.ts
+│   ├── MindmapParser.test.ts
+│   ├── MindmapParser.snapEdges.test.ts
+│   ├── GitGraphParser.test.ts
+│   ├── GenericParser.test.ts
+│   ├── diagramTypes.test.ts
+│   └── parser-base.test.ts
+├── renderers/
+│   ├── drawEdge.borderPoint.test.ts
+│   ├── drawClassNode.test.ts
+│   ├── arrowMarkers.test.ts
+│   └── canvasRenderer.findNodeAtPoint.test.ts
+└── utils/
+    ├── colorUtils.test.ts
+    ├── pathUtils.test.ts
+    └── svgUtils.test.ts
+```
+
 ## Security Audit
 
 In light of the critical vulnerabilities discovered in late 2025 regarding React 19, this project has undergone the following security assessment:
