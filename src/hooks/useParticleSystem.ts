@@ -9,7 +9,9 @@ export const useParticleSystem = (edges: DiagramEdge[]): Particle[] => {
     const newParticles: Particle[] = [];
     edges.forEach(edge => {
       if (edge.type === 'link') {
-        const count = Math.max(1, Math.floor(edge.pathD.length / 150)) + 1;
+        const count = edge.sankeyFillPath
+          ? Math.max(2, Math.min(Math.floor((edge.lineWidth ?? 4) / 20), 12))
+          : Math.max(1, Math.floor(edge.pathD.length / 150)) + 1;
         for (let i = 0; i < count; i++) {
           newParticles.push(new Particle(edge.pathD));
         }
