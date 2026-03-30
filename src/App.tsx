@@ -4,7 +4,7 @@ import { AppHeader } from './components/AppHeader';
 import { EditorSidebar } from './components/EditorSidebar';
 import { CanvasView } from './components/CanvasView';
 import { MobileDrawer } from './components/MobileDrawer';
-import { ExportModal } from './components/ExportModal';
+import { ExportModal, type ExportFormat } from './components/ExportModal';
 
 import { useMermaidParser } from './hooks/useMermaidParser';
 import { useCanvasTransform, useCanvasResize } from './hooks/useCanvasTransform';
@@ -465,7 +465,7 @@ const CanvasDiagram = () => {
   }, [startDownload, nodes, edges, particles, seqLabels, particleColor, particleSize, particleShape, isRecording, diagramSizeRef]);
 
   // --- Static PNG export handler ---
-  const handleExport = useCallback((exportBg: ExportBg) => {
+  const handleExport = useCallback((exportBg: ExportBg, _format: ExportFormat = 'png') => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -540,6 +540,7 @@ const CanvasDiagram = () => {
         <ExportModal
           onConfirm={handleExport}
           onClose={() => setExportModalOpen(false)}
+          canvasRef={canvasRef}
         />
       )}
 
