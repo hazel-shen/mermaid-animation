@@ -102,6 +102,43 @@ export const drawEdge = (
   isPremium: boolean,
   nodes: DiagramNode[] = [],
 ) => {
+  // Sankey flow band: open bezier path rendered as a thick stroked line.
+  // Mermaid sankey-beta uses stroke-width (not fill) to represent band thickness.
+  // Particles animate along the same path (pathD === sankeyFillPath).
+  if (edge.sankeyFillPath) {
+    // Build a canvas linear gradient matching the SVG linearGradient (source→target color).
+    // Extract start (M) and end (last two numbers) coordinates from the path string.
+    let bandColor: string | CanvasGradient;
+    if (edge.sankeyGradient) {
+      const allNums = edge.sankeyFillPath.match(/[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?/g);
+      if (allNums && allNums.length >= 2) {
+        const x0 = parseFloat(allNums[0]);
+        const y0 = parseFloat(allNums[1]);
+        const x1 = parseFloat(allNums[allNums.length - 2]);
+        const y1 = parseFloat(allNums[allNums.length - 1]);
+        const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+        grad.addColorStop(0, edge.sankeyGradient[0]);
+        grad.addColorStop(1, edge.sankeyGradient[1]);
+        bandColor = grad;
+      } else {
+        bandColor = edge.sankeyGradient[0];
+      }
+    } else {
+      bandColor = (edge.stroke && edge.stroke !== 'none') ? edge.stroke : (isPremium ? '#94a3b8' : '#64748b');
+    }
+
+    ctx.save();
+    ctx.strokeStyle = bandColor;
+    ctx.lineWidth = edge.lineWidth ?? 4;
+    ctx.lineCap = 'butt';
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 0.5;
+    ctx.stroke(new Path2D(edge.sankeyFillPath));
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    return;
+  }
+
   // Resolve edge color:
   // - Bright intentional colors (e.g. gitGraph branch palette) are always used as-is.
   // - Mermaid's default dark stroke (#333 / rgb(51,51,51), luminance < 0.1) is
