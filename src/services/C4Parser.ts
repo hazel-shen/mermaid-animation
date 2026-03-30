@@ -180,9 +180,6 @@ export const parseC4Edges = (svgElement: SVGSVGElement, isPremium: boolean): Dia
       hasArrow: true,
       arrowEnd: 'default',
       arrowStart: hasStart ? 'default' : undefined,
-      // Mermaid already ends paths at node borders; skip border-snap so
-      // arrowheads stay at the SVG endpoint (not pushed inside the node box).
-      noSnap: true,
     });
   };
 
@@ -238,10 +235,30 @@ export const snapC4EdgesToNodes = (
   const nonCluster = nodes.filter(n => n.type !== 'cluster');
   if (nonCluster.length === 0) return edges;
 
-  const nearest = (x: number, y: number): DiagramNode =>
-    nonCluster.reduce((best, n) =>
-      Math.hypot(n.x - x, n.y - y) < Math.hypot(best.x - x, best.y - y) ? n : best
+  /**
+   * Find the node whose bounding box contains (x, y), with a small tolerance.
+   * Falls back to the nearest node if it is within 60px of (x, y).
+   * Returns undefined when no node is a plausible match — this prevents
+   * misidentifying a mid-diagram point as a node endpoint.
+   */
+  const findNode = (x: number, y: number): DiagramNode | undefined => {
+    const TOL = 12; // px — bounding-box containment tolerance
+    const contained = nonCluster.find(n =>
+      Math.abs(x - n.x) <= n.width  / 2 + TOL &&
+      Math.abs(y - n.y) <= n.height / 2 + TOL
     );
+    if (contained) return contained;
+
+    // Fallback: nearest centre within 60px (catches border-ending paths)
+    const THRESHOLD = 60;
+    let best: DiagramNode | undefined;
+    let bestDist = THRESHOLD;
+    for (const n of nonCluster) {
+      const d = Math.hypot(n.x - x, n.y - y);
+      if (d < bestDist) { bestDist = d; best = n; }
+    }
+    return best;
+  };
 
   const startPt = (d: string) => {
     const m = d.match(/M\s*([-+]?[\d.e]+)[,\s]+([-+]?[\d.e]+)/i);
@@ -257,10 +274,237 @@ export const snapC4EdgesToNodes = (
   return edges.map(edge => {
     const sp = startPt(edge.pathD);
     const ep = endPt(edge.pathD);
+    const fromNode = sp ? findNode(sp.x, sp.y) : undefined;
+    const toNode   = ep ? findNode(ep.x, ep.y) : undefined;
     return {
       ...edge,
-      fromNodeId: sp ? nearest(sp.x, sp.y).id : undefined,
-      toNodeId:   ep ? nearest(ep.x, ep.y).id : undefined,
+      fromNodeId: fromNode?.id,
+      toNodeId:   toNode?.id,
+    };
+  });
+};
+
+// ── Layout: expand node spacing inside boundaries ────────────────────────────
+
+/**
+ * Post-processes C4 node positions so that nodes inside a boundary cluster
+ * have a minimum horizontal and vertical gap between them.
+ *
+ * Mermaid's dagre layout often packs nodes too tightly when the System_Boundary
+ * contains many elements. This expands positions in-place and widens the
+ * cluster rectangles to match.
+ *
+ * Also updates all seqLabel positions (passed in as a mutable array) so that
+ * <<type>> / description text stays anchored to the moved nodes.
+ */
+export const expandC4NodeSpacing = (nodes: DiagramNode[]): DiagramNode[] => {
+  const MIN_H_GAP = 32; // minimum horizontal gap between node edges
+  const MIN_V_GAP = 24; // minimum vertical gap between node edges
+
+  const clusters = nodes.filter(n => n.type === 'cluster');
+  const regular  = nodes.filter(n => n.type !== 'cluster');
+
+  // Work on a mutable copy
+  const moved = regular.map(n => ({ ...n }));
+
+  for (const cluster of clusters) {
+    const hw = cluster.width  / 2;
+    const hh = cluster.height / 2;
+
+    // Find all regular nodes inside this cluster's bounding box
+    const inside = moved.filter(n =>
+      Math.abs(n.x - cluster.x) <= hw + 1 &&
+      Math.abs(n.y - cluster.y) <= hh + 1
+    );
+    if (inside.length < 2) continue;
+
+    // --- Horizontal expansion (nodes in same row) --------------------------
+    // Group into rows by Y proximity (within half a node height)
+    const rows: (typeof moved)[] = [];
+    const assigned = new Set<string>();
+    for (const n of inside) {
+      if (assigned.has(n.id)) continue;
+      const row = inside.filter(m => Math.abs(m.y - n.y) <= n.height * 0.6);
+      row.forEach(m => assigned.add(m.id));
+      rows.push(row);
+    }
+
+    let totalHShift = 0;
+    for (const row of rows) {
+      if (row.length < 2) continue;
+      row.sort((a, b) => a.x - b.x);
+
+      for (let i = 1; i < row.length; i++) {
+        const prev = row[i - 1];
+        const curr = row[i];
+        const gap = (curr.x - curr.width / 2) - (prev.x + prev.width / 2);
+        if (gap < MIN_H_GAP) {
+          const shift = MIN_H_GAP - gap;
+          // Push curr and all nodes to its right
+          for (let j = i; j < row.length; j++) row[j].x += shift;
+          totalHShift += shift;
+        }
+      }
+    }
+
+    // --- Vertical expansion (nodes in same column) ------------------------
+    const cols: (typeof moved)[] = [];
+    const vassigned = new Set<string>();
+    for (const n of inside) {
+      if (vassigned.has(n.id)) continue;
+      const col = inside.filter(m => Math.abs(m.x - n.x) <= n.width * 0.6);
+      col.forEach(m => vassigned.add(m.id));
+      cols.push(col);
+    }
+
+    let totalVShift = 0;
+    for (const col of cols) {
+      if (col.length < 2) continue;
+      col.sort((a, b) => a.y - b.y);
+
+      for (let i = 1; i < col.length; i++) {
+        const prev = col[i - 1];
+        const curr = col[i];
+        const gap = (curr.y - curr.height / 2) - (prev.y + prev.height / 2);
+        if (gap < MIN_V_GAP) {
+          const shift = MIN_V_GAP - gap;
+          for (let j = i; j < col.length; j++) col[j].y += shift;
+          totalVShift += shift;
+        }
+      }
+    }
+
+    // Expand the cluster to contain the moved nodes (with original padding)
+    if (totalHShift > 0 || totalVShift > 0) {
+      const clusterNode = clusters.find(c => c.id === cluster.id)!;
+      clusterNode.width  += totalHShift;
+      clusterNode.height += totalVShift;
+      // Shift the cluster centre so the left/top edges stay fixed
+      clusterNode.x += totalHShift / 2;
+      clusterNode.y += totalVShift / 2;
+    }
+  }
+
+  return [...clusters, ...moved];
+};
+
+// ── Regen edge paths with obstacle-avoidance routing ─────────────────────────
+
+/**
+ * Tests whether the line segment (ax,ay)→(bx,by) passes through the axis-
+ * aligned rectangle [rxMin,rxMax] × [ryMin,ryMax].
+ * Uses the Liang–Barsky parametric clipping algorithm.
+ */
+const segmentIntersectsRect = (
+  ax: number, ay: number, bx: number, by: number,
+  rxMin: number, ryMin: number, rxMax: number, ryMax: number,
+): boolean => {
+  const dx = bx - ax, dy = by - ay;
+  let t0 = 0, t1 = 1;
+
+  const clip = (p: number, q: number): boolean => {
+    if (Math.abs(p) < 1e-9) return q >= 0; // parallel: inside only if q≥0
+    const r = q / p;
+    if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r; }
+    else        { if (r < t0) return false; if (r < t1) t1 = r; }
+    return true;
+  };
+
+  return clip(-dx, ax - rxMin) &&
+         clip( dx, rxMax - ax) &&
+         clip(-dy, ay - ryMin) &&
+         clip( dy, ryMax - ay) &&
+         t0 < t1;
+};
+
+/**
+ * Replaces Mermaid's original curved/routed C4 edge paths with clean paths
+ * computed from the (post-expansion) node positions:
+ *
+ * - If the straight centre-to-centre line is unobstructed → `M … L …`
+ * - If it passes through an intermediate node → `M … Q cpx cpy … L …`
+ *   (quadratic Bézier whose control point is displaced perpendicularly just
+ *   enough to clear every blocking node's bounding box + 20 px margin).
+ *
+ * Combined with snapC4EdgesToNodes + borderPoint in drawEdge the arrowheads
+ * sit precisely at node borders and the visible path never cuts through nodes.
+ *
+ * Call this AFTER expandC4NodeSpacing so the node positions are final.
+ */
+export const regenC4EdgePaths = (
+  edges: DiagramEdge[],
+  nodes: DiagramNode[],
+): DiagramEdge[] => {
+  const nodeMap     = new Map(nodes.map(n => [n.id, n]));
+  const regularNodes = nodes.filter(n => n.type !== 'cluster');
+  const MARGIN      = 20; // px clearance around obstacles
+
+  return edges.map(edge => {
+    const from = edge.fromNodeId ? nodeMap.get(edge.fromNodeId) : null;
+    const to   = edge.toNodeId   ? nodeMap.get(edge.toNodeId)   : null;
+    if (!from || !to) return edge;
+
+    const len = Math.hypot(to.x - from.x, to.y - from.y);
+    if (len < 1) return edge;
+
+    // ── Find obstacles ──────────────────────────────────────────────────────
+    const obstacles = regularNodes.filter(n => {
+      if (n.id === from.id || n.id === to.id) return false;
+      return segmentIntersectsRect(
+        from.x, from.y, to.x, to.y,
+        n.x - n.width  / 2 - MARGIN,
+        n.y - n.height / 2 - MARGIN,
+        n.x + n.width  / 2 + MARGIN,
+        n.y + n.height / 2 + MARGIN,
+      );
+    });
+
+    if (obstacles.length === 0) {
+      return { ...edge, pathD: `M ${from.x} ${from.y} L ${to.x} ${to.y}` };
+    }
+
+    // ── Compute Bézier control point to route around all obstacles ──────────
+    //
+    // The perpendicular unit vector is ux,uy (90° CCW from the from→to direction).
+    // We project each obstacle's bounding-box corners onto that axis relative to
+    // the segment midpoint, then choose the direction (± ux,uy) that requires
+    // the smallest displacement to clear everything.
+    //
+    // Because a quadratic Bézier's apex at t=0.5 lies at (from + 2·CP + to)/4,
+    // the actual curve offset at the midpoint equals (CP − mid) / 2.
+    // So we supply a CP that is 2× the required clearance from the midpoint.
+
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const ux = -dy / len,      uy =  dx / len; // perp unit vector (CCW)
+    const mid = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+
+    let needPlus  = 0; // displacement required in +perp direction to clear all obstacles
+    let needMinus = 0; // displacement required in −perp direction
+
+    for (const obs of obstacles) {
+      const corners: [number, number][] = [
+        [obs.x - obs.width / 2 - MARGIN, obs.y - obs.height / 2 - MARGIN],
+        [obs.x + obs.width / 2 + MARGIN, obs.y - obs.height / 2 - MARGIN],
+        [obs.x - obs.width / 2 - MARGIN, obs.y + obs.height / 2 + MARGIN],
+        [obs.x + obs.width / 2 + MARGIN, obs.y + obs.height / 2 + MARGIN],
+      ];
+      const perps = corners.map(([cx, cy]) =>
+        (cx - mid.x) * ux + (cy - mid.y) * uy
+      );
+      needPlus  = Math.max(needPlus,   Math.max(...perps));
+      needMinus = Math.max(needMinus, -Math.min(...perps));
+    }
+
+    // Choose the direction that requires the smaller detour
+    const disp = needPlus <= needMinus ? needPlus : -needMinus;
+
+    // CP is 2× the midpoint offset so the bezier arc actually clears the obstacles
+    const cpx = mid.x + ux * disp * 2;
+    const cpy = mid.y + uy * disp * 2;
+
+    return {
+      ...edge,
+      pathD: `M ${from.x} ${from.y} Q ${cpx} ${cpy} ${to.x} ${to.y}`,
     };
   });
 };

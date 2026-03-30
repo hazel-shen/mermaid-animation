@@ -22,7 +22,7 @@ import { parseMindmapNodes, parseMindmapEdges, snapMindmapEdgesToNodes } from '.
 // Git Graph
 import { parseGitGraphNodes, parseGitGraphEdges, parseGitGraphLabels, snapGitArrowsToNodes, expandGitBranchSpacing, regenGitArrowPaths } from '../services/GitGraphParser';
 // C4
-import { parseC4Nodes, parseC4Edges, parseC4EdgeLabels, parseC4NodeLabels } from '../services/C4Parser';
+import { parseC4Nodes, parseC4Edges, parseC4EdgeLabels, parseC4NodeLabels, snapC4EdgesToNodes, expandC4NodeSpacing, regenC4EdgePaths } from '../services/C4Parser';
 // Generic fallback
 import { parseGeneric } from '../services/GenericParser';
 
@@ -202,10 +202,58 @@ export const useMermaidParser = (
       case 'c4': {
         extractedNodes = parseC4Nodes(svgElement, premium);
         extractedEdges = parseC4Edges(svgElement, premium);
-        extractedLabels = [
-          ...parseC4NodeLabels(svgElement),
-          ...parseC4EdgeLabels(svgElement),
-        ];
+        // Node-level labels (<<type>>, description) at SVG positions
+        const c4NodeLabels = parseC4NodeLabels(svgElement);
+        // Edge labels (relationship text) — collected before node expansion
+        // so we can reposition them to the new edge midpoints afterward.
+        const c4EdgeLabels = parseC4EdgeLabels(svgElement);
+
+        // 1. Snap edge endpoints → fromNodeId / toNodeId
+        extractedEdges = snapC4EdgesToNodes(extractedEdges, extractedNodes);
+
+        // 2. Expand node spacing inside boundaries so nodes aren't cramped
+        extractedNodes = expandC4NodeSpacing(extractedNodes);
+
+        // 3. Regen edge paths as straight lines between the (now-expanded)
+        //    node centres — combined with borderPoint in drawEdge this gives
+        //    clean arrows that start/end exactly at node borders.
+        extractedEdges = regenC4EdgePaths(extractedEdges, extractedNodes);
+
+        // 4. Reposition edge labels to the visual midpoint of each new path.
+        //    For straight lines (L): midpoint = average of endpoints.
+        //    For bezier arcs (Q): apex = (from + 2·cp + to) / 4 at t=0.5.
+        //    Match each SVG label to the nearest edge by new midpoint position.
+        const pathMidpoint = (pathD: string): { x: number; y: number } | null => {
+          const mM = pathD.match(/M\s+([-\d.]+)\s+([-\d.]+)/);
+          if (!mM) return null;
+          const mx = +mM[1], my = +mM[2];
+          const qM = pathD.match(/Q\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)/);
+          if (qM) {
+            // Quadratic bezier apex at t=0.5: (P0 + 2·CP + P1) / 4
+            return {
+              x: (mx + 2 * +qM[1] + +qM[3]) / 4,
+              y: (my + 2 * +qM[2] + +qM[4]) / 4,
+            };
+          }
+          const lM = pathD.match(/L\s+([-\d.]+)\s+([-\d.]+)/);
+          if (lM) return { x: (mx + +lM[1]) / 2, y: (my + +lM[2]) / 2 };
+          return null;
+        };
+
+        const edgeMidpoints = extractedEdges.map(e => pathMidpoint(e.pathD));
+        const repositionedEdgeLabels = c4EdgeLabels.map(lbl => {
+          let bestMid: { x: number; y: number } | null = null;
+          let bestDist = Infinity;
+          for (const mid of edgeMidpoints) {
+            if (!mid) continue;
+            const d = Math.hypot(mid.x - lbl.x, mid.y - lbl.y);
+            if (d < bestDist) { bestDist = d; bestMid = mid; }
+          }
+          return bestMid ? { ...lbl, x: bestMid.x, y: bestMid.y } : lbl;
+        });
+
+        extractedLabels = [...c4NodeLabels, ...repositionedEdgeLabels];
+
         // Fallback to generic if parsing yielded nothing
         if (extractedNodes.length === 0 && extractedEdges.length === 0) {
           const gen = parseGeneric(svgElement, premium);

@@ -194,9 +194,9 @@ export const drawEdge = (
       const lastCmd = lastSeg.trimStart()[0].toUpperCase();
       if (lastCmd === 'L') {
         segs[segs.length - 1] = `L ${sbx} ${sby}`;
-      } else if (lastCmd === 'C' && shouldSnapEnd) {
-        // For curves ending at node centre: replace with a line to the border point.
-        // This avoids the curve visually piercing through the node shape.
+      } else if ((lastCmd === 'C' || lastCmd === 'Q') && shouldSnapEnd) {
+        // For curves (cubic or quadratic) ending at node centre: replace with a
+        // straight line to the border point so the arc doesn't pierce the node.
         segs[segs.length - 1] = `L ${sbx} ${sby}`;
       }
     }
