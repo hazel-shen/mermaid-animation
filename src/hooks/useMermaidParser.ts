@@ -24,7 +24,7 @@ import { parseGitGraphNodes, parseGitGraphEdges, parseGitGraphLabels, snapGitArr
 // C4
 import { parseC4Nodes, parseC4Edges, parseC4EdgeLabels, parseC4NodeLabels } from '../services/C4Parser';
 // Sankey
-import { parseSankeyNodes, parseSankeyEdges, parseSankeyLabels } from '../services/SankeyParser';
+import { parseSankeyNodes, parseSankeyEdges, parseSankeyLabels, inferSankeyNodeColors } from '../services/SankeyParser';
 // Generic fallback
 import { parseGeneric } from '../services/GenericParser';
 
@@ -221,6 +221,8 @@ export const useMermaidParser = (
         extractedNodes = parseSankeyNodes(svgElement);
         extractedEdges = parseSankeyEdges(svgElement);
         extractedLabels = parseSankeyLabels(svgElement);
+        // Infer colors for any node bars whose fill couldn't be resolved from CSS
+        extractedNodes = inferSankeyNodeColors(extractedNodes, extractedEdges);
         break;
       }
 

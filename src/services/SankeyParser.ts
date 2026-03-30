@@ -9,7 +9,7 @@
  */
 import type { DiagramNode, DiagramEdge, SeqLabel } from '../types';
 import { getCumulativeTransform } from './svgUtils';
-import { nextId, extractComputedColors, applyTranslateToPathD } from '../utils/parser-base';
+import { nextId, applyTranslateToPathD } from '../utils/parser-base';
 import { getLuminance } from '../utils/colorUtils';
 
 // ─── Gradient resolution ─────────────────────────────────────────────────────
@@ -55,6 +55,43 @@ function resolveGradientStops(
 /**
  * Parses Sankey node bars (narrow vertical <rect> elements).
  */
+/**
+ * Resolves a node bar's fill color, with multiple fallback strategies:
+ * 1. Computed fill from CSS (most reliable when CSS vars are resolved)
+ * 2. Inline `fill` attribute on the element
+ * 3. Inline `style` attribute parsed for fill
+ * 4. `fill` on the parent <g> element
+ * Returns null if all strategies fail or color is near-white/transparent.
+ */
+function resolveNodeFill(rect: SVGRectElement): string | null {
+  const style = window.getComputedStyle(rect);
+  const computedFill = style.fill;
+
+  const isUsable = (c: string | null | undefined): c is string =>
+    !!c && c !== 'none' && c !== 'rgba(0, 0, 0, 0)' && getLuminance(c) <= 0.92;
+
+  // Strategy 1: computed style fill
+  if (isUsable(computedFill)) return computedFill;
+
+  // Strategy 2: fill attribute directly on rect
+  const fillAttr = rect.getAttribute('fill');
+  if (isUsable(fillAttr)) return fillAttr;
+
+  // Strategy 3: parse inline style attribute
+  const styleAttr = rect.getAttribute('style') || '';
+  const styleMatch = styleAttr.match(/fill\s*:\s*([^;]+)/i);
+  if (styleMatch) {
+    const val = styleMatch[1].trim();
+    if (isUsable(val)) return val;
+  }
+
+  // Strategy 4: fill attribute on the parent <g>
+  const parentFill = rect.parentElement?.getAttribute('fill');
+  if (isUsable(parentFill)) return parentFill;
+
+  return null;
+}
+
 export const parseSankeyNodes = (svgElement: SVGSVGElement): DiagramNode[] => {
   const nodes: DiagramNode[] = [];
 
@@ -63,19 +100,19 @@ export const parseSankeyNodes = (svgElement: SVGSVGElement): DiagramNode[] => {
     const h = parseFloat(rect.getAttribute('height') || '0');
     if (w <= 0 || h <= 0) return;
 
-    // Sankey node bars are narrow: height clearly exceeds width.
-    // Skip wide/square rects that are likely diagram backgrounds.
-    if (h < w * 1.5) return;
+    // Mermaid sankey node bars are always narrow (width ≤ 15px).
+    // Skip wide rects that are diagram backgrounds or other shapes.
+    if (w > 15) return;
 
     const { x: tx, y: ty } = getCumulativeTransform(rect, svgElement);
     const bx = parseFloat(rect.getAttribute('x') || '0');
     const by = parseFloat(rect.getAttribute('y') || '0');
 
-    const { color } = extractComputedColors(rect, { color: '#94a3b8', stroke: '#ffffff' });
+    const resolvedFill = resolveNodeFill(rect);
 
-    // Skip node bars that resolved to near-white — they are unresolvable CSS
-    // colors that would appear as opaque white rectangles over the flow bands.
-    if (getLuminance(color) > 0.85) return;
+    // If fill is still unresolvable, collect the node with a sentinel color.
+    // parseSankeyEdges will later derive the correct color from flow bands.
+    const color = resolvedFill ?? '__unresolved__';
 
     nodes.push({
       id: nextId('sankey-node'),
@@ -148,6 +185,93 @@ export const parseSankeyEdges = (svgElement: SVGSVGElement): DiagramEdge[] => {
   return edges;
 };
 
+// ─── Post-process: infer node colors from flow band gradients ────────────────
+
+/**
+ * Extracts source and target X coordinates from a Mermaid sankey band path.
+ *
+ * A sankey band is an open path shaped like a ribbon:
+ *   M sx topY  C ... C  tx topY    ← top edge: source right → target left
+ *   C ... C    tx botY             ← vertical drop at target
+ *   C ... C    sx botY             ← bottom edge: target left → source right (reversed)
+ *
+ * So the path starts at the source node's RIGHT edge (sx) and the midpoint of
+ * all coordinates is the target node's LEFT edge (tx).  The final coordinates
+ * land back at the source — pathEndX would wrongly return sx.
+ *
+ * Strategy: tokenise the path, collect all X values (every first number in each
+ * M/C/L coordinate pair), then split at the median X.  Coordinates below the
+ * median belong to the source side; coordinates above belong to the target side.
+ * The minimum X among all tokens = source right edge; the maximum X = target left edge.
+ */
+function parseSankeyBandX(d: string): { sourceX: number; targetX: number } {
+  const tokens = d.match(/[MmLlCcSsQqTtAaHhVvZz]|[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?/g);
+  if (!tokens) return { sourceX: NaN, targetX: NaN };
+
+  const xValues: number[] = [];
+  let i = 0;
+  while (i < tokens.length) {
+    const t = tokens[i];
+    if (/[A-Za-z]/.test(t)) { i++; continue; }
+    xValues.push(parseFloat(t));
+    i += 2; // skip paired Y
+  }
+
+  if (xValues.length === 0) return { sourceX: NaN, targetX: NaN };
+
+  // Source right edge = leftmost X cluster; target left edge = rightmost X cluster.
+  // Use min/max — the band starts and ends at source X, but the middle visits target X.
+  const minX = Math.min(...xValues);
+  const maxX = Math.max(...xValues);
+  return { sourceX: minX, targetX: maxX };
+}
+
+/**
+ * For any node whose color is `'__unresolved__'`, infers the color from the
+ * flow bands (edges) that connect to it.
+ *
+ * Each band's `pathD` spans from the source node's RIGHT edge (sourceX)
+ * to the target node's LEFT edge (targetX).
+ * `sankeyGradient[0]` = source color, `sankeyGradient[1]` = target color.
+ *
+ * We build a map of nodeCenterX → color, keyed by the node's center X,
+ * by matching sourceX ≈ node.x + node.width/2 and targetX ≈ node.x - node.width/2.
+ */
+export const inferSankeyNodeColors = (
+  nodes: DiagramNode[],
+  edges: DiagramEdge[],
+): DiagramNode[] => {
+  const TOLERANCE = 30; // px
+
+  // xColor: maps node center X → inferred color
+  const xColor = new Map<number, string>();
+
+  for (const edge of edges) {
+    const grad = edge.sankeyGradient;
+    if (!grad) continue;
+    const [c0, c1] = grad;
+    const { sourceX, targetX } = parseSankeyBandX(edge.pathD);
+
+    for (const node of nodes) {
+      const rightEdge = node.x + node.width / 2;
+      const leftEdge  = node.x - node.width / 2;
+
+      if (!isNaN(sourceX) && Math.abs(rightEdge - sourceX) < TOLERANCE) {
+        if (!xColor.has(node.x)) xColor.set(node.x, c0);
+      }
+      if (!isNaN(targetX) && Math.abs(leftEdge - targetX) < TOLERANCE) {
+        if (!xColor.has(node.x)) xColor.set(node.x, c1);
+      }
+    }
+  }
+
+  return nodes.map(node => {
+    if (node.color !== '__unresolved__') return node;
+    const inferred = xColor.get(node.x);
+    return { ...node, color: inferred ?? '#94a3b8', stroke: inferred ?? '#94a3b8' };
+  });
+};
+
 // ─── Post-process Y-scaling ───────────────────────────────────────────────────
 
 /**
@@ -162,7 +286,7 @@ function scaleSankeyPathY(d: string, scaleY: number, originY: number): string {
     (() => {
       let expectX = false; // next number is X?
       let cmd = '';
-      return (match: string, letter: string, num: string) => {
+      return (_match: string, letter: string, num: string) => {
         if (letter !== undefined) {
           cmd = letter.toUpperCase();
           // After M or L: alternating X, Y pairs
