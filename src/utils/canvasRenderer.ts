@@ -771,9 +771,14 @@ export const renderFrame = (
   tr: Transform,
   offset: { x: number; y: number },
   showRec: boolean,
-  opts: RenderFrameOptions
+  opts: RenderFrameOptions,
+  dpr = 1
 ) => {
   const { nodes, edges, particles, seqLabels, isPremium, particleColor, particleSize, particleShape, hoveredNodeId, exportBg } = opts;
+
+  // Scale up to physical pixels so drawing commands use CSS-pixel coordinates
+  ctx.save();
+  ctx.scale(dpr, dpr);
 
   if (exportBg === 'transparent') {
     ctx.clearRect(0, 0, w, h);
@@ -934,4 +939,7 @@ export const renderFrame = (
     ctx.font = 'bold 18px Red Hat Text';
     ctx.fillText('● REC', 24, 36);
   }
+
+  // Restore the dpr scale
+  ctx.restore();
 };

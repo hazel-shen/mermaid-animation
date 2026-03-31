@@ -44,7 +44,7 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
       </div>
     )}
 
-    {/* Open editor button — desktop, shown when editor is collapsed */}
+    {/* Open editor button — desktop only */}
     {!isEditorOpen && (
       <button
         onClick={onOpenEditor}
@@ -56,16 +56,7 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
       </button>
     )}
 
-    {/* Open editor button — mobile, shown when editor is collapsed */}
-    {!isEditorOpen && (
-      <button
-        onClick={onOpenEditor}
-        className="lg:hidden absolute top-3 left-3 z-20 flex items-center gap-1.5 px-2 py-1 bg-white/90 backdrop-blur border border-gray-200 rounded-lg shadow-sm text-xs text-slate-600"
-      >
-        <Code size={12} />
-        <span>編輯</span>
-      </button>
-    )}
+    {/* Desktop open-editor button only — mobile pill is rendered at App level */}
 
     <canvas
       ref={canvasRef}
@@ -77,12 +68,15 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
       style={{ cursor: 'grab' }}
     />
 
-    <ZoomToolbar
-      scale={transformState.scale}
-      onZoomIn={onZoomIn}
-      onZoomOut={onZoomOut}
-      onFit={onFit}
-      onReset={onReset}
-    />
+    {/* Desktop ZoomToolbar — bottom right */}
+    <div className="hidden lg:block">
+      <ZoomToolbar
+        scale={transformState.scale}
+        onZoomIn={onZoomIn}
+        onZoomOut={onZoomOut}
+        onFit={onFit}
+        onReset={onReset}
+      />
+    </div>
   </div>
 );

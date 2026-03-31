@@ -23,7 +23,7 @@ let encoder: ReturnType<typeof GIFEncoder>;
 let width = 0;
 let height = 0;
 let frameDelay = 0;
-let sharedPalette: number[][] | null = null;
+let sharedPalette: number[][] | null = null; // kept for first-frame init guard only
 
 self.onmessage = (e: MessageEvent<WorkerInMsg>) => {
   const msg = e.data;
@@ -41,10 +41,12 @@ self.onmessage = (e: MessageEvent<WorkerInMsg>) => {
     // msg.data is the transferred ArrayBuffer — wrap without copying
     const rgba = new Uint8ClampedArray(msg.data);
 
+    // Build shared palette from first frame and reuse — diagram colours are stable
+    // across frames, so a shared palette avoids per-frame colour jitter/dithering.
     if (!sharedPalette) {
-      sharedPalette = quantize(rgba, 256, { format: 'rgb444' });
+      sharedPalette = quantize(rgba, 256, { format: 'rgb565' });
     }
-    const index = applyPalette(rgba, sharedPalette, 'rgb444');
+    const index = applyPalette(rgba, sharedPalette, 'rgb565');
     encoder.writeFrame(index, width, height, {
       palette: sharedPalette,
       delay: frameDelay,

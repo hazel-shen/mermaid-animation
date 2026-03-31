@@ -14,6 +14,9 @@ interface UseCanvasTransformReturn {
   handleMouseUp: () => void;
   handleMouseLeave: (hoveredNodeIdRef: React.MutableRefObject<string | null>) => void;
   handleWheel: (e: WheelEvent) => void;
+  handleTouchStart: (e: TouchEvent) => void;
+  handleTouchMove: (e: TouchEvent) => void;
+  handleTouchEnd: () => void;
   applyViewBox: (
     viewBox: { x: number; y: number; width: number; height: number },
     canvasRef: React.RefObject<HTMLCanvasElement | null>,
@@ -44,10 +47,13 @@ export const useCanvasTransform = (
     canvasContainerRef: React.RefObject<HTMLDivElement>
   ) => {
     if (!canvasRef.current || !canvasContainerRef.current) return;
+    const dpr = window.devicePixelRatio || 1;
     const containerW = canvasContainerRef.current.clientWidth;
     const containerH = canvasContainerRef.current.clientHeight;
-    canvasRef.current.width = containerW;
-    canvasRef.current.height = containerH;
+    canvasRef.current.width  = Math.round(containerW * dpr);
+    canvasRef.current.height = Math.round(containerH * dpr);
+    canvasRef.current.style.width  = `${containerW}px`;
+    canvasRef.current.style.height = `${containerH}px`;
     (canvasRef.current as any).viewBoxOffset = { x: -viewBox.x, y: -viewBox.y };
 
     const dw = viewBox.width;
@@ -69,12 +75,15 @@ export const useCanvasTransform = (
     if (!canvas) return;
     const { w: dw, h: dh } = diagramSizeRef.current;
     if (!dw || !dh) return;
+    const dpr = window.devicePixelRatio || 1;
+    const cw = canvas.width / dpr;
+    const ch = canvas.height / dpr;
     const padding = 48;
-    const scaleX = (canvas.width - padding) / dw;
-    const scaleY = (canvas.height - padding) / dh;
+    const scaleX = (cw - padding) / dw;
+    const scaleY = (ch - padding) / dh;
     const fitScale = Math.min(scaleX, scaleY, 2);
-    const fitX = (canvas.width - dw * fitScale) / 2;
-    const fitY = (canvas.height - dh * fitScale) / 2;
+    const fitX = (cw - dw * fitScale) / 2;
+    const fitY = (ch - dh * fitScale) / 2;
     transformRef.current = { x: fitX, y: fitY, scale: fitScale };
     setTransformState({ x: fitX, y: fitY, scale: fitScale });
   }, [canvasRef]);
@@ -82,9 +91,10 @@ export const useCanvasTransform = (
   const handleZoomIn = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
     const tr = transformRef.current;
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
+    const cx = canvas.width / dpr / 2;
+    const cy = canvas.height / dpr / 2;
     const newScale = Math.min(tr.scale * 1.25, 8);
     const newX = cx - (cx - tr.x) * (newScale / tr.scale);
     const newY = cy - (cy - tr.y) * (newScale / tr.scale);
@@ -95,9 +105,10 @@ export const useCanvasTransform = (
   const handleZoomOut = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
     const tr = transformRef.current;
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
+    const cx = canvas.width / dpr / 2;
+    const cy = canvas.height / dpr / 2;
     const newScale = Math.max(tr.scale * 0.8, 0.1);
     const newX = cx - (cx - tr.x) * (newScale / tr.scale);
     const newY = cy - (cy - tr.y) * (newScale / tr.scale);
@@ -199,6 +210,68 @@ export const useCanvasTransform = (
     setTransformState({ x: newX, y: newY, scale: newScale });
   }, [canvasRef]);
 
+  // Touch state refs — kept outside useCallback to share between handlers
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const pinchStartDistRef = useRef<number | null>(null);
+  const pinchStartScaleRef = useRef<number>(1);
+  const pinchStartTransformRef = useRef<Transform>({ x: 0, y: 0, scale: 1 });
+  const pinchMidpointRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const handleTouchStart = useCallback((e: TouchEvent) => {
+    e.preventDefault();
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+      touchStartRef.current = { x: t.clientX - transformRef.current.x, y: t.clientY - transformRef.current.y };
+      pinchStartDistRef.current = null;
+    } else if (e.touches.length === 2) {
+      touchStartRef.current = null;
+      const t0 = e.touches[0];
+      const t1 = e.touches[1];
+      const dx = t1.clientX - t0.clientX;
+      const dy = t1.clientY - t0.clientY;
+      pinchStartDistRef.current = Math.hypot(dx, dy);
+      pinchStartScaleRef.current = transformRef.current.scale;
+      pinchStartTransformRef.current = { ...transformRef.current };
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect();
+        pinchMidpointRef.current = {
+          x: (t0.clientX + t1.clientX) / 2 - rect.left,
+          y: (t0.clientY + t1.clientY) / 2 - rect.top,
+        };
+      }
+    }
+  }, [canvasRef]);
+
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    e.preventDefault();
+    if (e.touches.length === 1 && touchStartRef.current) {
+      const t = e.touches[0];
+      const newX = t.clientX - touchStartRef.current.x;
+      const newY = t.clientY - touchStartRef.current.y;
+      transformRef.current = { ...transformRef.current, x: newX, y: newY };
+      setTransformState(s => ({ ...s, x: newX, y: newY }));
+    } else if (e.touches.length === 2 && pinchStartDistRef.current !== null) {
+      const t0 = e.touches[0];
+      const t1 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+      const ratio = dist / pinchStartDistRef.current;
+      const newScale = Math.min(Math.max(pinchStartScaleRef.current * ratio, 0.1), 8);
+      const { x: mx, y: my } = pinchMidpointRef.current;
+      const startTr = pinchStartTransformRef.current;
+      const scaleRatio = newScale / startTr.scale;
+      const newX = mx - (mx - startTr.x) * scaleRatio;
+      const newY = my - (my - startTr.y) * scaleRatio;
+      transformRef.current = { x: newX, y: newY, scale: newScale };
+      setTransformState({ x: newX, y: newY, scale: newScale });
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    touchStartRef.current = null;
+    pinchStartDistRef.current = null;
+  }, []);
+
   return {
     transformRef,
     transformState,
@@ -212,6 +285,9 @@ export const useCanvasTransform = (
     handleMouseUp,
     handleMouseLeave,
     handleWheel,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
     applyViewBox,
   };
 };
@@ -227,12 +303,17 @@ export const useCanvasResize = (
     if (!container || !canvas) return;
 
     const resizeCanvas = () => {
+      const dpr = window.devicePixelRatio || 1;
       const w = container.clientWidth;
       const h = container.clientHeight;
       if (w === 0 || h === 0) return;
-      if (canvas.width !== w || canvas.height !== h) {
-        canvas.width = w;
-        canvas.height = h;
+      const bw = Math.round(w * dpr);
+      const bh = Math.round(h * dpr);
+      if (canvas.width !== bw || canvas.height !== bh) {
+        canvas.width = bw;
+        canvas.height = bh;
+        canvas.style.width  = `${w}px`;
+        canvas.style.height = `${h}px`;
       }
     };
 

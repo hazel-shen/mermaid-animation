@@ -92,7 +92,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           </div>
           <div className="flex flex-col leading-tight">
             <h1 className="font-bold text-sm md:text-base text-slate-800 whitespace-nowrap">
-              Mermaid<span className="hidden sm:inline"> Animation</span>
+              Mermaid Animation
             </h1>
             <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">mermaid v11.13.0</span>
           </div>
