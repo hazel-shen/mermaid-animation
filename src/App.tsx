@@ -376,7 +376,6 @@ const CanvasDiagram = () => {
   // --- Hooks ---
   const { nodes, edges, seqLabels, isLoading, errorMsg, renderMermaidToData, viewBox } =
     useMermaidParser(code, true, hiddenContainerRef as React.RefObject<HTMLDivElement>);
-  // diagramType is available from useMermaidParser but not consumed at top-level (used internally by parsers)
 
   const particles = useParticleSystem(edges);
 
@@ -467,26 +466,73 @@ const CanvasDiagram = () => {
     );
   }, [startDownload, nodes, edges, particles, seqLabels, particleColor, particleSize, particleShape, isRecording, diagramSizeRef]);
 
-  // --- Static PNG export handler ---
-  const handleExport = useCallback((exportBg: ExportBg, _format: ExportFormat = 'png') => {
+  // --- Shared helper: build tight-crop render options ---
+  const buildExportFrame = useCallback((PADDING = 40, SS = 2) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const PADDING = 40;
-    const SS = 2;
-
+    if (!canvas) return null;
     const diagramOffset = (canvas as any).viewBoxOffset || { x: 0, y: 0 };
     const { w: dw, h: dh } = diagramSizeRef.current;
-
-    // Tight crop: output canvas = diagram size + padding on each side
     const OUT_W = dw > 0 ? Math.round(dw + PADDING * 2) : 1920;
     const OUT_H = dh > 0 ? Math.round(dh + PADDING * 2) : 1080;
     const SS_W = OUT_W * SS;
     const SS_H = OUT_H * SS;
+    const ssTr = { x: PADDING * SS, y: PADDING * SS, scale: SS };
+    return { OUT_W, OUT_H, SS_W, SS_H, ssTr, diagramOffset };
+  }, [canvasRef, diagramSizeRef]);
 
-    // Place diagram exactly at the padding offset with scale=1
-    const tr   = { x: PADDING, y: PADDING, scale: 1 };
-    const ssTr = { x: tr.x * SS, y: tr.y * SS, scale: tr.scale * SS };
+  // --- Preview render callback — used by ExportModal ---
+  const handlePreviewRender = useCallback((exportBg: ExportBg, dstCanvas: HTMLCanvasElement) => {
+    const frame = buildExportFrame(40, 1);
+    if (!frame) return;
+    const { OUT_W, OUT_H, ssTr, diagramOffset } = frame;
+    dstCanvas.width  = OUT_W;
+    dstCanvas.height = OUT_H;
+    const ctx = dstCanvas.getContext('2d');
+    if (!ctx) return;
+    renderFrame(ctx, OUT_W, OUT_H, ssTr, diagramOffset, false, {
+      nodes, edges, particles, seqLabels,
+      isPremium: true,
+      particleColor, particleSpeed, particleSize, particleShape,
+      isRecording: false,
+      hoveredNodeId: null,
+      exportBg,
+    });
+  }, [buildExportFrame, nodes, edges, particles, seqLabels, particleColor, particleSpeed, particleSize, particleShape]);
+
+  // --- Static export handler ---
+  const handleExport = useCallback((exportBg: ExportBg, format: ExportFormat = 'png') => {
+    // MMD: download raw Mermaid source
+    if (format === 'mmd') {
+      const blob = new Blob([code], { type: 'text/plain' });
+      const link = document.createElement('a');
+      link.download = 'flowmotion.mmd';
+      link.href = URL.createObjectURL(blob);
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setExportModalOpen(false);
+      return;
+    }
+
+    // SVG: grab the Mermaid-rendered SVG from the hidden container
+    if (format === 'svg') {
+      const svgEl = hiddenContainerRef.current?.querySelector('svg');
+      if (!svgEl) return;
+      const serializer = new XMLSerializer();
+      const svgStr = serializer.serializeToString(svgEl);
+      const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+      const link = document.createElement('a');
+      link.download = 'flowmotion.svg';
+      link.href = URL.createObjectURL(blob);
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setExportModalOpen(false);
+      return;
+    }
+
+    // PNG: tight-crop supersampled render
+    const frame = buildExportFrame();
+    if (!frame) return;
+    const { OUT_W, OUT_H, SS_W, SS_H, ssTr, diagramOffset } = frame;
 
     const ssCanvas = document.createElement('canvas');
     ssCanvas.width  = SS_W;
@@ -513,7 +559,7 @@ const CanvasDiagram = () => {
     link.click();
 
     setExportModalOpen(false);
-  }, [nodes, edges, particles, seqLabels, particleColor, particleSpeed, particleSize, particleShape, diagramSizeRef]);
+  }, [buildExportFrame, code, hiddenContainerRef, nodes, edges, particles, seqLabels, particleColor, particleSpeed, particleSize, particleShape]);
 
   // --- Mouse event wrappers (bind hoveredNodeIdRef) ---
   const onMouseMove = useCallback(
@@ -553,8 +599,7 @@ const CanvasDiagram = () => {
         <ExportModal
           onConfirm={handleExport}
           onClose={() => setExportModalOpen(false)}
-          canvasRef={canvasRef}
-          diagramSizeRef={diagramSizeRef}
+          onPreviewRender={handlePreviewRender}
         />
       )}
 

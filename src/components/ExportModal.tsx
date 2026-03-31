@@ -7,102 +7,32 @@ export type ExportFormat = 'png' | 'svg' | 'mmd';
 interface ExportModalProps {
   onConfirm: (bg: ExportBg, format: ExportFormat) => void;
   onClose: () => void;
-  canvasRef: React.RefObject<HTMLCanvasElement | null>;
-  diagramSizeRef: React.MutableRefObject<{ w: number; h: number }>;
+  onPreviewRender: (bg: ExportBg, dstCanvas: HTMLCanvasElement) => void;
 }
 
-const FORMAT_OPTIONS: { value: ExportFormat; label: string; desc: string }[] = [
-  { value: 'png', label: 'PNG', desc: 'High quality raster image' },
-  { value: 'svg', label: 'SVG', desc: 'Scalable vector graphics' },
-  { value: 'mmd', label: 'MMD', desc: 'Mermaid syntax code' },
+const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
+  { value: 'png', label: 'PNG' },
+  { value: 'svg', label: 'SVG' },
+  { value: 'mmd', label: 'MMD' },
 ];
 
 const BG_OPTIONS: { value: ExportBg; label: string; style: React.CSSProperties }[] = [
   { value: 'solid',        label: 'White',       style: { background: '#ffffff', border: '1.5px solid #e2e8f0' } },
-  { value: 'checkerboard', label: 'Dark',         style: { background: '#1e293b' } },
+  { value: 'checkerboard', label: 'Dark',         style: { background: '#f8fafc', backgroundImage: 'linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px)', backgroundSize: '8px 8px' } },
   { value: 'transparent',  label: 'Transparent',  style: { backgroundImage: 'repeating-conic-gradient(#cbd5e1 0% 25%, #ffffff 0% 50%)', backgroundSize: '8px 8px' } },
 ];
 
-const PREVIEW_PADDING = 40;
-
-export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, canvasRef, diagramSizeRef }) => {
+export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, onPreviewRender }) => {
   const [selectedBg, setSelectedBg]         = useState<ExportBg>('solid');
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('png');
   const previewRef = useRef<HTMLCanvasElement>(null);
 
-  // Snapshot on open (once) and re-draw when bg changes — tight-cropped preview
+  // Re-render preview whenever bg changes
   useEffect(() => {
-    const src = canvasRef.current;
     const dst = previewRef.current;
-    if (!src || !dst) return;
-    const ctx = dst.getContext('2d');
-    if (!ctx) return;
-
-    const { w: dw, h: dh } = diagramSizeRef.current;
-    const diagramOffset = (src as any).viewBoxOffset || { x: 0, y: 0 };
-
-    // Compute tight-crop dimensions (diagram + padding)
-    const cropW = dw > 0 ? dw + PREVIEW_PADDING * 2 : src.width;
-    const cropH = dh > 0 ? dh + PREVIEW_PADDING * 2 : src.height;
-
-    // Scale crop to fit the preview canvas display area
-    const MAX_W = 960;
-    const MAX_H = 540;
-    const scale = Math.min(MAX_W / cropW, MAX_H / cropH, 1);
-    const pvW = Math.round(cropW * scale);
-    const pvH = Math.round(cropH * scale);
-    dst.width  = pvW;
-    dst.height = pvH;
-
-    ctx.clearRect(0, 0, pvW, pvH);
-
-    if (selectedBg === 'solid') {
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, pvW, pvH);
-    } else if (selectedBg === 'checkerboard') {
-      ctx.fillStyle = '#1e293b';
-      ctx.fillRect(0, 0, pvW, pvH);
-    } else {
-      const sz = 8;
-      for (let py = 0; py < pvH; py += sz)
-        for (let px = 0; px < pvW; px += sz) {
-          ctx.fillStyle = (Math.floor(px / sz) + Math.floor(py / sz)) % 2 === 0 ? '#cbd5e1' : '#ffffff';
-          ctx.fillRect(px, py, sz, sz);
-        }
-    }
-
-    // Re-render from the live canvas source pixels in the diagram region
-    // src canvas uses viewBoxOffset; the diagram starts at (offset.x, offset.y) in world space.
-    // In canvas pixels: diagram top-left = (transformX, transformY) from applyViewBox.
-    // Simpler: just crop from the live canvas using the same tight-crop region.
-    const dpr = window.devicePixelRatio || 1;
-    // The live canvas has the diagram rendered at the current transform.
-    // Instead, re-draw by extracting the diagram area directly from the source canvas buffer.
-    // Source: the diagram pixels in src are at offset (0,0) in viewBoxOffset space.
-    // We need to find where the diagram sits in src physical pixels.
-    // Since we don't have the transform here, we fall back to drawing the full src scaled.
-    // A better approach: crop the src using the diagram bounding box in screen space.
-    // For preview we use a simplified approach: scale the full src into the preview,
-    // then rely on the actual export for correct tight crop.
-
-    // Find diagram screen bbox from the live canvas transform
-    const tr = (src as any)._lastTransform as { x: number; y: number; scale: number } | undefined;
-    if (tr && dw > 0 && dh > 0) {
-      // Diagram top-left in CSS px on the live canvas
-      const sx = (tr.x + (diagramOffset.x) * tr.scale) * dpr;
-      const sy = (tr.y + (diagramOffset.y) * tr.scale) * dpr;
-      const sw = dw * tr.scale * dpr;
-      const sh = dh * tr.scale * dpr;
-      // Draw only the diagram region from src, with padding
-      const padPx = PREVIEW_PADDING * tr.scale * dpr;
-      ctx.drawImage(src,
-        sx - padPx, sy - padPx, sw + padPx * 2, sh + padPx * 2,
-        0, 0, pvW, pvH
-      );
-    } else {
-      ctx.drawImage(src, 0, 0, pvW, pvH);
-    }
-  }, [selectedBg, canvasRef, diagramSizeRef]);
+    if (!dst) return;
+    onPreviewRender(selectedBg, dst);
+  }, [selectedBg, onPreviewRender]);
 
   return (
     <div
@@ -119,7 +49,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, ca
           <div className="flex flex-col gap-2 p-2 flex-1">
             {/* Format */}
             <div className="flex flex-col gap-0.5">
-              <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">Fmt</p>
+              <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">格式 Format</p>
               {FORMAT_OPTIONS.map(opt => (
                 <button
                   key={opt.value}
@@ -140,7 +70,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, ca
 
             {/* Background */}
             <div className="flex flex-col gap-0.5">
-              <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">Bg</p>
+              <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">背景 Background</p>
               <div className="flex flex-col gap-1">
                 {BG_OPTIONS.map(opt => (
                   <button
@@ -165,7 +95,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, ca
                 className="w-full py-1 rounded bg-slate-800 text-white text-[9px] font-bold flex items-center justify-center gap-0.5 hover:bg-slate-700 transition-colors"
               >
                 <Download size={8} />
-                Go
+                Export
               </button>
               <button
                 onClick={onClose}
@@ -184,15 +114,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, ca
           </div>
           <button
             onClick={onClose}
-            className="absolute top-1.5 right-2 z-10 w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-200 text-slate-400 hover:text-slate-600 transition-colors"
+            className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-white/80 hover:bg-red-50 text-slate-500 hover:text-red-500 shadow-sm border border-gray-200 hover:border-red-200 transition-colors"
           >
-            <X size={13} />
+            <X size={15} strokeWidth={2.5} />
           </button>
           <div className="flex-1 flex items-center justify-center overflow-hidden p-2">
             <canvas
               ref={previewRef}
-              width={960}
-              height={540}
               style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto', display: 'block' }}
             />
           </div>
