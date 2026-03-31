@@ -56,8 +56,6 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
       </button>
     )}
 
-    {/* Desktop open-editor button only — mobile pill is rendered at App level */}
-
     <canvas
       ref={canvasRef}
       onMouseDown={onMouseDown}
@@ -68,7 +66,7 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
       style={{ cursor: 'grab' }}
     />
 
-    {/* Desktop ZoomToolbar — bottom right */}
+    {/* Desktop only — mobile pill toolbar is rendered at App level (fixed) */}
     <div className="hidden lg:block">
       <ZoomToolbar
         scale={transformState.scale}
