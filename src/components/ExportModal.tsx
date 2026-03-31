@@ -7,12 +7,8 @@ export type ExportFormat = 'png' | 'svg' | 'mmd';
 interface ExportModalProps {
   onConfirm: (bg: ExportBg, format: ExportFormat) => void;
   onClose: () => void;
-<<<<<<< HEAD
+
   onPreviewRender: (bg: ExportBg, dstCanvas: HTMLCanvasElement) => void;
-=======
-  canvasRef: React.RefObject<HTMLCanvasElement | null>;
-  diagramSizeRef: React.MutableRefObject<{ w: number; h: number }>;
->>>>>>> d75ee3d ([fix] export resolution and crop size issue)
 }
 
 const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
