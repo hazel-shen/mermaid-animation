@@ -333,26 +333,33 @@ const MobilePillToolbar: React.FC<MobilePillToolbarProps> = ({
   isEditorOpen, scale, isControlBarOpen, onToggleEditor, onFit, onToggleDrawer,
 }) => {
   const pillRef = React.useRef<HTMLDivElement>(null);
-  // pos stored purely in ref — no state, no re-render during drag
-  const posRef = React.useRef({ x: window.innerWidth - 220, y: 80 });
+  const posRef = React.useRef({ x: -1, y: 80 }); // x=-1 means "not yet placed"
   const dragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const didDragRef = React.useRef(false);
+  const wasDragRef = React.useRef(false);
 
   const applyPos = React.useCallback((x: number, y: number) => {
     posRef.current = { x, y };
     if (pillRef.current) {
-      pillRef.current.style.left = `${x}px`;
-      pillRef.current.style.top  = `${y}px`;
+      pillRef.current.style.right = '';
+      pillRef.current.style.left  = `${x}px`;
+      pillRef.current.style.top   = `${y}px`;
     }
   }, []);
 
-  React.useEffect(() => {
-    applyPos(posRef.current.x, posRef.current.y);
+  // Use layout effect so position is applied before first paint
+  React.useLayoutEffect(() => {
+    const el = pillRef.current;
+    if (!el) return;
+    const w = el.offsetWidth || 200;
+    const initialX = Math.max(4, window.innerWidth - w - 12);
+    applyPos(initialX, 80);
   }, [applyPos]);
 
   const onDragStart = React.useCallback((e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest('button')) return;
     didDragRef.current = false;
+    wasDragRef.current = false;
     dragRef.current = {
       startX: e.clientX, startY: e.clientY,
       origX: posRef.current.x, origY: posRef.current.y,
@@ -373,7 +380,9 @@ const MobilePillToolbar: React.FC<MobilePillToolbarProps> = ({
   }, [applyPos]);
 
   const onDragEnd = React.useCallback(() => {
+    wasDragRef.current = didDragRef.current;
     dragRef.current = null;
+    didDragRef.current = false;
     if (pillRef.current) pillRef.current.style.cursor = 'grab';
   }, []);
 
@@ -381,14 +390,14 @@ const MobilePillToolbar: React.FC<MobilePillToolbarProps> = ({
     <div
       ref={pillRef}
       className="lg:hidden fixed z-40 flex items-center bg-white/90 backdrop-blur border border-gray-200 rounded-full shadow-md select-none text-[10px]"
-      style={{ left: posRef.current.x, top: posRef.current.y, cursor: 'grab' }}
+      style={{ right: 12, top: 80, cursor: 'grab' }}
       onPointerDown={onDragStart}
       onPointerMove={onDragMove}
       onPointerUp={onDragEnd}
       onPointerCancel={onDragEnd}
     >
       <button
-        onClick={() => !didDragRef.current && onToggleEditor()}
+        onClick={() => { if (!wasDragRef.current) onToggleEditor(); }}
         className="flex items-center gap-0.5 pl-2 pr-1.5 py-1 text-slate-600 active:bg-gray-100 rounded-l-full transition-colors"
       >
         <Code size={10} />
@@ -401,7 +410,7 @@ const MobilePillToolbar: React.FC<MobilePillToolbarProps> = ({
       <div className="w-px h-3 bg-gray-200 flex-shrink-0" />
       <button
         onPointerDown={e => e.stopPropagation()}
-        onClick={() => !didDragRef.current && onFit()}
+        onClick={() => { if (!wasDragRef.current) onFit(); }}
         className="w-6 h-6 flex items-center justify-center text-slate-500 active:bg-gray-100 transition-colors"
         title="符合畫面"
       >
@@ -410,7 +419,7 @@ const MobilePillToolbar: React.FC<MobilePillToolbarProps> = ({
       <div className="w-px h-3 bg-gray-200 flex-shrink-0" />
       <button
         onPointerDown={e => e.stopPropagation()}
-        onClick={() => !didDragRef.current && onToggleDrawer()}
+        onClick={() => { if (!wasDragRef.current) onToggleDrawer(); }}
         className="w-7 h-7 rounded-full flex items-center justify-center transition-all active:scale-90 flex-shrink-0 m-0.5"
         style={{ background: isControlBarOpen ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : 'linear-gradient(135deg,#3b82f6,#6366f1)' }}
         aria-label={isControlBarOpen ? '隱藏控制列' : '顯示控制列'}
@@ -731,7 +740,6 @@ const CanvasDiagram = () => {
         particleSize={particleSize}
         particleShape={particleShape}
         onClose={() => setIsControlBarOpen(false)}
-        onToggle={() => setIsControlBarOpen(v => !v)}
         onExport={() => setExportModalOpen(true)}
         onRefresh={renderMermaidToData}
         onDownload={handleDownload}

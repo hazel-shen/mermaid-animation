@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Video, RefreshCw, SlidersHorizontal, X, Gauge, Palette, Maximize2, Shapes } from 'lucide-react';
+import { Video, RefreshCw, Gauge, Palette, Maximize2, Shapes } from 'lucide-react';
 import type { DownloadFormat } from '../hooks/useMediaRecorder';
 import type { ParticleShape } from '../utils/canvasRenderer';
 
@@ -22,7 +22,6 @@ interface MobileDrawerProps {
   particleSize: number;
   particleShape: ParticleShape;
   onClose: () => void;
-  onToggle: () => void;
   onExport: () => void;
   onRefresh: () => void;
   onDownload: (format: DownloadFormat) => void;
@@ -32,23 +31,6 @@ interface MobileDrawerProps {
   onParticleShapeChange: (value: ParticleShape) => void;
 }
 
-export const MobileDrawerFAB: React.FC<Pick<MobileDrawerProps, 'isOpen' | 'onToggle'>> = ({ isOpen, onToggle }) => (
-  <button
-    onClick={onToggle}
-    className="w-7 h-7 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 flex-shrink-0 m-0.5"
-    style={{
-      background: isOpen
-        ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
-        : 'linear-gradient(135deg, #3b82f6, #6366f1)',
-    }}
-    aria-label={isOpen ? '隱藏控制列' : '顯示控制列'}
-  >
-    {isOpen
-      ? <X size={14} className="text-white" />
-      : <SlidersHorizontal size={14} className="text-white" />
-    }
-  </button>
-);
 
 export const MobileDrawer: React.FC<MobileDrawerProps> = ({
   isOpen,
@@ -59,7 +41,6 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
   particleSize,
   particleShape,
   onClose,
-  onToggle,
   onExport,
   onRefresh,
   onDownload,
