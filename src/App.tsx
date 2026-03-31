@@ -4,6 +4,7 @@ import { AppHeader } from './components/AppHeader';
 import { EditorSidebar } from './components/EditorSidebar';
 import { CanvasView } from './components/CanvasView';
 import { MobileDrawer } from './components/MobileDrawer';
+import { Maximize2, Code, X, SlidersHorizontal } from 'lucide-react';
 import { ExportModal, type ExportFormat } from './components/ExportModal';
 
 import { useMermaidParser } from './hooks/useMermaidParser';
@@ -318,6 +319,111 @@ UK land based bioenergy,Bio-conversion,182.01
 Wave,Electricity grid,19.013
 Wind,Electricity grid,289.366`;
 
+// --- Mobile draggable pill toolbar ---
+interface MobilePillToolbarProps {
+  isEditorOpen: boolean;
+  scale: number;
+  isControlBarOpen: boolean;
+  onToggleEditor: () => void;
+  onFit: () => void;
+  onToggleDrawer: () => void;
+}
+
+const MobilePillToolbar: React.FC<MobilePillToolbarProps> = ({
+  isEditorOpen, scale, isControlBarOpen, onToggleEditor, onFit, onToggleDrawer,
+}) => {
+  const pillRef = React.useRef<HTMLDivElement>(null);
+  // pos stored purely in ref — no state, no re-render during drag
+  const posRef = React.useRef({ x: window.innerWidth - 220, y: 80 });
+  const dragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const didDragRef = React.useRef(false);
+
+  const applyPos = React.useCallback((x: number, y: number) => {
+    posRef.current = { x, y };
+    if (pillRef.current) {
+      pillRef.current.style.left = `${x}px`;
+      pillRef.current.style.top  = `${y}px`;
+    }
+  }, []);
+
+  React.useEffect(() => {
+    applyPos(posRef.current.x, posRef.current.y);
+  }, [applyPos]);
+
+  const onDragStart = React.useCallback((e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return;
+    didDragRef.current = false;
+    dragRef.current = {
+      startX: e.clientX, startY: e.clientY,
+      origX: posRef.current.x, origY: posRef.current.y,
+    };
+    pillRef.current?.setPointerCapture(e.pointerId);
+    if (pillRef.current) pillRef.current.style.cursor = 'grabbing';
+  }, []);
+
+  const onDragMove = React.useCallback((e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    if (Math.hypot(dx, dy) > 3) didDragRef.current = true;
+    if (!didDragRef.current) return;
+    const x = Math.max(4, Math.min(window.innerWidth  - 210, dragRef.current.origX + dx));
+    const y = Math.max(60, Math.min(window.innerHeight -  40, dragRef.current.origY + dy));
+    applyPos(x, y);
+  }, [applyPos]);
+
+  const onDragEnd = React.useCallback(() => {
+    dragRef.current = null;
+    if (pillRef.current) pillRef.current.style.cursor = 'grab';
+  }, []);
+
+  return (
+    <div
+      ref={pillRef}
+      className="lg:hidden fixed z-40 flex items-center bg-white/90 backdrop-blur border border-gray-200 rounded-full shadow-md select-none text-[10px]"
+      style={{ left: posRef.current.x, top: posRef.current.y, cursor: 'grab' }}
+      onPointerDown={onDragStart}
+      onPointerMove={onDragMove}
+      onPointerUp={onDragEnd}
+      onPointerCancel={onDragEnd}
+    >
+      <button
+        onClick={() => !didDragRef.current && onToggleEditor()}
+        className="flex items-center gap-0.5 pl-2 pr-1.5 py-1 text-slate-600 active:bg-gray-100 rounded-l-full transition-colors"
+      >
+        <Code size={10} />
+        <span>{isEditorOpen ? '關閉' : '編輯'}</span>
+      </button>
+      <div className="w-px h-3 bg-gray-200 flex-shrink-0" />
+      <span className="font-mono text-slate-400 px-1.5 tabular-nums">
+        {Math.round(scale * 100)}%
+      </span>
+      <div className="w-px h-3 bg-gray-200 flex-shrink-0" />
+      <button
+        onPointerDown={e => e.stopPropagation()}
+        onClick={() => !didDragRef.current && onFit()}
+        className="w-6 h-6 flex items-center justify-center text-slate-500 active:bg-gray-100 transition-colors"
+        title="符合畫面"
+      >
+        <Maximize2 size={10} />
+      </button>
+      <div className="w-px h-3 bg-gray-200 flex-shrink-0" />
+      <button
+        onPointerDown={e => e.stopPropagation()}
+        onClick={() => !didDragRef.current && onToggleDrawer()}
+        className="w-7 h-7 rounded-full flex items-center justify-center transition-all active:scale-90 flex-shrink-0 m-0.5"
+        style={{ background: isControlBarOpen ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : 'linear-gradient(135deg,#3b82f6,#6366f1)' }}
+        aria-label={isControlBarOpen ? '隱藏控制列' : '顯示控制列'}
+      >
+        {isControlBarOpen
+          ? <X size={11} className="text-white" />
+          : <SlidersHorizontal size={11} className="text-white" />
+        }
+      </button>
+    </div>
+  );
+};
+
 // --- 主元件 ---
 const CanvasDiagram = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -391,6 +497,9 @@ const CanvasDiagram = () => {
     handleMouseUp,
     handleMouseLeave,
     handleWheel,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
     applyViewBox,
   } = useCanvasTransform(canvasRef);
 
@@ -407,13 +516,21 @@ const CanvasDiagram = () => {
     }
   }, [viewBox, applyViewBox]);
 
-  // Bind wheel event (needs passive:false to preventDefault)
+  // Bind wheel + touch events (needs passive:false to preventDefault)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     canvas.addEventListener('wheel', handleWheel, { passive: false });
-    return () => canvas.removeEventListener('wheel', handleWheel);
-  }, [handleWheel, nodes]);
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd);
+    return () => {
+      canvas.removeEventListener('wheel', handleWheel);
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [handleWheel, handleTouchStart, handleTouchMove, handleTouchEnd, nodes]);
 
   // --- Animation loop ---
   useEffect(() => {
@@ -657,6 +774,15 @@ const CanvasDiagram = () => {
           onReset={fitToScreen}
         />
       </div>
+
+      <MobilePillToolbar
+        isEditorOpen={isEditorOpen}
+        scale={transformState.scale}
+        isControlBarOpen={isControlBarOpen}
+        onToggleEditor={() => setIsEditorOpen(v => !v)}
+        onFit={fitToScreen}
+        onToggleDrawer={() => setIsControlBarOpen(v => !v)}
+      />
     </div>
   );
 };
