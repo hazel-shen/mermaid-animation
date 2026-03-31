@@ -44,10 +44,13 @@ export const useCanvasTransform = (
     canvasContainerRef: React.RefObject<HTMLDivElement>
   ) => {
     if (!canvasRef.current || !canvasContainerRef.current) return;
+    const dpr = window.devicePixelRatio || 1;
     const containerW = canvasContainerRef.current.clientWidth;
     const containerH = canvasContainerRef.current.clientHeight;
-    canvasRef.current.width = containerW;
-    canvasRef.current.height = containerH;
+    canvasRef.current.width  = Math.round(containerW * dpr);
+    canvasRef.current.height = Math.round(containerH * dpr);
+    canvasRef.current.style.width  = `${containerW}px`;
+    canvasRef.current.style.height = `${containerH}px`;
     (canvasRef.current as any).viewBoxOffset = { x: -viewBox.x, y: -viewBox.y };
 
     const dw = viewBox.width;
@@ -69,12 +72,15 @@ export const useCanvasTransform = (
     if (!canvas) return;
     const { w: dw, h: dh } = diagramSizeRef.current;
     if (!dw || !dh) return;
+    const dpr = window.devicePixelRatio || 1;
+    const cw = canvas.width / dpr;
+    const ch = canvas.height / dpr;
     const padding = 48;
-    const scaleX = (canvas.width - padding) / dw;
-    const scaleY = (canvas.height - padding) / dh;
+    const scaleX = (cw - padding) / dw;
+    const scaleY = (ch - padding) / dh;
     const fitScale = Math.min(scaleX, scaleY, 2);
-    const fitX = (canvas.width - dw * fitScale) / 2;
-    const fitY = (canvas.height - dh * fitScale) / 2;
+    const fitX = (cw - dw * fitScale) / 2;
+    const fitY = (ch - dh * fitScale) / 2;
     transformRef.current = { x: fitX, y: fitY, scale: fitScale };
     setTransformState({ x: fitX, y: fitY, scale: fitScale });
   }, [canvasRef]);
@@ -82,9 +88,10 @@ export const useCanvasTransform = (
   const handleZoomIn = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
     const tr = transformRef.current;
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
+    const cx = canvas.width / dpr / 2;
+    const cy = canvas.height / dpr / 2;
     const newScale = Math.min(tr.scale * 1.25, 8);
     const newX = cx - (cx - tr.x) * (newScale / tr.scale);
     const newY = cy - (cy - tr.y) * (newScale / tr.scale);
@@ -95,9 +102,10 @@ export const useCanvasTransform = (
   const handleZoomOut = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
     const tr = transformRef.current;
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
+    const cx = canvas.width / dpr / 2;
+    const cy = canvas.height / dpr / 2;
     const newScale = Math.max(tr.scale * 0.8, 0.1);
     const newX = cx - (cx - tr.x) * (newScale / tr.scale);
     const newY = cy - (cy - tr.y) * (newScale / tr.scale);
@@ -227,12 +235,17 @@ export const useCanvasResize = (
     if (!container || !canvas) return;
 
     const resizeCanvas = () => {
+      const dpr = window.devicePixelRatio || 1;
       const w = container.clientWidth;
       const h = container.clientHeight;
       if (w === 0 || h === 0) return;
-      if (canvas.width !== w || canvas.height !== h) {
-        canvas.width = w;
-        canvas.height = h;
+      const bw = Math.round(w * dpr);
+      const bh = Math.round(h * dpr);
+      if (canvas.width !== bw || canvas.height !== bh) {
+        canvas.width = bw;
+        canvas.height = bh;
+        canvas.style.width  = `${w}px`;
+        canvas.style.height = `${h}px`;
       }
     };
 

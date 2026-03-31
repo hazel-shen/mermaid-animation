@@ -425,13 +425,16 @@ const CanvasDiagram = () => {
     let rafId: number;
 
     const render = () => {
-      const w = canvas.width;
-      const h = canvas.height;
+      const dpr = window.devicePixelRatio || 1;
+      // canvas.width/height are physical pixels; pass CSS-pixel dimensions to renderFrame
+      const w = canvas.width / dpr;
+      const h = canvas.height / dpr;
       const offset = (canvas as any).viewBoxOffset || { x: 0, y: 0 };
       const tr = transformRef.current;
 
       particles.forEach(p => p.update(particleSpeed));
 
+      (canvas as any)._lastTransform = tr;
       renderFrame(ctx, w, h, tr, offset, isRecording, {
         nodes,
         edges,
@@ -444,7 +447,7 @@ const CanvasDiagram = () => {
         particleShape,
         isRecording,
         hoveredNodeId: hoveredNodeIdRef.current,
-      });
+      }, dpr);
 
       rafId = requestAnimationFrame(render);
     };
@@ -469,23 +472,27 @@ const CanvasDiagram = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const OUT_W = 1920;
-    const OUT_H = 1080;
-    const PADDING = 80;
+    const PADDING = 40;
+    const SS = 2;
 
     const diagramOffset = (canvas as any).viewBoxOffset || { x: 0, y: 0 };
     const { w: dw, h: dh } = diagramSizeRef.current;
-    const scale = dw > 0 && dh > 0
-      ? Math.min((OUT_W - PADDING) / dw, (OUT_H - PADDING) / dh)
-      : 1;
-    const tr = { x: (OUT_W - dw * scale) / 2, y: (OUT_H - dh * scale) / 2, scale };
 
-    const outCanvas = document.createElement('canvas');
-    outCanvas.width = OUT_W;
-    outCanvas.height = OUT_H;
-    const outCtx = outCanvas.getContext('2d')!;
+    // Tight crop: output canvas = diagram size + padding on each side
+    const OUT_W = dw > 0 ? Math.round(dw + PADDING * 2) : 1920;
+    const OUT_H = dh > 0 ? Math.round(dh + PADDING * 2) : 1080;
+    const SS_W = OUT_W * SS;
+    const SS_H = OUT_H * SS;
 
-    renderFrame(outCtx, OUT_W, OUT_H, tr, diagramOffset, false, {
+    // Place diagram exactly at the padding offset with scale=1
+    const tr   = { x: PADDING, y: PADDING, scale: 1 };
+    const ssTr = { x: tr.x * SS, y: tr.y * SS, scale: tr.scale * SS };
+
+    const ssCanvas = document.createElement('canvas');
+    ssCanvas.width  = SS_W;
+    ssCanvas.height = SS_H;
+    const ssCtx = ssCanvas.getContext('2d')!;
+    renderFrame(ssCtx, SS_W, SS_H, ssTr, diagramOffset, false, {
       nodes, edges, particles, seqLabels,
       isPremium: true,
       particleColor, particleSpeed, particleSize, particleShape,
@@ -493,6 +500,12 @@ const CanvasDiagram = () => {
       hoveredNodeId: null,
       exportBg,
     });
+
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width  = OUT_W;
+    outCanvas.height = OUT_H;
+    const outCtx = outCanvas.getContext('2d')!;
+    outCtx.drawImage(ssCanvas, 0, 0, OUT_W, OUT_H);
 
     const link = document.createElement('a');
     link.download = 'flowmotion.png';
@@ -541,6 +554,7 @@ const CanvasDiagram = () => {
           onConfirm={handleExport}
           onClose={() => setExportModalOpen(false)}
           canvasRef={canvasRef}
+          diagramSizeRef={diagramSizeRef}
         />
       )}
 

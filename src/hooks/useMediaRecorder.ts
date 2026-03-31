@@ -17,23 +17,18 @@ interface UseMediaRecorderReturn {
 
 const DURATION_MS = 4000;
 
-function getDiagramTransform(
-  canvasRef: React.RefObject<HTMLCanvasElement | null>,
-  diagramSizeRef: React.MutableRefObject<{ w: number; h: number }>,
-  outW: number,
-  outH: number,
-  padding: number
-) {
-  const diagramOffset = (canvasRef.current as any).viewBoxOffset || { x: 0, y: 0 };
+const CROP_PADDING = 40;
+
+function getTightCropDimensions(diagramSizeRef: React.MutableRefObject<{ w: number; h: number }>) {
   const { w: dw, h: dh } = diagramSizeRef.current;
-  const scale = dw > 0 && dh > 0
-    ? Math.min((outW - padding) / dw, (outH - padding) / dh)
-    : 1;
-  const tr = {
-    x: (outW - dw * scale) / 2,
-    y: (outH - dh * scale) / 2,
-    scale,
-  };
+  const outW = dw > 0 ? Math.round(dw + CROP_PADDING * 2) : 1280;
+  const outH = dh > 0 ? Math.round(dh + CROP_PADDING * 2) : 720;
+  return { outW, outH };
+}
+
+function getDiagramTransform(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
+  const diagramOffset = (canvasRef.current as any).viewBoxOffset || { x: 0, y: 0 };
+  const tr = { x: CROP_PADDING, y: CROP_PADDING, scale: 1 };
   return { tr, offset: { x: diagramOffset.x, y: diagramOffset.y } };
 }
 
@@ -54,18 +49,28 @@ export const useMediaRecorder = (): UseMediaRecorderReturn => {
       // Main thread renders frames with willReadFrequently canvas → getImageData →
       // transfers the ArrayBuffer to gif.worker.ts (gifenc) → worker posts back
       // the finished GIF buffer (also transferred, zero-copy).
-      const GIF_W = 960;
-      const GIF_H = 540;
+      const { outW: GIF_W, outH: GIF_H } = getTightCropDimensions(diagramSizeRef);
+      const GIF_SS = 2; // supersampling factor
+      const GIF_SS_W = Math.round(GIF_W * GIF_SS);
+      const GIF_SS_H = Math.round(GIF_H * GIF_SS);
       const GIF_FPS = 15;
       const totalFrames = Math.round((DURATION_MS / 1000) * GIF_FPS);
 
+      // Supersample canvas — render at higher resolution
+      const ssGifCanvas = document.createElement('canvas');
+      ssGifCanvas.width = GIF_SS_W;
+      ssGifCanvas.height = GIF_SS_H;
+      const ssGifCtx = ssGifCanvas.getContext('2d')!;
+
+      // Output canvas — downscale to final GIF resolution
       const gifCanvas = document.createElement('canvas');
       gifCanvas.width = GIF_W;
       gifCanvas.height = GIF_H;
       // willReadFrequently keeps getImageData on the CPU path — avoids GPU readback stall
       const gifCtx = gifCanvas.getContext('2d', { willReadFrequently: true })!;
 
-      const { tr: gifTr, offset: gifOffset } = getDiagramTransform(canvasRef, diagramSizeRef, GIF_W, GIF_H, 48);
+      const { tr: gifTr, offset: gifOffset } = getDiagramTransform(canvasRef);
+      const ssGifTr = { x: gifTr.x * GIF_SS, y: gifTr.y * GIF_SS, scale: gifTr.scale * GIF_SS };
 
       const worker = new GifWorker();
       worker.postMessage({ type: 'init', width: GIF_W, height: GIF_H, fps: GIF_FPS });
@@ -97,7 +102,11 @@ export const useMediaRecorder = (): UseMediaRecorderReturn => {
         }
 
         gifOpts.particles.forEach(p => p.update(TICK_MULTIPLIER));
-        renderFrame(gifCtx, GIF_W, GIF_H, gifTr, gifOffset, true, gifOpts);
+
+        // Render at supersampled resolution, then downscale into gifCanvas for sharper output
+        renderFrame(ssGifCtx, GIF_SS_W, GIF_SS_H, ssGifTr, gifOffset, true, gifOpts);
+        gifCtx.clearRect(0, 0, GIF_W, GIF_H);
+        gifCtx.drawImage(ssGifCanvas, 0, 0, GIF_W, GIF_H);
 
         // Transfer the pixel buffer — the ArrayBuffer moves to the Worker (zero-copy).
         // getImageData always returns a fresh buffer so this is safe to transfer.
@@ -111,9 +120,8 @@ export const useMediaRecorder = (): UseMediaRecorderReturn => {
 
       captureNextFrame();
     } else {
-      // MP4/WebM: supersampled 1280×720 via MediaRecorder
-      const HD_W = 1280;
-      const HD_H = 720;
+      // MP4/WebM: supersampled via MediaRecorder, tight-cropped to diagram size
+      const { outW: HD_W, outH: HD_H } = getTightCropDimensions(diagramSizeRef);
       const SS = 2;
       const SS_W = HD_W * SS;
       const SS_H = HD_H * SS;
@@ -128,7 +136,7 @@ export const useMediaRecorder = (): UseMediaRecorderReturn => {
       outCanvas.height = HD_H;
       const outCtx = outCanvas.getContext('2d')!;
 
-      const { tr: ssTr, offset: ssOffset } = getDiagramTransform(canvasRef, diagramSizeRef, HD_W, HD_H, 48);
+      const { tr: ssTr, offset: ssOffset } = getDiagramTransform(canvasRef);
       const scaledSsTr = { x: ssTr.x * SS, y: ssTr.y * SS, scale: ssTr.scale * SS };
 
       let rafId: number;

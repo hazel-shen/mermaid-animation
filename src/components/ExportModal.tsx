@@ -8,6 +8,7 @@ interface ExportModalProps {
   onConfirm: (bg: ExportBg, format: ExportFormat) => void;
   onClose: () => void;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  diagramSizeRef: React.MutableRefObject<{ w: number; h: number }>;
 }
 
 const FORMAT_OPTIONS: { value: ExportFormat; label: string; desc: string }[] = [
@@ -22,12 +23,14 @@ const BG_OPTIONS: { value: ExportBg; label: string; style: React.CSSProperties }
   { value: 'transparent',  label: 'Transparent',  style: { backgroundImage: 'repeating-conic-gradient(#cbd5e1 0% 25%, #ffffff 0% 50%)', backgroundSize: '8px 8px' } },
 ];
 
-export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, canvasRef }) => {
+const PREVIEW_PADDING = 40;
+
+export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, canvasRef, diagramSizeRef }) => {
   const [selectedBg, setSelectedBg]         = useState<ExportBg>('solid');
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('png');
   const previewRef = useRef<HTMLCanvasElement>(null);
 
-  // Snapshot on open (once) and re-draw when bg changes
+  // Snapshot on open (once) and re-draw when bg changes — tight-cropped preview
   useEffect(() => {
     const src = canvasRef.current;
     const dst = previewRef.current;
@@ -35,26 +38,71 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, ca
     const ctx = dst.getContext('2d');
     if (!ctx) return;
 
-    const W = dst.width;
-    const H = dst.height;
-    ctx.clearRect(0, 0, W, H);
+    const { w: dw, h: dh } = diagramSizeRef.current;
+    const diagramOffset = (src as any).viewBoxOffset || { x: 0, y: 0 };
+
+    // Compute tight-crop dimensions (diagram + padding)
+    const cropW = dw > 0 ? dw + PREVIEW_PADDING * 2 : src.width;
+    const cropH = dh > 0 ? dh + PREVIEW_PADDING * 2 : src.height;
+
+    // Scale crop to fit the preview canvas display area
+    const MAX_W = 960;
+    const MAX_H = 540;
+    const scale = Math.min(MAX_W / cropW, MAX_H / cropH, 1);
+    const pvW = Math.round(cropW * scale);
+    const pvH = Math.round(cropH * scale);
+    dst.width  = pvW;
+    dst.height = pvH;
+
+    ctx.clearRect(0, 0, pvW, pvH);
 
     if (selectedBg === 'solid') {
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, W, H);
+      ctx.fillRect(0, 0, pvW, pvH);
     } else if (selectedBg === 'checkerboard') {
       ctx.fillStyle = '#1e293b';
-      ctx.fillRect(0, 0, W, H);
+      ctx.fillRect(0, 0, pvW, pvH);
     } else {
       const sz = 8;
-      for (let y = 0; y < H; y += sz)
-        for (let x = 0; x < W; x += sz) {
-          ctx.fillStyle = (Math.floor(x / sz) + Math.floor(y / sz)) % 2 === 0 ? '#cbd5e1' : '#ffffff';
-          ctx.fillRect(x, y, sz, sz);
+      for (let py = 0; py < pvH; py += sz)
+        for (let px = 0; px < pvW; px += sz) {
+          ctx.fillStyle = (Math.floor(px / sz) + Math.floor(py / sz)) % 2 === 0 ? '#cbd5e1' : '#ffffff';
+          ctx.fillRect(px, py, sz, sz);
         }
     }
-    ctx.drawImage(src, 0, 0, W, H);
-  }, [selectedBg, canvasRef]);
+
+    // Re-render from the live canvas source pixels in the diagram region
+    // src canvas uses viewBoxOffset; the diagram starts at (offset.x, offset.y) in world space.
+    // In canvas pixels: diagram top-left = (transformX, transformY) from applyViewBox.
+    // Simpler: just crop from the live canvas using the same tight-crop region.
+    const dpr = window.devicePixelRatio || 1;
+    // The live canvas has the diagram rendered at the current transform.
+    // Instead, re-draw by extracting the diagram area directly from the source canvas buffer.
+    // Source: the diagram pixels in src are at offset (0,0) in viewBoxOffset space.
+    // We need to find where the diagram sits in src physical pixels.
+    // Since we don't have the transform here, we fall back to drawing the full src scaled.
+    // A better approach: crop the src using the diagram bounding box in screen space.
+    // For preview we use a simplified approach: scale the full src into the preview,
+    // then rely on the actual export for correct tight crop.
+
+    // Find diagram screen bbox from the live canvas transform
+    const tr = (src as any)._lastTransform as { x: number; y: number; scale: number } | undefined;
+    if (tr && dw > 0 && dh > 0) {
+      // Diagram top-left in CSS px on the live canvas
+      const sx = (tr.x + (diagramOffset.x) * tr.scale) * dpr;
+      const sy = (tr.y + (diagramOffset.y) * tr.scale) * dpr;
+      const sw = dw * tr.scale * dpr;
+      const sh = dh * tr.scale * dpr;
+      // Draw only the diagram region from src, with padding
+      const padPx = PREVIEW_PADDING * tr.scale * dpr;
+      ctx.drawImage(src,
+        sx - padPx, sy - padPx, sw + padPx * 2, sh + padPx * 2,
+        0, 0, pvW, pvH
+      );
+    } else {
+      ctx.drawImage(src, 0, 0, pvW, pvH);
+    }
+  }, [selectedBg, canvasRef, diagramSizeRef]);
 
   return (
     <div
