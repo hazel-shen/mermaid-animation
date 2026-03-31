@@ -731,7 +731,6 @@ const CanvasDiagram = () => {
         particleSize={particleSize}
         particleShape={particleShape}
         onClose={() => setIsControlBarOpen(false)}
-        onToggle={() => setIsControlBarOpen(v => !v)}
         onExport={() => setExportModalOpen(true)}
         onRefresh={renderMermaidToData}
         onDownload={handleDownload}
