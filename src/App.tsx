@@ -453,8 +453,10 @@ const CanvasDiagram = () => {
 
     render();
     return () => cancelAnimationFrame(rafId);
+  // transformRef.current is read inside the loop directly — transformState intentionally omitted
+  // to prevent the rAF loop from restarting on every pan/zoom event.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, particles, seqLabels, isRecording, particleColor, particleSpeed, particleSize, particleShape, transformState]);
+  }, [nodes, edges, particles, seqLabels, isRecording, particleColor, particleSpeed, particleSize, particleShape]);
 
   // --- Download handler ---
   const handleDownload = useCallback((format: import('./hooks/useMediaRecorder').DownloadFormat) => {
