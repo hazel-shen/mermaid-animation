@@ -71,7 +71,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
         className={`md:hidden fixed bottom-0 left-0 right-0 z-20 bg-white rounded-t-xl shadow-2xl border-t border-gray-200 transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-y-0' : 'translate-y-full'
         }`}
-        style={{ maxHeight: '70vh' }}
+        style={{ maxHeight: 'min(80vh, calc(100dvh - 100px))' }}
       >
         {/* Drag handle */}
         <div className="flex justify-center pt-2 pb-1 flex-shrink-0">
@@ -79,7 +79,13 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
         </div>
 
         {/* Scrollable content */}
-        <div className="overflow-y-auto px-3 pt-1 pb-6 flex flex-col gap-2.5" style={{ maxHeight: 'calc(70vh - 24px)' }}>
+        <div
+          className="overflow-y-auto overscroll-contain px-3 pt-1 flex flex-col gap-2.5"
+          style={{
+            maxHeight: 'min(calc(80vh - 24px), calc(100dvh - 124px))',
+            paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 1.5rem))',
+          }}
+        >
 
           {/* Particle settings — 2-col grid */}
           <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">粒子設定</p>

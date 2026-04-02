@@ -333,17 +333,24 @@ const MobilePillToolbar: React.FC<MobilePillToolbarProps> = ({
   isEditorOpen, scale, isControlBarOpen, onToggleEditor, onFit, onToggleDrawer,
 }) => {
   const pillRef = React.useRef<HTMLDivElement>(null);
-  const posRef = React.useRef({ x: -1, y: 80 }); // x=-1 means "not yet placed"
+  const posRef = React.useRef({ x: -1, y: -1 }); // x=-1/y=-1 means "not yet placed"
   const dragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const didDragRef = React.useRef(false);
   const wasDragRef = React.useRef(false);
 
+  // Cache viewport size to avoid layout reads inside pointermove
+  const vpRef = React.useRef({ w: window.innerWidth, h: window.innerHeight });
+  React.useEffect(() => {
+    const onResize = () => { vpRef.current = { w: window.innerWidth, h: window.innerHeight }; };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   const applyPos = React.useCallback((x: number, y: number) => {
     posRef.current = { x, y };
     if (pillRef.current) {
-      pillRef.current.style.right = '';
-      pillRef.current.style.left  = `${x}px`;
-      pillRef.current.style.top   = `${y}px`;
+      // transform instead of left/top — runs on compositor thread, no layout
+      pillRef.current.style.transform = `translate(${x}px, ${y}px)`;
     }
   }, []);
 
@@ -352,81 +359,99 @@ const MobilePillToolbar: React.FC<MobilePillToolbarProps> = ({
     const el = pillRef.current;
     if (!el) return;
     const w = el.offsetWidth || 200;
-    const initialX = Math.max(4, window.innerWidth - w - 12);
-    applyPos(initialX, 80);
+    const h = el.offsetHeight || 32;
+    const initialX = Math.max(4, vpRef.current.w - w - 12);
+    const initialY = vpRef.current.h - h - 24;
+    applyPos(initialX, initialY);
   }, [applyPos]);
 
-  const onDragStart = React.useCallback((e: React.PointerEvent) => {
-    if ((e.target as HTMLElement).closest('button')) return;
-    didDragRef.current = false;
-    wasDragRef.current = false;
-    dragRef.current = {
-      startX: e.clientX, startY: e.clientY,
-      origX: posRef.current.x, origY: posRef.current.y,
+  // Native pointer event handlers — attached directly to DOM to avoid React batching
+  React.useEffect(() => {
+    const el = pillRef.current;
+    if (!el) return;
+
+    const onDown = (e: PointerEvent) => {
+      didDragRef.current = false;
+      wasDragRef.current = false;
+      dragRef.current = {
+        startX: e.clientX, startY: e.clientY,
+        origX: posRef.current.x, origY: posRef.current.y,
+      };
+      el.setPointerCapture(e.pointerId);
+      el.style.cursor = 'grabbing';
     };
-    pillRef.current?.setPointerCapture(e.pointerId);
-    if (pillRef.current) pillRef.current.style.cursor = 'grabbing';
-  }, []);
 
-  const onDragMove = React.useCallback((e: React.PointerEvent) => {
-    if (!dragRef.current) return;
-    const dx = e.clientX - dragRef.current.startX;
-    const dy = e.clientY - dragRef.current.startY;
-    if (Math.hypot(dx, dy) > 3) didDragRef.current = true;
-    if (!didDragRef.current) return;
-    const x = Math.max(4, Math.min(window.innerWidth  - 210, dragRef.current.origX + dx));
-    const y = Math.max(60, Math.min(window.innerHeight -  40, dragRef.current.origY + dy));
-    applyPos(x, y);
+    const onMove = (e: PointerEvent) => {
+      if (!dragRef.current) return;
+      const dx = e.clientX - dragRef.current.startX;
+      const dy = e.clientY - dragRef.current.startY;
+      if (Math.hypot(dx, dy) > 4) didDragRef.current = true;
+      if (!didDragRef.current) return;
+      const { w, h } = vpRef.current;
+      const x = Math.max(4, Math.min(w - 210, dragRef.current.origX + dx));
+      const y = Math.max(60, Math.min(h - 40, dragRef.current.origY + dy));
+      applyPos(x, y);
+    };
+
+    const onUp = () => {
+      if (!dragRef.current) return;
+      wasDragRef.current = didDragRef.current;
+      dragRef.current = null;
+      didDragRef.current = false;
+      el.style.cursor = 'grab';
+    };
+
+    el.addEventListener('pointerdown', onDown);
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
+    return () => {
+      el.removeEventListener('pointerdown', onDown);
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onUp);
+      el.removeEventListener('pointercancel', onUp);
+    };
   }, [applyPos]);
-
-  const onDragEnd = React.useCallback(() => {
-    wasDragRef.current = didDragRef.current;
-    dragRef.current = null;
-    didDragRef.current = false;
-    if (pillRef.current) pillRef.current.style.cursor = 'grab';
-  }, []);
 
   return (
     <div
       ref={pillRef}
-      className="lg:hidden fixed z-40 flex items-center bg-white/90 backdrop-blur border border-gray-200 rounded-full shadow-md select-none text-[10px]"
-      style={{ right: 12, top: 80, cursor: 'grab' }}
-      onPointerDown={onDragStart}
-      onPointerMove={onDragMove}
-      onPointerUp={onDragEnd}
-      onPointerCancel={onDragEnd}
+      className="lg:hidden fixed z-40 flex items-center bg-white/90 backdrop-blur border border-gray-200 rounded-full shadow-md select-none"
+      style={{ top: 0, left: 0, willChange: 'transform', cursor: 'grab', fontSize: 'clamp(22px, 7vw, 32px)' }}
     >
       <button
         onClick={() => { if (!wasDragRef.current) onToggleEditor(); }}
-        className="flex items-center gap-0.5 pl-2 pr-1.5 py-1 text-slate-600 active:bg-gray-100 rounded-l-full transition-colors"
+        className="flex items-center pl-[0.7em] pr-[0.6em] py-[0.4em] text-slate-600 active:bg-gray-100 rounded-l-full transition-colors"
+        title={isEditorOpen ? '關閉編輯器' : '開啟編輯器'}
       >
-        <Code size={10} />
-        <span>{isEditorOpen ? '關閉' : '編輯'}</span>
+        <Code size="1.1em" />
       </button>
-      <div className="w-px h-3 bg-gray-200 flex-shrink-0" />
-      <span className="font-mono text-slate-400 px-1.5 tabular-nums">
+      <div className="w-px self-stretch bg-gray-200 flex-shrink-0 my-[0.3em]" />
+      <span className="font-mono text-slate-400 px-[0.6em] tabular-nums whitespace-nowrap text-[0.5em]">
         {Math.round(scale * 100)}%
       </span>
-      <div className="w-px h-3 bg-gray-200 flex-shrink-0" />
+      <div className="w-px self-stretch bg-gray-200 flex-shrink-0 my-[0.3em]" />
       <button
-        onPointerDown={e => e.stopPropagation()}
         onClick={() => { if (!wasDragRef.current) onFit(); }}
-        className="w-6 h-6 flex items-center justify-center text-slate-500 active:bg-gray-100 transition-colors"
+        className="flex items-center justify-center text-slate-500 active:bg-gray-100 transition-colors px-[0.5em]"
         title="符合畫面"
       >
-        <Maximize2 size={10} />
+        <Maximize2 size="1.1em" />
       </button>
-      <div className="w-px h-3 bg-gray-200 flex-shrink-0" />
+      <div className="w-px self-stretch bg-gray-200 flex-shrink-0 my-[0.3em]" />
       <button
-        onPointerDown={e => e.stopPropagation()}
         onClick={() => { if (!wasDragRef.current) onToggleDrawer(); }}
-        className="w-7 h-7 rounded-full flex items-center justify-center transition-all active:scale-90 flex-shrink-0 m-0.5"
-        style={{ background: isControlBarOpen ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : 'linear-gradient(135deg,#3b82f6,#6366f1)' }}
+        className="rounded-full flex items-center justify-center transition-all active:scale-90 flex-shrink-0 m-[0.2em]"
+        style={{
+          width: 'clamp(28px, 8vw, 38px)',
+          height: 'clamp(28px, 8vw, 38px)',
+          background: isControlBarOpen ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : 'linear-gradient(135deg,#3b82f6,#6366f1)',
+        }}
         aria-label={isControlBarOpen ? '隱藏控制列' : '顯示控制列'}
       >
         {isControlBarOpen
-          ? <X size={11} className="text-white" />
-          : <SlidersHorizontal size={11} className="text-white" />
+          ? <X size="1.2em" className="text-white" />
+          : <SlidersHorizontal size="1.2em" className="text-white" />
         }
       </button>
     </div>
@@ -477,7 +502,7 @@ const CanvasDiagram = () => {
   const [particleSpeed, setParticleSpeed] = useState(1);
   const [particleSize, setParticleSize] = useState(3);
   const [particleShape, setParticleShape] = useState<ParticleShape>('circle');
-  const [isControlBarOpen, setIsControlBarOpen] = useState(true);
+  const [isControlBarOpen, setIsControlBarOpen] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(true);
   const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
 
