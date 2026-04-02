@@ -7,6 +7,7 @@ export type ExportFormat = 'png' | 'svg' | 'mmd';
 interface ExportModalProps {
   onConfirm: (bg: ExportBg, format: ExportFormat) => void;
   onClose: () => void;
+
   onPreviewRender: (bg: ExportBg, dstCanvas: HTMLCanvasElement) => void;
 }
 
