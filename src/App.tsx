@@ -371,6 +371,7 @@ const MobilePillToolbar: React.FC<MobilePillToolbarProps> = ({
     if (!el) return;
 
     const onDown = (e: PointerEvent) => {
+      e.preventDefault();
       didDragRef.current = false;
       wasDragRef.current = false;
       dragRef.current = {
@@ -383,33 +384,38 @@ const MobilePillToolbar: React.FC<MobilePillToolbarProps> = ({
 
     const onMove = (e: PointerEvent) => {
       if (!dragRef.current) return;
+      e.preventDefault();
       const dx = e.clientX - dragRef.current.startX;
       const dy = e.clientY - dragRef.current.startY;
       if (Math.hypot(dx, dy) > 4) didDragRef.current = true;
       if (!didDragRef.current) return;
       const { w, h } = vpRef.current;
-      const x = Math.max(4, Math.min(w - 210, dragRef.current.origX + dx));
-      const y = Math.max(60, Math.min(h - 40, dragRef.current.origY + dy));
+      const pillW = el.offsetWidth || 260;
+      const pillH = el.offsetHeight || 48;
+      const x = Math.max(4, Math.min(w - pillW - 4, dragRef.current.origX + dx));
+      const y = Math.max(4, Math.min(h - pillH - 4, dragRef.current.origY + dy));
       applyPos(x, y);
     };
 
-    const onUp = () => {
+    const onUp = (e: PointerEvent) => {
       if (!dragRef.current) return;
+      e.preventDefault();
       wasDragRef.current = didDragRef.current;
       dragRef.current = null;
       didDragRef.current = false;
       el.style.cursor = 'grab';
     };
 
-    el.addEventListener('pointerdown', onDown);
-    el.addEventListener('pointermove', onMove);
-    el.addEventListener('pointerup', onUp);
-    el.addEventListener('pointercancel', onUp);
+    // { capture: true } ensures we get the event before browser scroll handling
+    el.addEventListener('pointerdown', onDown, { capture: true });
+    el.addEventListener('pointermove', onMove, { capture: true });
+    el.addEventListener('pointerup', onUp, { capture: true });
+    el.addEventListener('pointercancel', onUp, { capture: true });
     return () => {
-      el.removeEventListener('pointerdown', onDown);
-      el.removeEventListener('pointermove', onMove);
-      el.removeEventListener('pointerup', onUp);
-      el.removeEventListener('pointercancel', onUp);
+      el.removeEventListener('pointerdown', onDown, { capture: true });
+      el.removeEventListener('pointermove', onMove, { capture: true });
+      el.removeEventListener('pointerup', onUp, { capture: true });
+      el.removeEventListener('pointercancel', onUp, { capture: true });
     };
   }, [applyPos]);
 
@@ -417,7 +423,7 @@ const MobilePillToolbar: React.FC<MobilePillToolbarProps> = ({
     <div
       ref={pillRef}
       className="lg:hidden fixed z-40 flex items-center bg-white/90 backdrop-blur border border-gray-200 rounded-full shadow-md select-none"
-      style={{ top: 0, left: 0, willChange: 'transform', cursor: 'grab', fontSize: 'clamp(22px, 7vw, 32px)' }}
+      style={{ top: 0, left: 0, willChange: 'transform', cursor: 'grab', fontSize: 'clamp(22px, 7vw, 32px)', touchAction: 'none' }}
     >
       <button
         onClick={() => { if (!wasDragRef.current) onToggleEditor(); }}
