@@ -340,9 +340,27 @@ const MobilePillToolbar: React.FC<MobilePillToolbarProps> = ({
 
   // Cache viewport size to avoid layout reads inside pointermove
   const vpRef = React.useRef({ w: window.innerWidth, h: window.innerHeight });
+  const headerHRef = React.useRef(0);
+
   React.useEffect(() => {
     const onResize = () => { vpRef.current = { w: window.innerWidth, h: window.innerHeight }; };
     window.addEventListener('resize', onResize);
+
+    // Track header height via ResizeObserver — works for all screen sizes
+    // and when header collapses/expands
+    const headerEl = document.querySelector('header');
+    if (headerEl) {
+      const ro = new ResizeObserver(entries => {
+        headerHRef.current = entries[0].contentRect.height + 8;
+      });
+      ro.observe(headerEl);
+      // initial read
+      headerHRef.current = headerEl.offsetHeight + 8;
+      return () => {
+        window.removeEventListener('resize', onResize);
+        ro.disconnect();
+      };
+    }
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
@@ -392,8 +410,9 @@ const MobilePillToolbar: React.FC<MobilePillToolbarProps> = ({
       const { w, h } = vpRef.current;
       const pillW = el.offsetWidth || 260;
       const pillH = el.offsetHeight || 48;
+      const headerH = headerHRef.current || 8;
       const x = Math.max(4, Math.min(w - pillW - 4, dragRef.current.origX + dx));
-      const y = Math.max(4, Math.min(h - pillH - 4, dragRef.current.origY + dy));
+      const y = Math.max(headerH, Math.min(h - pillH - 4, dragRef.current.origY + dy));
       applyPos(x, y);
     };
 
