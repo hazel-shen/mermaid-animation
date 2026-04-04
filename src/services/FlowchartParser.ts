@@ -1,6 +1,6 @@
 import type { DiagramNode, DiagramEdge, EdgeType, SeqLabel } from '../types';
 import { getCumulativeTransform } from './svgUtils';
-import { lineToPathD, extractEdgeStyle, nextId } from '../utils/parser-base';
+import { lineToPathD, extractEdgeStyle, nextId, applyTranslateToPathD } from '../utils/parser-base';
 import { hexToRgba } from '../utils/colorUtils';
 
 export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolean): DiagramNode[] => {
@@ -224,21 +224,48 @@ const collectNodeIds = (svgElement: SVGSVGElement): Set<string> => {
  *
  * Strategy: check el.id first, then walk ancestors.
  */
-const edgeEndIds = (el: Element): { fromNodeId?: string; toNodeId?: string } => {
+const edgeEndIds = (el: Element, nodeIds: Set<string>): { fromNodeId?: string; toNodeId?: string } => {
+  /**
+   * Split "inner" (the part between the L- prefix and the trailing -<index>)
+   * into fromId and toId using the known node id set for disambiguation.
+   *
+   * Mermaid short ids (e.g. "pmproxy") and full g.ids (e.g. "flowchart-pmproxy-0")
+   * both appear inside the edge id, separated by a single hyphen/underscore.
+   * A naive indexOf('-') fails when node ids themselves contain the separator
+   * (e.g. "flowchart-JBoss-0-flowchart-pmcd-0").
+   *
+   * Strategy: try every split position and pick the one where both halves are
+   * recognised as known (or resolvable) node ids.  Fall back to first separator.
+   */
+  const splitInner = (inner: string, sep: string): { fromNodeId: string; toNodeId: string } | null => {
+    const parts = inner.split(sep);
+    // Try all possible split points (prefix = parts[0..i], suffix = parts[i+1..])
+    for (let i = 0; i < parts.length - 1; i++) {
+      const from = parts.slice(0, i + 1).join(sep);
+      const to   = parts.slice(i + 1).join(sep);
+      if (!from || !to) continue;
+      const fromKnown = nodeIds.has(from) || [...nodeIds].some(nid => nid.endsWith(`-${from}-0`) || nid.includes(`-${from}-`));
+      const toKnown   = nodeIds.has(to)   || [...nodeIds].some(nid => nid.endsWith(`-${to}-0`)   || nid.includes(`-${to}-`));
+      if (fromKnown && toKnown) return { fromNodeId: from, toNodeId: to };
+    }
+    // Fallback: first separator (original behaviour)
+    const firstSep = inner.indexOf(sep);
+    if (firstSep > 0) return { fromNodeId: inner.slice(0, firstSep), toNodeId: inner.slice(firstSep + 1) };
+    return null;
+  };
+
   const tryParse = (id: string): { fromNodeId: string; toNodeId: string } | null => {
     // Format: L-<from>-<to>-<index>  (Mermaid v10, hyphens)
     const m = id.match(/^L-(.+)-(\d+)$/);
     if (m) {
-      const inner = m[1];
-      const sep = inner.indexOf('-');
-      if (sep > 0) return { fromNodeId: inner.slice(0, sep), toNodeId: inner.slice(sep + 1) };
+      const result = splitInner(m[1], '-');
+      if (result) return result;
     }
     // Format: L_<from>_<to>_<index>  (Mermaid v11, underscores)
     const mu = id.match(/^L_(.+)_(\d+)$/);
     if (mu) {
-      const inner = mu[1];
-      const sep = inner.indexOf('_');
-      if (sep > 0) return { fromNodeId: inner.slice(0, sep), toNodeId: inner.slice(sep + 1) };
+      const result = splitInner(mu[1], '_');
+      if (result) return result;
     }
     return null;
   };
@@ -305,7 +332,9 @@ export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolea
     if (tagName === 'line') {
       d = lineToPathD(el, svgElement);
     } else if (tagName === 'path') {
-      d = el.getAttribute('d') || "";
+      const raw = el.getAttribute('d') || "";
+      const { x: tx, y: ty } = getCumulativeTransform(el, svgElement);
+      d = (tx !== 0 || ty !== 0) ? applyTranslateToPathD(raw, tx, ty) : raw;
     }
 
     if (d && d.length > 10) {
@@ -340,7 +369,7 @@ export const parseFlowchartEdges = (svgElement: SVGSVGElement, isPremium: boolea
       }
 
       // Attach node ids so drawEdge can snap the arrowhead to the box border
-      const { fromNodeId, toNodeId } = type === 'link' ? edgeEndIds(el) : {};
+      const { fromNodeId, toNodeId } = type === 'link' ? edgeEndIds(el, nodeIds) : {};
 
 
       extractedEdges.push({
