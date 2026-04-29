@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Zap, Video, RefreshCw, Palette, Gauge, ChevronDown, Maximize2, Shapes, ChevronUp } from 'lucide-react';
+import githubLogo from '../assets/github-logo.png';
 import type { DownloadFormat } from '../hooks/useMediaRecorder';
 import type { ParticleShape } from '../utils/canvasRenderer';
 
@@ -94,7 +95,18 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             <h1 className="font-bold text-sm md:text-base text-slate-800 whitespace-nowrap">
               Mermaid Animation
             </h1>
-            <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">mermaid v11.13.0</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">mermaid v11.13.0</span>
+              <a
+                href="https://github.com/hazel-shen/mermaid-animation"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="GitHub"
+                className="flex items-center hover:opacity-70 transition-opacity"
+              >
+                <img src={githubLogo} alt="GitHub" className="w-3 h-3 object-contain" />
+              </a>
+            </div>
           </div>
         </div>
 
