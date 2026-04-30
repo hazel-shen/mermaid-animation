@@ -1,0 +1,83 @@
+{
+  "header": {
+    "appName": "Mermaid Animation",
+    "speed": "速度",
+    "size": "サイズ",
+    "shape": "形状",
+    "color": "色",
+    "refresh": "再レンダリング",
+    "export": "✨ エクスポート",
+    "download": "ダウンロード",
+    "expandControls": "コントロール",
+    "collapseControls": "折りたたむ"
+  },
+  "shapes": {
+    "circle": "● 丸",
+    "square": "■ 四角",
+    "diamond": "◆ ひし形",
+    "triangle": "▲ 三角",
+    "star": "★ 星",
+    "heart": "♥ ハート",
+    "hat": "🎩 帽子"
+  },
+  "editor": {
+    "collapseEditor": "エディタを閉じる",
+    "expandEditor": "エディタを開く",
+    "samples": "サンプル",
+    "resizeHandle": "ドラッグしてリサイズ"
+  },
+  "canvas": {
+    "rendering": "レンダリング中...",
+    "edit": "編集"
+  },
+  "zoom": {
+    "zoomIn": "拡大",
+    "zoomOut": "縮小",
+    "fit": "画面に合わせる",
+    "reset": "リセット"
+  },
+  "drawer": {
+    "particleSettings": "パーティクル設定",
+    "actions": "操作",
+    "download": "ダウンロード",
+    "rerender": "再レンダリング",
+    "exportPng": "✨ PNG エクスポート",
+    "processingGif": "GIF 処理中...",
+    "recording": "録画中...",
+    "downloadFile": "{{format}} ダウンロード"
+  },
+  "export": {
+    "format": "フォーマット",
+    "background": "背景",
+    "preview": "プレビュー",
+    "export": "エクスポート",
+    "bgWhite": "白",
+    "bgDark": "暗い",
+    "bgTransparent": "透明"
+  },
+  "mobile": {
+    "openEditor": "エディタを開く",
+    "closeEditor": "エディタを閉じる",
+    "fitScreen": "画面に合わせる",
+    "showControls": "コントロールを表示",
+    "hideControls": "コントロールを非表示"
+  },
+  "samples": {
+    "sequence": "シーケンス図",
+    "flowchart": "フローチャート",
+    "arch": "C4 図 (TODO)",
+    "class": "クラス図",
+    "state": "状態遷移図",
+    "er": "ER 図",
+    "gantt": "ガントチャート",
+    "pie": "円グラフ",
+    "gitgraph": "Git グラフ",
+    "mindmap": "マインドマップ",
+    "sankey": "サンキー図"
+  },
+  "lang": {
+    "zh-TW": "繁中",
+    "en": "EN",
+    "ja": "日本語"
+  }
+}

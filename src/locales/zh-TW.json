@@ -1,0 +1,83 @@
+{
+  "header": {
+    "appName": "Mermaid Animation",
+    "speed": "速度",
+    "size": "大小",
+    "shape": "形狀",
+    "color": "粒子色",
+    "refresh": "重新渲染",
+    "export": "✨ 匯出",
+    "download": "下載",
+    "expandControls": "控制列",
+    "collapseControls": "收起"
+  },
+  "shapes": {
+    "circle": "● 圓形",
+    "square": "■ 方形",
+    "diamond": "◆ 菱形",
+    "triangle": "▲ 三角",
+    "star": "★ 星形",
+    "heart": "♥ 愛心",
+    "hat": "🎩 帽子"
+  },
+  "editor": {
+    "collapseEditor": "收合編輯器",
+    "expandEditor": "展開編輯器",
+    "samples": "範例",
+    "resizeHandle": "拖曳調整寬度"
+  },
+  "canvas": {
+    "rendering": "渲染中...",
+    "edit": "編輯"
+  },
+  "zoom": {
+    "zoomIn": "放大",
+    "zoomOut": "縮小",
+    "fit": "符合畫面",
+    "reset": "重置"
+  },
+  "drawer": {
+    "particleSettings": "粒子設定",
+    "actions": "操作",
+    "download": "下載",
+    "rerender": "重新渲染",
+    "exportPng": "✨ 匯出 PNG",
+    "processingGif": "處理 GIF 中...",
+    "recording": "錄製中...",
+    "downloadFile": "下載 {{format}}"
+  },
+  "export": {
+    "format": "格式 Format",
+    "background": "背景 Background",
+    "preview": "Preview",
+    "export": "Export",
+    "bgWhite": "White",
+    "bgDark": "Dark",
+    "bgTransparent": "Transparent"
+  },
+  "mobile": {
+    "openEditor": "開啟編輯器",
+    "closeEditor": "關閉編輯器",
+    "fitScreen": "符合畫面",
+    "showControls": "顯示控制列",
+    "hideControls": "隱藏控制列"
+  },
+  "samples": {
+    "sequence": "Sequence Diagram",
+    "flowchart": "Flowchart",
+    "arch": "C4 Diagram（TODO）",
+    "class": "Class Diagram",
+    "state": "State Diagram",
+    "er": "ER Diagram",
+    "gantt": "Gantt Chart",
+    "pie": "Pie Chart",
+    "gitgraph": "Git Graph",
+    "mindmap": "Mind Map",
+    "sankey": "Sankey Diagram"
+  },
+  "lang": {
+    "zh-TW": "繁中",
+    "en": "EN",
+    "ja": "日本語"
+  }
+}

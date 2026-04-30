@@ -1,0 +1,83 @@
+{
+  "header": {
+    "appName": "Mermaid Animation",
+    "speed": "Speed",
+    "size": "Size",
+    "shape": "Shape",
+    "color": "Color",
+    "refresh": "Re-render",
+    "export": "✨ Export",
+    "download": "Download",
+    "expandControls": "Controls",
+    "collapseControls": "Collapse"
+  },
+  "shapes": {
+    "circle": "● Circle",
+    "square": "■ Square",
+    "diamond": "◆ Diamond",
+    "triangle": "▲ Triangle",
+    "star": "★ Star",
+    "heart": "♥ Heart",
+    "hat": "🎩 Hat"
+  },
+  "editor": {
+    "collapseEditor": "Collapse editor",
+    "expandEditor": "Expand editor",
+    "samples": "Samples",
+    "resizeHandle": "Drag to resize"
+  },
+  "canvas": {
+    "rendering": "Rendering...",
+    "edit": "Edit"
+  },
+  "zoom": {
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "fit": "Fit to screen",
+    "reset": "Reset"
+  },
+  "drawer": {
+    "particleSettings": "Particle Settings",
+    "actions": "Actions",
+    "download": "Download",
+    "rerender": "Re-render",
+    "exportPng": "✨ Export PNG",
+    "processingGif": "Processing GIF...",
+    "recording": "Recording...",
+    "downloadFile": "Download {{format}}"
+  },
+  "export": {
+    "format": "Format",
+    "background": "Background",
+    "preview": "Preview",
+    "export": "Export",
+    "bgWhite": "White",
+    "bgDark": "Dark",
+    "bgTransparent": "Transparent"
+  },
+  "mobile": {
+    "openEditor": "Open editor",
+    "closeEditor": "Close editor",
+    "fitScreen": "Fit to screen",
+    "showControls": "Show controls",
+    "hideControls": "Hide controls"
+  },
+  "samples": {
+    "sequence": "Sequence Diagram",
+    "flowchart": "Flowchart",
+    "arch": "C4 Diagram (TODO)",
+    "class": "Class Diagram",
+    "state": "State Diagram",
+    "er": "ER Diagram",
+    "gantt": "Gantt Chart",
+    "pie": "Pie Chart",
+    "gitgraph": "Git Graph",
+    "mindmap": "Mind Map",
+    "sankey": "Sankey Diagram"
+  },
+  "lang": {
+    "zh-TW": "繁中",
+    "en": "EN",
+    "ja": "日本語"
+  }
+}

@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { AppHeader } from './components/AppHeader';
 import { EditorSidebar } from './components/EditorSidebar';
@@ -321,6 +322,7 @@ Wind,Electricity grid,289.366`;
 
 // --- Mobile draggable pill toolbar ---
 interface MobilePillToolbarProps {
+  t: (key: string) => string;
   isEditorOpen: boolean;
   scale: number;
   isControlBarOpen: boolean;
@@ -330,7 +332,7 @@ interface MobilePillToolbarProps {
 }
 
 const MobilePillToolbar: React.FC<MobilePillToolbarProps> = ({
-  isEditorOpen, scale, isControlBarOpen, onToggleEditor, onFit, onToggleDrawer,
+  t, isEditorOpen, scale, isControlBarOpen, onToggleEditor, onFit, onToggleDrawer,
 }) => {
   const pillRef = React.useRef<HTMLDivElement>(null);
   const posRef = React.useRef({ x: -1, y: -1 }); // x=-1/y=-1 means "not yet placed"
@@ -376,11 +378,14 @@ const MobilePillToolbar: React.FC<MobilePillToolbarProps> = ({
   React.useLayoutEffect(() => {
     const el = pillRef.current;
     if (!el) return;
-    const w = el.offsetWidth || 200;
-    const h = el.offsetHeight || 32;
-    const initialX = Math.max(4, vpRef.current.w - w - 12);
-    const initialY = vpRef.current.h - h - 24;
-    applyPos(initialX, initialY);
+    // rAF gives the browser a chance to lay out the pill before we measure it
+    requestAnimationFrame(() => {
+      const w = el.offsetWidth || 220;
+      const h = el.offsetHeight || 44;
+      const initialX = Math.max(4, vpRef.current.w - w - 12);
+      const initialY = vpRef.current.h - h - 32;
+      applyPos(initialX, initialY);
+    });
   }, [applyPos]);
 
   // Native pointer event handlers — attached directly to DOM to avoid React batching
@@ -447,7 +452,7 @@ const MobilePillToolbar: React.FC<MobilePillToolbarProps> = ({
       <button
         onClick={() => { if (!wasDragRef.current) onToggleEditor(); }}
         className="flex items-center pl-[0.7em] pr-[0.6em] py-[0.4em] text-slate-600 active:bg-gray-100 rounded-l-full transition-colors"
-        title={isEditorOpen ? '關閉編輯器' : '開啟編輯器'}
+        title={isEditorOpen ? t('mobile.closeEditor') : t('mobile.openEditor')}
       >
         <Code size="1.1em" />
       </button>
@@ -459,7 +464,7 @@ const MobilePillToolbar: React.FC<MobilePillToolbarProps> = ({
       <button
         onClick={() => { if (!wasDragRef.current) onFit(); }}
         className="flex items-center justify-center text-slate-500 active:bg-gray-100 transition-colors px-[0.5em]"
-        title="符合畫面"
+        title={t('mobile.fitScreen')}
       >
         <Maximize2 size="1.1em" />
       </button>
@@ -472,7 +477,7 @@ const MobilePillToolbar: React.FC<MobilePillToolbarProps> = ({
           height: 'clamp(28px, 8vw, 38px)',
           background: isControlBarOpen ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : 'linear-gradient(135deg,#3b82f6,#6366f1)',
         }}
-        aria-label={isControlBarOpen ? '隱藏控制列' : '顯示控制列'}
+        aria-label={isControlBarOpen ? t('mobile.hideControls') : t('mobile.showControls')}
       >
         {isControlBarOpen
           ? <X size="1.2em" className="text-white" />
@@ -485,6 +490,7 @@ const MobilePillToolbar: React.FC<MobilePillToolbarProps> = ({
 
 // --- 主元件 ---
 const CanvasDiagram = () => {
+  const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hiddenContainerRef = useRef<HTMLDivElement>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -506,17 +512,17 @@ const CanvasDiagram = () => {
   };
 
   const SAMPLE_OPTIONS = [
-    { value: 'sequence',  label: 'Sequence Diagram' },
-    { value: 'flowchart', label: 'Flowchart' },
-    { value: 'arch',      label: 'C4 Diagram（TODO）' },
-    { value: 'class',     label: 'Class Diagram' },
-    { value: 'state',     label: 'State Diagram' },
-    { value: 'er',        label: 'ER Diagram' },
-    { value: 'gantt',     label: 'Gantt Chart' },
-    { value: 'pie',       label: 'Pie Chart' },
-    { value: 'gitgraph',  label: 'Git Graph' },
-    { value: 'mindmap',   label: 'Mind Map' },
-    { value: 'sankey',    label: 'Sankey Diagram' },
+    { value: 'sequence',  label: t('samples.sequence') },
+    { value: 'flowchart', label: t('samples.flowchart') },
+    { value: 'arch',      label: t('samples.arch') },
+    { value: 'class',     label: t('samples.class') },
+    { value: 'state',     label: t('samples.state') },
+    { value: 'er',        label: t('samples.er') },
+    { value: 'gantt',     label: t('samples.gantt') },
+    { value: 'pie',       label: t('samples.pie') },
+    { value: 'gitgraph',  label: t('samples.gitgraph') },
+    { value: 'mindmap',   label: t('samples.mindmap') },
+    { value: 'sankey',    label: t('samples.sankey') },
   ];
 
   // UI state
@@ -834,6 +840,7 @@ const CanvasDiagram = () => {
       </div>
 
       <MobilePillToolbar
+        t={t}
         isEditorOpen={isEditorOpen}
         scale={transformState.scale}
         isControlBarOpen={isControlBarOpen}
