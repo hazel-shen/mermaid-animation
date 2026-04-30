@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Zap, Video, RefreshCw, Palette, Gauge, ChevronDown, Maximize2, Shapes, ChevronUp } from 'lucide-react';
-import githubLogo from '../assets/github-logo.png';
+const githubLogo = 'https://raw.githubusercontent.com/hazel-shen/mermaid-animation/refs/heads/main/src/assets/github-logo.png';
 import type { DownloadFormat } from '../hooks/useMediaRecorder';
 import type { ParticleShape } from '../utils/canvasRenderer';
 
