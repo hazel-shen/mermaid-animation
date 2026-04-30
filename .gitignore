@@ -45,3 +45,8 @@ Desktop.ini
 
 # Deployment
 .publish
+
+# Accidentally created empty files
+tsc
+npm
+mermaid-animation@*
