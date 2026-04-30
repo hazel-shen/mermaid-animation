@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Zap, Video, RefreshCw, Palette, Gauge, ChevronDown, Maximize2, Shapes, ChevronUp, Globe } from 'lucide-react';
+import { Zap, Video, Film, RefreshCw, Palette, Gauge, ChevronDown, Maximize2, Shapes, ChevronUp, Globe } from 'lucide-react';
 import type { DownloadFormat } from '../hooks/useMediaRecorder';
 import type { ParticleShape } from '../utils/canvasRenderer';
 
@@ -187,21 +187,21 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               </div>
               {/* Shape + Color stacked */}
               <div className="flex flex-col gap-1">
-                <label className="flex items-center gap-1 text-xs text-slate-600 cursor-pointer" title={t('header.shape')}>
-                  <Shapes size={11} className="text-slate-400 flex-shrink-0" />
+                <label className="flex items-center gap-1 text-sm text-slate-600 cursor-pointer" title={t('header.shape')}>
+                  <Shapes size={13} className="text-slate-400 flex-shrink-0" />
                   <span className="font-medium whitespace-nowrap">{t('header.shape')}</span>
                   <select
                     value={particleShape}
                     onChange={e => onParticleShapeChange(e.target.value as ParticleShape)}
-                    className="h-4 w-16 rounded border border-gray-200 bg-white text-[10px] text-slate-700 px-1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    className="rounded border border-gray-200 bg-white text-sm text-slate-700 px-1 py-0.5 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-400"
                   >
                     {SHAPE_OPTIONS.map(o => (
                       <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
                   </select>
                 </label>
-                <label className="flex items-center gap-1 text-xs text-slate-600 cursor-pointer" title={t('header.color')}>
-                  <Palette size={11} className="text-slate-400 flex-shrink-0" />
+                <label className="flex items-center gap-1 text-sm text-slate-600 cursor-pointer" title={t('header.color')}>
+                  <Palette size={13} className="text-slate-400 flex-shrink-0" />
                   <span className="font-medium whitespace-nowrap">{t('header.color')}</span>
                   <input
                     type="color" value={particleColor}
@@ -217,7 +217,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                     }}
                     maxLength={7}
                     spellCheck={false}
-                    className="w-12 h-4 px-1 rounded border border-gray-200 text-[10px] font-mono text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    className="w-16 px-1 py-0.5 rounded border border-gray-200 text-sm font-mono text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
                   />
                 </label>
               </div>
@@ -252,7 +252,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                 }`}
                 title={`${t('header.download')} ${selectedFormat.toUpperCase()}`}
               >
-                <Video size={13} />
+                {selectedFormat === 'gif' ? <Film size={13} /> : <Video size={13} />}
                 {isRecording
                   ? (selectedFormat === 'gif' ? t('drawer.processingGif') : t('drawer.recording'))
                   : `${t('header.download')} ${selectedFormat.toUpperCase()}`}
@@ -284,7 +284,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                     onClick={() => handleSelectFormat('gif')}
                     className={`w-full px-3 py-2 text-xs text-left flex items-center gap-2 hover:bg-orange-50 transition-colors ${selectedFormat === 'gif' ? 'text-orange-600 font-bold bg-orange-50' : 'text-slate-700'}`}
                   >
-                    <span className="text-[10px] font-bold leading-none">GIF</span>
+                    <Film size={12} />
                     GIF
                     {selectedFormat === 'gif' && <span className="ml-auto text-orange-500">✓</span>}
                   </button>

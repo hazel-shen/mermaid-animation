@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Video, RefreshCw, Gauge, Palette, Maximize2, Shapes } from 'lucide-react';
+import { Video, Film, RefreshCw, Gauge, Palette, Maximize2, Shapes } from 'lucide-react';
 import type { DownloadFormat } from '../hooks/useMediaRecorder';
 import type { ParticleShape } from '../utils/canvasRenderer';
 
@@ -82,7 +82,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
 
         {/* Scrollable content */}
         <div
-          className="overflow-y-auto overscroll-contain px-3 pt-1 flex flex-col gap-2.5"
+          className="overflow-y-auto overscroll-contain px-3 pt-1 flex flex-col gap-1.5"
           style={{
             maxHeight: 'min(calc(80vh - 24px), calc(100dvh - 124px))',
             paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 1.5rem))',
@@ -90,10 +90,10 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
         >
 
           {/* Particle settings — 2-col grid */}
-          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{t('drawer.particleSettings')}</p>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-            <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer col-span-2">
-              <Gauge size={12} className="text-slate-400 flex-shrink-0" />
+          <p className="text-sm font-semibold text-slate-400 uppercase tracking-wider">{t('drawer.particleSettings')}</p>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+            <label className="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer col-span-2">
+              <Gauge size={14} className="text-slate-400 flex-shrink-0" />
               <span className="font-medium whitespace-nowrap">{t('header.speed')}</span>
               <input
                 type="range" min="0.1" max="5" step="0.1"
@@ -101,10 +101,10 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                 onChange={e => onParticleSpeedChange(parseFloat(e.target.value))}
                 className="flex-1 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
               />
-              <span className="text-[10px] text-slate-400 w-6 text-right tabular-nums">{particleSpeed.toFixed(1)}</span>
+              <span className="text-sm text-slate-400 w-8 text-right tabular-nums">{particleSpeed.toFixed(1)}</span>
             </label>
-            <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer col-span-2">
-              <Maximize2 size={12} className="text-slate-400 flex-shrink-0" />
+            <label className="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer col-span-2">
+              <Maximize2 size={14} className="text-slate-400 flex-shrink-0" />
               <span className="font-medium whitespace-nowrap">{t('header.size')}</span>
               <input
                 type="range" min="1" max="10" step="0.5"
@@ -112,23 +112,23 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                 onChange={e => onParticleSizeChange(parseFloat(e.target.value))}
                 className="flex-1 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
               />
-              <span className="text-[10px] text-slate-400 w-6 text-right tabular-nums">{particleSize.toFixed(1)}</span>
+              <span className="text-sm text-slate-400 w-8 text-right tabular-nums">{particleSize.toFixed(1)}</span>
             </label>
-            <div className="col-span-2 flex items-center gap-1.5 text-xs text-slate-600">
-              <Shapes size={12} className="text-slate-400 flex-shrink-0" />
+            <div className="col-span-2 flex items-center gap-1.5 text-sm text-slate-600">
+              <Shapes size={14} className="text-slate-400 flex-shrink-0" />
               <span className="font-medium whitespace-nowrap">{t('header.shape')}</span>
               <select
                 value={particleShape}
                 onChange={e => onParticleShapeChange(e.target.value as ParticleShape)}
-                className="w-20 h-5 rounded border border-gray-200 bg-white text-xs text-slate-700 px-1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                className="rounded border border-gray-200 bg-white text-sm text-slate-700 px-1.5 py-0.5 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-400"
               >
                 {SHAPE_OPTIONS.map(o => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
             </div>
-            <label className="col-span-2 flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
-              <Palette size={12} className="text-slate-400 flex-shrink-0" />
+            <label className="col-span-2 flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer min-w-0 overflow-hidden">
+              <Palette size={14} className="text-slate-400 flex-shrink-0" />
               <span className="font-medium whitespace-nowrap flex-shrink-0">{t('header.color')}</span>
               <input
                 type="color" value={particleColor}
@@ -144,15 +144,15 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                 }}
                 maxLength={7}
                 spellCheck={false}
-                className="w-14 h-4 px-1 rounded border border-gray-200 text-[10px] font-mono text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                className="min-w-0 flex-1 px-1 py-0.5 rounded border border-gray-200 text-sm font-mono text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
               />
             </label>
           </div>
 
-          <div className="h-px bg-gray-100 my-0.5" />
+          <div className="h-px bg-gray-100" />
 
           {/* Actions */}
-          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{t('drawer.actions')}</p>
+          <p className="text-sm font-semibold text-slate-400 uppercase tracking-wider">{t('drawer.actions')}</p>
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => { onRefresh(); onClose(); }}
@@ -170,44 +170,41 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
           </div>
 
           {/* Download */}
-          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{t('drawer.download')}</p>
+          <p className="text-sm font-semibold text-slate-400 uppercase tracking-wider">{t('drawer.download')}</p>
           <div className="flex gap-1.5 p-1 bg-gray-100 rounded-lg">
             <button
               onClick={() => setSelectedFormat('mp4')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1 rounded-md text-sm font-medium transition-all ${
                 selectedFormat === 'mp4'
                   ? 'bg-white text-orange-600 shadow-sm font-bold'
                   : 'text-slate-500'
               }`}
             >
-              <Video size={12} />
+              <Video size={13} />
               MP4
             </button>
             <button
               onClick={() => setSelectedFormat('gif')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1 rounded-md text-sm font-medium transition-all ${
                 selectedFormat === 'gif'
                   ? 'bg-white text-orange-600 shadow-sm font-bold'
                   : 'text-slate-500'
               }`}
             >
-              <span className="text-[10px] font-bold">GIF</span>
+              <Film size={13} />
               GIF
             </button>
           </div>
           <button
             onClick={() => !isRecording && handleDownload()}
             disabled={isRecording}
-            className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-xs font-bold transition-transform ${
+            className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-bold transition-transform ${
               isRecording
                 ? 'bg-red-50 text-red-600 border border-red-200'
                 : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:scale-[1.02]'
             }`}
           >
-            {selectedFormat === 'gif'
-              ? <span className="text-[10px] font-extrabold">GIF</span>
-              : <Video size={13} />
-            }
+            {selectedFormat === 'gif' ? <Film size={14} /> : <Video size={14} />}
             {isRecording
               ? (selectedFormat === 'gif' ? t('drawer.processingGif') : t('drawer.recording'))
               : t('drawer.downloadFile', { format: selectedFormat.toUpperCase() })}
