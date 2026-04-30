@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Download } from 'lucide-react';
 import type { ExportBg } from '../utils/canvasRenderer';
 
@@ -17,18 +18,18 @@ const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
   { value: 'mmd', label: 'MMD' },
 ];
 
-const BG_OPTIONS: { value: ExportBg; label: string; style: React.CSSProperties }[] = [
-  { value: 'solid',        label: 'White',       style: { background: '#ffffff', border: '1.5px solid #e2e8f0' } },
-  { value: 'checkerboard', label: 'Dark',         style: { background: '#f8fafc', backgroundImage: 'linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px)', backgroundSize: '8px 8px' } },
-  { value: 'transparent',  label: 'Transparent',  style: { backgroundImage: 'repeating-conic-gradient(#cbd5e1 0% 25%, #ffffff 0% 50%)', backgroundSize: '8px 8px' } },
-];
-
 export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, onPreviewRender }) => {
+  const { t } = useTranslation();
   const [selectedBg, setSelectedBg]         = useState<ExportBg>('solid');
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('png');
   const previewRef = useRef<HTMLCanvasElement>(null);
 
-  // Re-render preview whenever bg changes
+  const BG_OPTIONS: { value: ExportBg; label: string; style: React.CSSProperties }[] = [
+    { value: 'solid',        label: t('export.bgWhite'),       style: { background: '#ffffff', border: '1.5px solid #e2e8f0' } },
+    { value: 'checkerboard', label: t('export.bgDark'),         style: { background: '#f8fafc', backgroundImage: 'linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px)', backgroundSize: '8px 8px' } },
+    { value: 'transparent',  label: t('export.bgTransparent'),  style: { backgroundImage: 'repeating-conic-gradient(#cbd5e1 0% 25%, #ffffff 0% 50%)', backgroundSize: '8px 8px' } },
+  ];
+
   useEffect(() => {
     const dst = previewRef.current;
     if (!dst) return;
@@ -50,7 +51,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, on
           <div className="flex flex-col gap-2 p-2 flex-1">
             {/* Format */}
             <div className="flex flex-col gap-0.5">
-              <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">格式 Format</p>
+              <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">{t('export.format')}</p>
               {FORMAT_OPTIONS.map(opt => (
                 <button
                   key={opt.value}
@@ -71,7 +72,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, on
 
             {/* Background */}
             <div className="flex flex-col gap-0.5">
-              <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">背景 Background</p>
+              <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">{t('export.background')}</p>
               <div className="flex flex-col gap-1">
                 {BG_OPTIONS.map(opt => (
                   <button
@@ -96,7 +97,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, on
                 className="w-full py-1 rounded bg-slate-800 text-white text-[9px] font-bold flex items-center justify-center gap-0.5 hover:bg-slate-700 transition-colors"
               >
                 <Download size={8} />
-                Export
+                {t('export.export')}
               </button>
               <button
                 onClick={onClose}
@@ -111,7 +112,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, on
         {/* ── Right: preview ── */}
         <div className="flex-1 flex flex-col bg-gray-100 min-w-0 relative">
           <div className="absolute top-2 left-3 z-10">
-            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Preview</span>
+            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{t('export.preview')}</span>
           </div>
           <button
             onClick={onClose}

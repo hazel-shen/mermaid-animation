@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Code, X, ChevronDown } from 'lucide-react';
 
 export interface SampleOption {
@@ -36,6 +37,8 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
   onLoadSample,
   onResizeStart,
 }) => {
+  const { t } = useTranslation();
+
   const handleSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     onLoadSample(e.target.value);
   };
@@ -69,7 +72,7 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
               style={{ color: '#a0a0cc' }}
               onMouseEnter={e => (e.currentTarget.style.background = '#2e2e4a')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-              title="收合編輯器"
+              title={t('editor.collapseEditor')}
             >
               <X size={13} />
             </button>
@@ -79,7 +82,7 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
             onClick={() => onToggleOpen(true)}
             className="hidden lg:flex w-full h-full items-center justify-center transition-colors"
             style={{ color: '#a0a0cc' }}
-            title="展開編輯器"
+            title={t('editor.expandEditor')}
           >
             <Code size={15} />
           </button>
@@ -89,7 +92,7 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
             onClick={() => onToggleOpen(false)}
             className="lg:hidden ml-1 w-6 h-6 flex items-center justify-center rounded transition-colors"
             style={{ color: '#a0a0cc' }}
-            title="收合編輯器"
+            title={t('editor.collapseEditor')}
           >
             <X size={13} />
           </button>
@@ -100,7 +103,7 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
       {isOpen && (
         <div className="px-2 py-1.5 flex-shrink-0 flex items-center gap-1.5"
           style={{ borderBottom: '1px solid #3a3a5e' }}>
-          <span className="text-[10px] font-bold uppercase tracking-wide whitespace-nowrap" style={{ color: '#8888bb' }}>範例</span>
+          <span className="text-[10px] font-bold uppercase tracking-wide whitespace-nowrap" style={{ color: '#8888bb' }}>{t('editor.samples')}</span>
           <div className="relative flex-1 min-w-0">
             <select
               value={selectedSample}
@@ -140,7 +143,7 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
         <div
           onMouseDown={onResizeStart}
           className="absolute top-0 right-0 w-1 h-full cursor-col-resize z-30 group"
-          title="拖曳調整寬度"
+          title={t('editor.resizeHandle')}
         >
           <div className="absolute inset-y-0 right-0 w-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150 rounded-full"
             style={{ background: '#6366f1' }} />
