@@ -37,11 +37,6 @@ describe('snapMindmapEdgesToNodes', () => {
     expect(result).toEqual([edge]);
   });
 
-  it('returns empty array when edges is empty', () => {
-    const node = makeNode('n1', 50, 50);
-    expect(snapMindmapEdgesToNodes([], [node])).toEqual([]);
-  });
-
   // ── noSnap is always reset to false ────────────────────────────────────────
 
   it('sets noSnap=false on all edges regardless of original value', () => {

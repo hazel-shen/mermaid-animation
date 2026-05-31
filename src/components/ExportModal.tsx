@@ -6,10 +6,9 @@ import type { ExportBg } from '../utils/canvasRenderer';
 export type ExportFormat = 'png' | 'svg' | 'mmd';
 
 interface ExportModalProps {
-  onConfirm: (bg: ExportBg, format: ExportFormat) => void;
+  onConfirm: (bg: ExportBg, format: ExportFormat, showParticles: boolean) => void;
   onClose: () => void;
-
-  onPreviewRender: (bg: ExportBg, dstCanvas: HTMLCanvasElement) => void;
+  onPreviewRender: (bg: ExportBg, dstCanvas: HTMLCanvasElement, showParticles: boolean) => void;
 }
 
 const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
@@ -33,8 +32,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, on
   useEffect(() => {
     const dst = previewRef.current;
     if (!dst) return;
-    onPreviewRender(selectedBg, dst);
-  }, [selectedBg, onPreviewRender]);
+    onPreviewRender(selectedBg, dst, false);
+  }, [selectedBg, selectedFormat, onPreviewRender]);
 
   return (
     <div
@@ -93,17 +92,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, on
             {/* Actions */}
             <div className="flex flex-col gap-1">
               <button
-                onClick={() => onConfirm(selectedBg, selectedFormat)}
+                onClick={() => onConfirm(selectedBg, selectedFormat, false)}
                 className="w-full py-1 rounded bg-slate-800 text-white text-[9px] font-bold flex items-center justify-center gap-0.5 hover:bg-slate-700 transition-colors"
               >
                 <Download size={8} />
                 {t('export.export')}
-              </button>
-              <button
-                onClick={onClose}
-                className="w-full py-0.5 rounded border border-gray-200 text-[9px] text-slate-500 hover:bg-gray-50 transition-colors"
-              >
-                ✕
               </button>
             </div>
           </div>
@@ -116,9 +109,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, on
           </div>
           <button
             onClick={onClose}
-            className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-white/80 hover:bg-red-50 text-slate-500 hover:text-red-500 shadow-sm border border-gray-200 hover:border-red-200 transition-colors"
+            className="absolute top-2 right-2 z-10 w-5 h-5 flex items-center justify-center rounded-full bg-white/50 hover:bg-red-50 text-slate-400 hover:text-red-500 shadow-sm border border-gray-200/60 hover:border-red-200 transition-colors"
           >
-            <X size={15} strokeWidth={2.5} />
+            <X size={10} strokeWidth={2} />
           </button>
           <div className="flex-1 flex items-center justify-center overflow-hidden p-2">
             <canvas

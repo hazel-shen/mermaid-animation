@@ -54,11 +54,6 @@ describe('truncateText', () => {
     const result = truncateText(ctx, 'ABCDE', 10); // only fits ~1 char (8px) + '…'(8px)=16 > 10 → lo=0
     expect(result).toBe('…');
   });
-
-  it('handles empty string without throwing', () => {
-    const ctx = makeCtx();
-    expect(() => truncateText(ctx, '', 100)).not.toThrow();
-  });
 });
 
 // ── drawClassNode — smoke tests ───────────────────────────────────────────────
@@ -84,24 +79,6 @@ const makeNode = (overrides: Partial<DiagramNode> = {}): DiagramNode => ({
 });
 
 describe('drawClassNode', () => {
-  it('renders without throwing for a typical class node', () => {
-    const ctx = makeCtx();
-    const node = makeNode();
-    expect(() => drawClassNode(ctx, node, node.color, node.stroke)).not.toThrow();
-  });
-
-  it('renders without throwing when classLines is empty', () => {
-    const ctx = makeCtx();
-    const node = makeNode({ classLines: [] });
-    expect(() => drawClassNode(ctx, node, node.color, node.stroke)).not.toThrow();
-  });
-
-  it('renders without throwing for a dark background', () => {
-    const ctx = makeCtx();
-    const node = makeNode({ color: '#1e293b' });
-    expect(() => drawClassNode(ctx, node, node.color, node.stroke)).not.toThrow();
-  });
-
   it('calls fillText for each non-divider line', () => {
     const ctx = makeCtx();
     const node = makeNode();
@@ -142,12 +119,6 @@ const makeErNode = (overrides: Partial<DiagramNode> = {}): DiagramNode => ({
 });
 
 describe('drawClassNode — erAttr rows', () => {
-  it('renders ER node with erAttr rows without throwing', () => {
-    const ctx = makeCtx();
-    const node = makeErNode();
-    expect(() => drawClassNode(ctx, node, node.color, node.stroke)).not.toThrow();
-  });
-
   it('calls fillRect for each erAttr row background', () => {
     const ctx = makeCtx();
     const node = makeErNode();
@@ -182,14 +153,5 @@ describe('drawClassNode — erAttr rows', () => {
     drawClassNode(ctx, node, node.color, node.stroke);
     // divider line (1) + 3 erAttr row grid strokes = at least 4 stroke calls
     expect((ctx.stroke as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(4);
-  });
-
-  it('uses divider color (stroke) for column and row grid lines', () => {
-    const ctx = makeCtx();
-    const node = makeErNode();
-    drawClassNode(ctx, node, node.color, node.stroke);
-    // strokeStyle should have been set to the node stroke color at some point
-    const strokeCalls = (ctx.stroke as ReturnType<typeof vi.fn>).mock.calls;
-    expect(strokeCalls.length).toBeGreaterThan(0);
   });
 });

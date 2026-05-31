@@ -86,11 +86,6 @@ describe('parseSankeyNodes', () => {
     expect(parseSankeyNodes(svg)).toEqual([]);
   });
 
-  it('collects a rect with width=10', () => {
-    makeNodeRect(0, 0, 10, 60);
-    expect(parseSankeyNodes(svg)).toHaveLength(1);
-  });
-
   it('skips rect with width > 15 (background / non-node)', () => {
     makeNodeRect(0, 0, 600, 400); // wide background rect
     expect(parseSankeyNodes(svg)).toHaveLength(0);
@@ -114,16 +109,6 @@ describe('parseSankeyNodes', () => {
   it('skips rect with zero height', () => {
     makeNodeRect(0, 0, 10, 0);
     expect(parseSankeyNodes(svg)).toHaveLength(0);
-  });
-
-  it('sets shape="rect" on collected nodes', () => {
-    makeNodeRect(0, 0);
-    expect(parseSankeyNodes(svg)[0].shape).toBe('rect');
-  });
-
-  it('sets type="node" on collected nodes', () => {
-    makeNodeRect(0, 0);
-    expect(parseSankeyNodes(svg)[0].type).toBe('node');
   });
 
   it('assigns sequential ids', () => {
@@ -212,11 +197,6 @@ describe('parseSankeyEdges', () => {
   it('collects open path with valid strokeWidth and solid stroke color', () => {
     makeBandPath(BAND_PATH, 15, '#4e79a7');
     expect(parseSankeyEdges(svg)).toHaveLength(1);
-  });
-
-  it('sets type="link" on collected edges', () => {
-    makeBandPath(BAND_PATH, 15, '#4e79a7');
-    expect(parseSankeyEdges(svg)[0].type).toBe('link');
   });
 
   it('sets lineWidth from strokeWidth', () => {

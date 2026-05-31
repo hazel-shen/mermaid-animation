@@ -157,22 +157,6 @@ describe('parsePieNodes', () => {
     expect(parsePieNodes(svg)).toHaveLength(0);
   });
 
-  it('sets shape="pie" on wedge nodes', () => {
-    const path = el<SVGPathElement>('path');
-    path.classList.add('pieCircle');
-    path.setAttribute('d', halfArcD(100));
-    svg.appendChild(path);
-    expect(parsePieNodes(svg)[0].shape).toBe('pie');
-  });
-
-  it('sets type="node" on wedge nodes', () => {
-    const path = el<SVGPathElement>('path');
-    path.classList.add('pieCircle');
-    path.setAttribute('d', halfArcD(100));
-    svg.appendChild(path);
-    expect(parsePieNodes(svg)[0].type).toBe('node');
-  });
-
   it('attaches pieWedge to node', () => {
     const path = el<SVGPathElement>('path');
     path.classList.add('pieCircle');

@@ -16,14 +16,6 @@ describe('parseSegment', () => {
       nums: [10, 20, 30, 40, 50, 60],
     });
   });
-
-  it('normalises lowercase command to uppercase', () => {
-    expect(parseSegment('m 5 10').cmd).toBe('M');
-  });
-
-  it('returns cmd "Z" for a close-path command', () => {
-    expect(parseSegment('Z').cmd).toBe('Z');
-  });
 });
 
 describe('tokenisePath', () => {

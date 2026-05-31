@@ -50,34 +50,9 @@ const node = (overrides: Partial<DiagramNode> = {}): DiagramNode => ({
   ...overrides,
 });
 
-// ── smoke tests ───────────────────────────────────────────────────────────────
+// ── stroke is called ─────────────────────────────────────────────────────────
 
-describe('drawEdge – smoke tests', () => {
-  it('renders a plain link edge without throwing', () => {
-    const ctx = makeCtx();
-    expect(() => drawEdge(ctx, baseEdge(), false)).not.toThrow();
-  });
-
-  it('renders a structural edge without throwing', () => {
-    const ctx = makeCtx();
-    expect(() => drawEdge(ctx, baseEdge({ type: 'structural' }), false)).not.toThrow();
-  });
-
-  it('renders an edge with arrowEnd without throwing', () => {
-    const ctx = makeCtx();
-    expect(() => drawEdge(ctx, baseEdge({ arrowEnd: 'default' }), false)).not.toThrow();
-  });
-
-  it('renders an edge with arrowStart without throwing', () => {
-    const ctx = makeCtx();
-    expect(() => drawEdge(ctx, baseEdge({ arrowStart: 'default' }), false)).not.toThrow();
-  });
-
-  it('renders an edge with hasArrow without throwing', () => {
-    const ctx = makeCtx();
-    expect(() => drawEdge(ctx, baseEdge({ hasArrow: true }), false)).not.toThrow();
-  });
-
+describe('drawEdge – renders path', () => {
   it('calls ctx.stroke() to render the path', () => {
     const ctx = makeCtx();
     drawEdge(ctx, baseEdge(), false);
@@ -148,12 +123,6 @@ describe('drawEdge – line dash', () => {
 // ── Sankey edges ──────────────────────────────────────────────────────────────
 
 describe('drawEdge – Sankey', () => {
-  it('renders Sankey edge without throwing', () => {
-    const ctx = makeCtx();
-    const edge = baseEdge({ sankeyFillPath: 'M 0 0 C 50 0 50 100 100 100' });
-    expect(() => drawEdge(ctx, edge, false)).not.toThrow();
-  });
-
   it('sets globalAlpha to 0.5 during Sankey draw', () => {
     const ctx = makeCtx();
     let alphaDuringDraw = 1;

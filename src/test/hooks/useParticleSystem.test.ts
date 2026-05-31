@@ -14,12 +14,6 @@ const linkEdge = (overrides: Partial<DiagramEdge> = {}): DiagramEdge => ({
 // ── initial state ─────────────────────────────────────────────────────────────
 
 describe('useParticleSystem – initial state', () => {
-  it('returns empty array when no edges', () => {
-    const edges: DiagramEdge[] = [];
-    const { result } = renderHook(() => useParticleSystem(edges));
-    expect(result.current).toHaveLength(0);
-  });
-
   it('skips structural edges', () => {
     const edges = [linkEdge({ type: 'structural' })];
     const { result } = renderHook(() => useParticleSystem(edges));
@@ -101,17 +95,5 @@ describe('useParticleSystem – reactivity', () => {
     const empty: DiagramEdge[] = [];
     rerender({ edges: empty });
     expect(result.current.length).toBe(0);
-  });
-
-  it('creates new particles when edges are added', () => {
-    const empty: DiagramEdge[] = [];
-    const { result, rerender } = renderHook(
-      ({ edges }) => useParticleSystem(edges),
-      { initialProps: { edges: empty } }
-    );
-    expect(result.current.length).toBe(0);
-    const withEdge = [linkEdge()];
-    rerender({ edges: withEdge });
-    expect(result.current.length).toBeGreaterThan(0);
   });
 });

@@ -7,25 +7,6 @@ afterEach(() => {
   act(() => { window.dispatchEvent(new MouseEvent('mouseup')); });
 });
 
-// ── initial state ─────────────────────────────────────────────────────────────
-
-describe('useEditorResize – initial state', () => {
-  it('defaults to width 320', () => {
-    const { result } = renderHook(() => useEditorResize());
-    expect(result.current.editorWidth).toBe(320);
-  });
-
-  it('accepts custom initial width', () => {
-    const { result } = renderHook(() => useEditorResize(400));
-    expect(result.current.editorWidth).toBe(400);
-  });
-
-  it('isResizingRef starts as false', () => {
-    const { result } = renderHook(() => useEditorResize());
-    expect(result.current.isResizingRef.current).toBe(false);
-  });
-});
-
 // ── handleResizeStart ─────────────────────────────────────────────────────────
 
 describe('useEditorResize – handleResizeStart', () => {

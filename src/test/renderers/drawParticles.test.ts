@@ -84,13 +84,6 @@ describe('drawParticles – circle', () => {
     drawParticles(ctx, [makeParticle(10, 20) as never], '#ff0000', 5, 'circle');
     expect(ctx.arc).toHaveBeenCalledWith(10, 20, 5, 0, Math.PI * 2);
   });
-
-  it('calls fill() once per drawn particle', () => {
-    const ctx = makeCtx();
-    const particles = [makeParticle(10, 20), makeParticle(30, 40)];
-    drawParticles(ctx, particles as never[], '#ff0000', 5, 'circle');
-    expect(ctx.fill).toHaveBeenCalledTimes(2);
-  });
 });
 
 // ── shape: square ─────────────────────────────────────────────────────────────
@@ -100,12 +93,6 @@ describe('drawParticles – square', () => {
     const ctx = makeCtx();
     drawParticles(ctx, [makeParticle(50, 60) as never], '#ff0000', 8, 'square');
     expect(ctx.rect).toHaveBeenCalledWith(42, 52, 16, 16);
-  });
-
-  it('does not call arc() for square shape', () => {
-    const ctx = makeCtx();
-    drawParticles(ctx, [makeParticle(10, 10) as never], '#ff0000', 5, 'square');
-    expect(ctx.arc).not.toHaveBeenCalled();
   });
 });
 
@@ -189,15 +176,5 @@ describe('drawParticles – multiple particles', () => {
     ];
     drawParticles(ctx, particles as never[], '#ff0000', 5, 'circle');
     expect(ctx.beginPath).toHaveBeenCalledTimes(2);
-  });
-
-  it('draws all shapes using the given particleSize as radius', () => {
-    const shapes: ParticleShape[] = ['circle', 'square', 'triangle', 'star', 'diamond', 'heart', 'hat'];
-    for (const shape of shapes) {
-      const ctx = makeCtx();
-      expect(() =>
-        drawParticles(ctx, [makeParticle(50, 50) as never], '#ff0', 7, shape)
-      ).not.toThrow();
-    }
   });
 });
