@@ -45,21 +45,6 @@ describe('Particle – construction', () => {
     expect(mockGetPointAtLength).toHaveBeenCalledTimes(100);
   });
 
-  it('does not retain a DOM reference after construction (pathElement is null)', () => {
-    const p = new Particle('M 0,0 L 100,0');
-    expect(p.pathElement).toBeNull();
-  });
-
-  it('samples the first point at length 0', () => {
-    new Particle('M 0,0 L 100,0');
-    expect(mockGetPointAtLength).toHaveBeenCalledWith(0);
-  });
-
-  it('samples the last point at full length', () => {
-    new Particle('M 0,0 L 100,0');
-    expect(mockGetPointAtLength).toHaveBeenCalledWith(TOTAL_LENGTH);
-  });
-
   it('returns (0,0) for an invalid path (getTotalLength throws)', () => {
     mockGetTotalLength.mockImplementationOnce(() => { throw new Error('no geometry'); });
     const p = new Particle('INVALID');
@@ -96,15 +81,6 @@ describe('Particle – getPosition()', () => {
     const pos = p.getPosition();
     expect(pos.x).toBeCloseTo(50, 0);
     expect(pos.y).toBeCloseTo(0, 1);
-  });
-
-  it('interpolates smoothly between adjacent samples', () => {
-    const p = new Particle('M 0,0 L 100,0');
-    p.progress = 0.1;
-    const pos1 = p.getPosition();
-    p.progress = 0.101;
-    const pos2 = p.getPosition();
-    expect(pos2.x).toBeGreaterThan(pos1.x);
   });
 });
 

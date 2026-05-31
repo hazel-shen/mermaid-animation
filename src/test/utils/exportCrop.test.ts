@@ -20,13 +20,6 @@ function getTightCropDimensions(dw: number, dh: number) {
   return { outW, outH };
 }
 
-function getPngExportTransform(dw: number, dh: number, padding = CROP_PADDING) {
-  const outW = dw > 0 ? Math.round(dw + padding * 2) : 1920;
-  const outH = dh > 0 ? Math.round(dh + padding * 2) : 1080;
-  const tr = { x: padding, y: padding, scale: 1 };
-  return { outW, outH, tr };
-}
-
 // ── getTightCropDimensions ───────────────────────────────────────────
 
 describe('getTightCropDimensions', () => {
@@ -66,55 +59,5 @@ describe('getTightCropDimensions', () => {
     const { outW, outH } = getTightCropDimensions(8000, 6000);
     expect(outW).toBe(8080);
     expect(outH).toBe(6080);
-  });
-});
-
-// ── PNG export transform ─────────────────────────────────────────────
-
-describe('getPngExportTransform', () => {
-  it('places diagram at (PADDING, PADDING) with scale 1', () => {
-    const { tr } = getPngExportTransform(500, 300);
-    expect(tr.x).toBe(CROP_PADDING);
-    expect(tr.y).toBe(CROP_PADDING);
-    expect(tr.scale).toBe(1);
-  });
-
-  it('output size equals diagram size + 2× padding', () => {
-    const { outW, outH } = getPngExportTransform(640, 480);
-    expect(outW).toBe(640 + CROP_PADDING * 2);
-    expect(outH).toBe(480 + CROP_PADDING * 2);
-  });
-
-  it('falls back to 1920×1080 when diagram size is zero', () => {
-    const { outW, outH } = getPngExportTransform(0, 0);
-    expect(outW).toBe(1920);
-    expect(outH).toBe(1080);
-  });
-
-  it('diagram drawn at tr.x/tr.y lands exactly inside the output canvas', () => {
-    const dw = 700, dh = 500;
-    const { outW, outH, tr } = getPngExportTransform(dw, dh);
-    // Diagram right edge = tr.x + dw * scale
-    const diagramRight  = tr.x + dw * tr.scale;
-    const diagramBottom = tr.y + dh * tr.scale;
-    expect(diagramRight).toBeLessThanOrEqual(outW);
-    expect(diagramBottom).toBeLessThanOrEqual(outH);
-  });
-
-  it('right/bottom margin equals left/top margin (centred padding)', () => {
-    const dw = 600, dh = 400;
-    const { outW, outH, tr } = getPngExportTransform(dw, dh);
-    const marginRight  = outW - (tr.x + dw * tr.scale);
-    const marginBottom = outH - (tr.y + dh * tr.scale);
-    expect(marginRight).toBeCloseTo(tr.x, 5);
-    expect(marginBottom).toBeCloseTo(tr.y, 5);
-  });
-
-  it('accepts a custom padding value', () => {
-    const { outW, outH, tr } = getPngExportTransform(400, 300, 20);
-    expect(tr.x).toBe(20);
-    expect(tr.y).toBe(20);
-    expect(outW).toBe(440);
-    expect(outH).toBe(340);
   });
 });

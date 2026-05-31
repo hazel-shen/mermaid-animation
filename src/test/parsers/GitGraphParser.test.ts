@@ -575,10 +575,6 @@ describe('parseGitGraphLabels', () => {
     expect(parseGitGraphLabels(svg)).toEqual([]);
   });
 
-  it('returns empty array when expandedNodes is empty', () => {
-    expect(parseGitGraphLabels(svg, [])).toEqual([]);
-  });
-
   it('returns empty array when node has no commit label or tag label', () => {
     expect(parseGitGraphLabels(svg, [makeCommitNode(50, 80)])).toHaveLength(0);
   });

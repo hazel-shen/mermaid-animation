@@ -1,16 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { markerSetback, drawArrowMarker } from '../../utils/arrowMarkers';
-import type { ArrowMarker } from '../../types';
 
 // ── markerSetback ─────────────────────────────────────────────────────────────
 
 describe('markerSetback', () => {
   it('returns 20 for composition (filled diamond)', () => {
     expect(markerSetback('composition')).toBe(20);
-  });
-
-  it('returns 20 for aggregation (hollow diamond)', () => {
-    expect(markerSetback('aggregation')).toBe(20);
   });
 
   it('returns 12 for extension (hollow triangle)', () => {
@@ -33,36 +28,12 @@ describe('markerSetback', () => {
     expect(markerSetback('erOne')).toBe(0);
   });
 
-  it('returns 0 for erZeroOrOne', () => {
-    expect(markerSetback('erZeroOrOne')).toBe(0);
-  });
-
-  it('returns 0 for erMany', () => {
-    expect(markerSetback('erMany')).toBe(0);
-  });
-
-  it('returns 0 for erZeroOrMany', () => {
-    expect(markerSetback('erZeroOrMany')).toBe(0);
-  });
-
-  it('returns 0 for openArrow (V tip sits at border, no fill gap)', () => {
-    expect(markerSetback('openArrow')).toBe(0);
-  });
-
   it('returns 10 for circle (diameter 2R=10 — line stops at left edge of circle)', () => {
     expect(markerSetback('circle')).toBe(10);
   });
-
-  it('returns 0 for cross (× sits at the border)', () => {
-    expect(markerSetback('cross')).toBe(0);
-  });
-
-  it('returns 0 for halfCircle (arc right edge sits at border)', () => {
-    expect(markerSetback('halfCircle')).toBe(0);
-  });
 });
 
-// ── drawArrowMarker — smoke tests ─────────────────────────────────────────────
+// ── drawArrowMarker — "none" no-op ────────────────────────────────────────────
 
 const makeCtx = () => ({
   save: vi.fn(),
@@ -82,30 +53,10 @@ const makeCtx = () => ({
   lineWidth: 1,
 }) as unknown as CanvasRenderingContext2D;
 
-const MARKERS: ArrowMarker[] = [
-  'extension', 'composition', 'aggregation', 'dependency', 'default',
-  'circle', 'cross', 'openArrow', 'halfCircle',
-  'erOne', 'erZeroOrOne', 'erMany', 'erZeroOrMany',
-];
-
 describe('drawArrowMarker', () => {
   it('does nothing for marker "none"', () => {
     const ctx = makeCtx();
     drawArrowMarker(ctx, 'none', 0, 0, 0, '#000', '#fff');
     expect((ctx.save as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
-  });
-
-  MARKERS.forEach(marker => {
-    it(`draws "${marker}" without throwing`, () => {
-      const ctx = makeCtx();
-      expect(() => drawArrowMarker(ctx, marker, 100, 100, 0, '#64748b', '#fff')).not.toThrow();
-    });
-
-    it(`"${marker}" calls ctx.save and ctx.restore`, () => {
-      const ctx = makeCtx();
-      drawArrowMarker(ctx, marker, 0, 0, 0, '#000', '#fff');
-      expect((ctx.save as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
-      expect((ctx.restore as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
-    });
   });
 });

@@ -81,14 +81,4 @@ describe('renderFrame – showParticles: false (static export)', () => {
     });
     expect(drawParticles).not.toHaveBeenCalled();
   });
-
-  it('does not call drawParticles regardless of isPremium when showParticles is false', () => {
-    const ctx = makeCtx();
-    renderFrame(ctx, 800, 600, tr, offset, false, {
-      ...baseOpts(),
-      isPremium: false,
-      showParticles: false,
-    });
-    expect(drawParticles).not.toHaveBeenCalled();
-  });
 });

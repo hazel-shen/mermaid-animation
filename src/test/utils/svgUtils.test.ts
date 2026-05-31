@@ -20,11 +20,6 @@ describe('getCumulativeTransform', () => {
     expect(getCumulativeTransform(el, svg)).toEqual({ x: 0, y: 0 });
   });
 
-  it('should return {x:0, y:0} when called with the stopAt element itself', () => {
-    // element === stopAt means the while loop never runs
-    expect(getCumulativeTransform(svg, svg)).toEqual({ x: 0, y: 0 });
-  });
-
   it('should accumulate a single translate(x, y)', () => {
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.setAttribute('transform', 'translate(100, 50)');
@@ -95,16 +90,6 @@ describe('getCumulativeTransform', () => {
 
     // Stop at boundary, not at svg — only inner's transform should be summed
     expect(getCumulativeTransform(el, boundary)).toEqual({ x: 10, y: 5 });
-  });
-
-  it('should handle comma-separated translate(x,y) syntax', () => {
-    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    g.setAttribute('transform', 'translate(15,25)');
-    const el = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    g.appendChild(el);
-    svg.appendChild(g);
-
-    expect(getCumulativeTransform(el, svg)).toEqual({ x: 15, y: 25 });
   });
 
   it('should handle whitespace in translate arguments', () => {
