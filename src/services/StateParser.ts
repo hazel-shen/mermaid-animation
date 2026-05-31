@@ -219,6 +219,13 @@ export const parseStateNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
         stroke: isPremium ? '#3b82f6' : '#2563eb',
       });
 
+      let labelColor: string | undefined;
+      const textEl = g.querySelector('text, foreignObject span, foreignObject div');
+      if (textEl) {
+        const tc = window.getComputedStyle(textEl).color;
+        if (tc && tc !== 'rgba(0, 0, 0, 0)' && tc !== 'rgb(0, 0, 0)') labelColor = tc;
+      }
+
       push({
         id: nodeId,
         label: extractLabel(g),
@@ -226,7 +233,7 @@ export const parseStateNodes = (svgElement: SVGSVGElement, isPremium: boolean): 
         shape: 'roundRect',
         x: geom.cx, y: geom.cy,
         width: geom.width, height: geom.height,
-        color, stroke,
+        color, stroke, labelColor,
       });
     } catch { /* skip */ }
   });

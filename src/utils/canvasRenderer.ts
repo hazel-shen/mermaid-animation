@@ -140,7 +140,7 @@ const drawNodeLabel = (
   height: number,
 ) => {
   const isDarkBg = getLuminance(node.color) < 0.35;
-  ctx.fillStyle = isDarkBg ? '#f1f5f9' : '#1e293b';
+  ctx.fillStyle = node.labelColor ?? (isDarkBg ? '#f1f5f9' : '#1e293b');
   const lines = label.split('\n');
   const lh = 16;
   const totalH = lines.length * lh;
@@ -700,7 +700,7 @@ export const drawNode = (
       ctx.setLineDash([]);
       ctx.stroke();
       // Label text
-      ctx.fillStyle = getLuminance(color) < 0.35 ? '#f1f5f9' : '#334155';
+      ctx.fillStyle = node.labelColor ?? (getLuminance(color) < 0.35 ? '#f1f5f9' : '#334155');
       ctx.font = 'bold 12px Red Hat Text';
       ctx.textBaseline = 'middle';
       ctx.fillText(label, x, top + HEADER_H / 2);
@@ -708,7 +708,7 @@ export const drawNode = (
       // no-op: concurrent sub-region with no label, no divider
     } else {
       // Flowchart subgraph: label above the box
-      ctx.fillStyle = getLuminance(color) < 0.35 ? '#f1f5f9' : '#334155';
+      ctx.fillStyle = node.labelColor ?? (getLuminance(color) < 0.35 ? '#f1f5f9' : '#334155');
       ctx.font = 'bold 12px Red Hat Text';
       ctx.textBaseline = 'bottom';
       ctx.fillText(label, x, y - height / 2 - 4);

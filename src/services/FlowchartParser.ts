@@ -45,6 +45,17 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
     if (style.fill && style.fill !== 'none' && style.fill !== 'rgb(0, 0, 0)') color = style.fill;
     if (style.stroke && style.stroke !== 'none') stroke = style.stroke;
 
+    // Read text color from classDef (Mermaid applies it to <text> or <span> inside foreignObject).
+    let labelColor: string | undefined;
+    const textEl = g.querySelector('text, foreignObject span, foreignObject div');
+    if (textEl) {
+      const textStyle = window.getComputedStyle(textEl);
+      const tc = textStyle.color || textStyle.fill;
+      if (tc && tc !== 'rgba(0, 0, 0, 0)' && tc !== 'rgb(0, 0, 0)') {
+        labelColor = tc;
+      }
+    }
+
     const tagName = shapeEl.tagName.toLowerCase();
 
     // Cylinder [(text)]: Mermaid v10 renders as a single <path> with elliptical arc
@@ -194,7 +205,7 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
     if (width > 0 && height > 0) {
       const nodeId = g.id || nextId('node');
       if (!extractedNodes.some(n => n.id === nodeId)) {
-        extractedNodes.push({ id: nodeId, label, type, x: finalX, y: finalY, width, height, color, stroke, shape });
+        extractedNodes.push({ id: nodeId, label, type, x: finalX, y: finalY, width, height, color, stroke, shape, labelColor });
       }
     }
   });
