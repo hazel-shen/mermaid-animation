@@ -762,6 +762,8 @@ export interface RenderFrameOptions {
   isRecording: boolean;
   hoveredNodeId: string | null;
   exportBg?: ExportBg;
+  /** When false, skip drawing particles (useful for clean static exports). Defaults to true. */
+  showParticles?: boolean;
 }
 
 export const renderFrame = (
@@ -774,7 +776,7 @@ export const renderFrame = (
   opts: RenderFrameOptions,
   dpr = 1
 ) => {
-  const { nodes, edges, particles, seqLabels, isPremium, particleColor, particleSize, particleShape, hoveredNodeId, exportBg } = opts;
+  const { nodes, edges, particles, seqLabels, isPremium, particleColor, particleSize, particleShape, hoveredNodeId, exportBg, showParticles = true } = opts;
 
   // Scale up to physical pixels so drawing commands use CSS-pixel coordinates
   ctx.save();
@@ -819,7 +821,7 @@ export const renderFrame = (
     .forEach(edge => drawEdge(ctx, edge, isPremium, nodes));
   ctx.setLineDash([]);
 
-  if (isPremium) {
+  if (isPremium && showParticles) {
     drawParticles(ctx, particles, particleColor, particleSize, particleShape);
   }
 

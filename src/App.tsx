@@ -665,7 +665,7 @@ const CanvasDiagram = () => {
   }, [canvasRef, diagramSizeRef]);
 
   // --- Preview render callback — used by ExportModal ---
-  const handlePreviewRender = useCallback((exportBg: ExportBg, dstCanvas: HTMLCanvasElement) => {
+  const handlePreviewRender = useCallback((exportBg: ExportBg, dstCanvas: HTMLCanvasElement, showParticles = true) => {
     const frame = buildExportFrame(40, 1);
     if (!frame) return;
     const { OUT_W, OUT_H, ssTr, diagramOffset } = frame;
@@ -680,11 +680,12 @@ const CanvasDiagram = () => {
       isRecording: false,
       hoveredNodeId: null,
       exportBg,
+      showParticles,
     });
   }, [buildExportFrame, nodes, edges, particles, seqLabels, particleColor, particleSpeed, particleSize, particleShape]);
 
   // --- Static export handler ---
-  const handleExport = useCallback((exportBg: ExportBg, format: ExportFormat = 'png') => {
+  const handleExport = useCallback((exportBg: ExportBg, format: ExportFormat = 'png', showParticles = true) => {
     // MMD: download raw Mermaid source
     if (format === 'mmd') {
       const blob = new Blob([code], { type: 'text/plain' });
@@ -729,6 +730,7 @@ const CanvasDiagram = () => {
       isRecording: false,
       hoveredNodeId: null,
       exportBg,
+      showParticles,
     });
 
     const outCanvas = document.createElement('canvas');
