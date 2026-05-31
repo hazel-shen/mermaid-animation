@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 import { drawParticles } from '../../utils/drawParticles';
-import type { ParticleShape } from '../../utils/drawParticles';
 
 const makeCtx = () => {
   const ctx = {
