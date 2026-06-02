@@ -647,10 +647,10 @@ const CanvasDiagram = () => {
     startDownload(
       canvasRef,
       diagramSizeRef,
-      { nodes, edges, particles, seqLabels, isPremium: true, particleColor, particleSpeed, particleSize, particleShape, isRecording, hoveredNodeId: hoveredNodeIdRef.current },
+      { nodes, edges, particles, seqLabels, isPremium: true, particleColor, particleSpeed, particleSize, particleShape, isRecording, hoveredNodeId: hoveredNodeIdRef.current, canvasBgMode },
       format
     );
-  }, [startDownload, nodes, edges, particles, seqLabels, particleColor, particleSize, particleShape, isRecording, diagramSizeRef]);
+  }, [startDownload, nodes, edges, particles, seqLabels, particleColor, particleSize, particleShape, isRecording, diagramSizeRef, canvasBgMode]);
 
   // --- Shared helper: build tight-crop render options ---
   const buildExportFrame = useCallback((PADDING = 40, SS = 2) => {
