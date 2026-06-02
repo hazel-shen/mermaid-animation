@@ -8,6 +8,7 @@
     "bg": "BG",
     "bgWhite": "White",
     "bgGrid": "Grid",
+    "bgDark": "Dark",
     "refresh": "Re-render",
     "export": "✨ Export",
     "download": "Download",

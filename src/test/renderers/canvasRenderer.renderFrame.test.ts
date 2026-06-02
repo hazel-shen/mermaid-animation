@@ -124,4 +124,28 @@ describe('renderFrame – canvasBgMode', () => {
     });
     expect(capturedFill).toBe('#f8fafc');
   });
+
+  it('fills #1e1e2e when canvasBgMode is "dark"', () => {
+    const ctx = makeCtx();
+    let capturedFill = '';
+    (ctx.fillRect as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+      capturedFill = ctx.fillStyle as string;
+    });
+    renderFrame(ctx, 800, 600, tr, offset, false, {
+      ...liveOpts(),
+      canvasBgMode: 'dark',
+    });
+    expect(capturedFill).toBe('#1e1e2e');
+  });
+
+  it('draws grid with light color when canvasBgMode is "dark"', () => {
+    const ctx = makeCtx();
+    renderFrame(ctx, 800, 600, tr, offset, false, {
+      ...liveOpts(),
+      isPremium: true,
+      canvasBgMode: 'dark',
+    });
+    expect(ctx.strokeStyle).toBe('rgba(255,255,255,0.06)');
+    expect(ctx.moveTo).toHaveBeenCalled();
+  });
 });

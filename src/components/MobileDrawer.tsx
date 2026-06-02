@@ -167,6 +167,12 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                 >
                   {t('header.bgGrid')}
                 </button>
+                <button
+                  onClick={() => onCanvasBgModeChange('dark')}
+                  className={`px-3 py-1 border-l border-gray-200 transition-colors ${canvasBgMode === 'dark' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-gray-50'}`}
+                >
+                  {t('header.bgDark')}
+                </button>
               </div>
             </div>
           </div>

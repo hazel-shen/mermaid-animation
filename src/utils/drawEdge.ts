@@ -110,6 +110,7 @@ export const drawEdge = (
   edge: DiagramEdge,
   isPremium: boolean,
   nodes: DiagramNode[] = [],
+  canvasBgMode: 'grid' | 'white' | 'dark' = 'grid',
 ) => {
   // Sankey flow band: open bezier path rendered as a thick stroked line.
   // Mermaid sankey-beta uses stroke-width (not fill) to represent band thickness.
@@ -169,11 +170,13 @@ export const drawEdge = (
   const strokeIsDefaultDark = hasExplicitStroke && getLuminance(edge.stroke!) < 0.1;
   const edgeColor = (hasExplicitStroke && !strokeIsDefaultDark)
     ? edge.stroke!
-    : isPremium
-      ? (edge.type === 'structural' ? '#cbd5e1' : '#64748b')
-      : (edge.type === 'structural' ? '#9ca3af' : '#64748b');
+    : canvasBgMode === 'dark'
+      ? (edge.type === 'structural' ? '#94a3b8' : '#a5b4fc')
+      : isPremium
+        ? (edge.type === 'structural' ? '#cbd5e1' : '#64748b')
+        : (edge.type === 'structural' ? '#9ca3af' : '#64748b');
 
-  const markerBg = isPremium ? '#f8fafc' : '#ffffff';
+  const markerBg = canvasBgMode === 'dark' ? '#1e1e2e' : (isPremium ? '#f8fafc' : '#ffffff');
 
   const rawEnd   = getPathEnd(edge.pathD);
   const rawStart = getPathStart(edge.pathD);

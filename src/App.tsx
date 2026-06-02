@@ -534,6 +534,11 @@ const CanvasDiagram = () => {
   const [particleSize, setParticleSize] = useState(3);
   const [particleShape, setParticleShape] = useState<ParticleShape>('circle');
   const [canvasBgMode, setCanvasBgMode] = useState<import('./utils/canvasRenderer').CanvasBgMode>('grid');
+  const handleCanvasBgModeChange = useCallback((mode: import('./utils/canvasRenderer').CanvasBgMode) => {
+    setCanvasBgMode(mode);
+    if (mode === 'dark') setParticleColor('#a5b4fc');
+    else setParticleColor('#2ea4ff');
+  }, []);
   const [isControlBarOpen, setIsControlBarOpen] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(true);
   const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
@@ -782,7 +787,7 @@ const CanvasDiagram = () => {
         onParticleColorChange={setParticleColor}
         onParticleSizeChange={setParticleSize}
         onParticleShapeChange={setParticleShape}
-        onCanvasBgModeChange={setCanvasBgMode}
+        onCanvasBgModeChange={handleCanvasBgModeChange}
       />
 
       {exportModalOpen && (
@@ -810,7 +815,7 @@ const CanvasDiagram = () => {
         onParticleColorChange={setParticleColor}
         onParticleSizeChange={setParticleSize}
         onParticleShapeChange={setParticleShape}
-        onCanvasBgModeChange={setCanvasBgMode}
+        onCanvasBgModeChange={handleCanvasBgModeChange}
       />
 
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
