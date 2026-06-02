@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Video, Film, RefreshCw, Gauge, Palette, Maximize2, Shapes } from 'lucide-react';
+import { Video, Film, RefreshCw, Gauge, Palette, Maximize2, Shapes, ImageIcon } from 'lucide-react';
 import type { DownloadFormat } from '../hooks/useMediaRecorder';
-import type { ParticleShape } from '../utils/canvasRenderer';
+import type { ParticleShape, CanvasBgMode } from '../utils/canvasRenderer';
 
 interface MobileDrawerProps {
   isOpen: boolean;
@@ -12,6 +12,7 @@ interface MobileDrawerProps {
   particleColor: string;
   particleSize: number;
   particleShape: ParticleShape;
+  canvasBgMode: CanvasBgMode;
   onClose: () => void;
   onExport: () => void;
   onRefresh: () => void;
@@ -20,6 +21,7 @@ interface MobileDrawerProps {
   onParticleColorChange: (value: string) => void;
   onParticleSizeChange: (value: number) => void;
   onParticleShapeChange: (value: ParticleShape) => void;
+  onCanvasBgModeChange: (value: CanvasBgMode) => void;
 }
 
 
@@ -31,6 +33,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
   particleColor,
   particleSize,
   particleShape,
+  canvasBgMode,
   onClose,
   onExport,
   onRefresh,
@@ -39,6 +42,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
   onParticleColorChange,
   onParticleSizeChange,
   onParticleShapeChange,
+  onCanvasBgModeChange,
 }) => {
   const { t } = useTranslation();
   const [selectedFormat, setSelectedFormat] = useState<DownloadFormat>('gif');
@@ -147,6 +151,24 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                 className="min-w-0 flex-1 px-1 py-0.5 rounded border border-gray-200 text-sm font-mono text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
               />
             </label>
+            <div className="col-span-2 flex items-center gap-1.5 text-sm text-slate-600">
+              <ImageIcon size={14} className="text-slate-400 flex-shrink-0" />
+              <span className="font-medium whitespace-nowrap flex-shrink-0">{t('header.bg')}</span>
+              <div className="flex rounded border border-gray-200 overflow-hidden text-xs">
+                <button
+                  onClick={() => onCanvasBgModeChange('white')}
+                  className={`px-3 py-1 transition-colors ${canvasBgMode === 'white' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-gray-50'}`}
+                >
+                  {t('header.bgWhite')}
+                </button>
+                <button
+                  onClick={() => onCanvasBgModeChange('grid')}
+                  className={`px-3 py-1 border-l border-gray-200 transition-colors ${canvasBgMode === 'grid' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-gray-50'}`}
+                >
+                  {t('header.bgGrid')}
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="h-px bg-gray-100" />

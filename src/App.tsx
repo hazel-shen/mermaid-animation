@@ -533,6 +533,7 @@ const CanvasDiagram = () => {
   const [particleSpeed, setParticleSpeed] = useState(1);
   const [particleSize, setParticleSize] = useState(3);
   const [particleShape, setParticleShape] = useState<ParticleShape>('circle');
+  const [canvasBgMode, setCanvasBgMode] = useState<import('./utils/canvasRenderer').CanvasBgMode>('grid');
   const [isControlBarOpen, setIsControlBarOpen] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(true);
   const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
@@ -628,6 +629,7 @@ const CanvasDiagram = () => {
         particleShape,
         isRecording,
         hoveredNodeId: hoveredNodeIdRef.current,
+        canvasBgMode,
       }, dpr);
 
       rafId = requestAnimationFrame(render);
@@ -638,7 +640,7 @@ const CanvasDiagram = () => {
   // transformRef.current is read inside the loop directly — transformState intentionally omitted
   // to prevent the rAF loop from restarting on every pan/zoom event.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, particles, seqLabels, isRecording, particleColor, particleSpeed, particleSize, particleShape]);
+  }, [nodes, edges, particles, seqLabels, isRecording, particleColor, particleSpeed, particleSize, particleShape, canvasBgMode]);
 
   // --- Download handler ---
   const handleDownload = useCallback((format: import('./hooks/useMediaRecorder').DownloadFormat) => {
@@ -772,6 +774,7 @@ const CanvasDiagram = () => {
         particleColor={particleColor}
         particleSize={particleSize}
         particleShape={particleShape}
+        canvasBgMode={canvasBgMode}
         onExport={() => setExportModalOpen(true)}
         onRefresh={renderMermaidToData}
         onDownload={handleDownload}
@@ -779,6 +782,7 @@ const CanvasDiagram = () => {
         onParticleColorChange={setParticleColor}
         onParticleSizeChange={setParticleSize}
         onParticleShapeChange={setParticleShape}
+        onCanvasBgModeChange={setCanvasBgMode}
       />
 
       {exportModalOpen && (
@@ -797,6 +801,7 @@ const CanvasDiagram = () => {
         particleColor={particleColor}
         particleSize={particleSize}
         particleShape={particleShape}
+        canvasBgMode={canvasBgMode}
         onClose={() => setIsControlBarOpen(false)}
         onExport={() => setExportModalOpen(true)}
         onRefresh={renderMermaidToData}
@@ -805,6 +810,7 @@ const CanvasDiagram = () => {
         onParticleColorChange={setParticleColor}
         onParticleSizeChange={setParticleSize}
         onParticleShapeChange={setParticleShape}
+        onCanvasBgModeChange={setCanvasBgMode}
       />
 
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">

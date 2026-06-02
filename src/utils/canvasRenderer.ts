@@ -749,6 +749,8 @@ export const findNodeAtPoint = (
   return best;
 };
 
+export type CanvasBgMode = 'grid' | 'white';
+
 export interface RenderFrameOptions {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
@@ -762,6 +764,8 @@ export interface RenderFrameOptions {
   isRecording: boolean;
   hoveredNodeId: string | null;
   exportBg?: ExportBg;
+  /** Live canvas background mode: 'grid' (default) or 'white'. */
+  canvasBgMode?: CanvasBgMode;
   /** When false, skip drawing particles (useful for clean static exports). Defaults to true. */
   showParticles?: boolean;
 }
@@ -776,7 +780,7 @@ export const renderFrame = (
   opts: RenderFrameOptions,
   dpr = 1
 ) => {
-  const { nodes, edges, particles, seqLabels, isPremium, particleColor, particleSize, particleShape, hoveredNodeId, exportBg, showParticles = true } = opts;
+  const { nodes, edges, particles, seqLabels, isPremium, particleColor, particleSize, particleShape, hoveredNodeId, exportBg, canvasBgMode = 'grid', showParticles = true } = opts;
 
   // Scale up to physical pixels so drawing commands use CSS-pixel coordinates
   ctx.save();
@@ -794,7 +798,7 @@ export const renderFrame = (
     ctx.fillRect(0, 0, w, h);
   } else {
     // Live canvas (no exportBg)
-    ctx.fillStyle = isPremium ? '#f8fafc' : '#fff';
+    ctx.fillStyle = canvasBgMode === 'white' ? '#ffffff' : (isPremium ? '#f8fafc' : '#fff');
     ctx.fillRect(0, 0, w, h);
   }
 
@@ -803,8 +807,8 @@ export const renderFrame = (
   ctx.scale(tr.scale, tr.scale);
   ctx.translate(offset.x, offset.y);
 
-  // 透明和純色匯出不畫格線；格紋和 live canvas 才畫
-  if (isPremium && exportBg !== 'transparent' && exportBg !== 'solid') drawGrid(ctx, w, h);
+  // 透明和純色匯出不畫格線；格紋和 live grid 模式才畫
+  if (isPremium && exportBg !== 'transparent' && exportBg !== 'solid' && canvasBgMode !== 'white') drawGrid(ctx, w, h);
 
   // Clusters first (background layer) — largest area first so outer boxes don't overdraw inner ones
   nodes.filter(n => n.type === 'cluster')
