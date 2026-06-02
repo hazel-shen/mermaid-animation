@@ -26,7 +26,7 @@ const makeParticle = (x: number, y: number) => ({
 // ── canvas state ──────────────────────────────────────────────────────────────
 
 describe('drawParticles – canvas state', () => {
-  it('sets globalCompositeOperation to multiply while drawing', () => {
+  it('sets globalCompositeOperation to multiply while drawing (light mode)', () => {
     const ctx = makeCtx();
     let opDuringDraw = '';
     (ctx.fill as ReturnType<typeof vi.fn>).mockImplementation(() => {
@@ -37,10 +37,40 @@ describe('drawParticles – canvas state', () => {
     expect(opDuringDraw).toBe('multiply');
   });
 
+  it('sets globalCompositeOperation to screen while drawing (dark mode)', () => {
+    const ctx = makeCtx();
+    let opDuringDraw = '';
+    (ctx.fill as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      opDuringDraw = ctx.globalCompositeOperation;
+    });
+    drawParticles(ctx, [makeParticle(10, 20) as never], '#ff0000', 5, 'circle', true);
+    expect(opDuringDraw).toBe('screen');
+  });
+
   it('resets globalCompositeOperation to source-over after drawing', () => {
     const ctx = makeCtx();
     drawParticles(ctx, [makeParticle(10, 20) as never], '#ff0000', 5, 'circle');
     expect(ctx.globalCompositeOperation).toBe('source-over');
+  });
+
+  it('uses shadowBlur 4 in light mode', () => {
+    const ctx = makeCtx();
+    let blurDuringDraw = 0;
+    (ctx.fill as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      blurDuringDraw = ctx.shadowBlur;
+    });
+    drawParticles(ctx, [makeParticle(10, 20) as never], '#ff0000', 5, 'circle', false);
+    expect(blurDuringDraw).toBe(4);
+  });
+
+  it('uses shadowBlur 12 in dark mode', () => {
+    const ctx = makeCtx();
+    let blurDuringDraw = 0;
+    (ctx.fill as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      blurDuringDraw = ctx.shadowBlur;
+    });
+    drawParticles(ctx, [makeParticle(10, 20) as never], '#ff0000', 5, 'circle', true);
+    expect(blurDuringDraw).toBe(12);
   });
 
   it('resets shadowBlur to 0 after drawing', () => {
@@ -55,7 +85,6 @@ describe('drawParticles – canvas state', () => {
     expect(ctx.fillStyle).toBe('#abc123');
     expect(ctx.shadowColor).toBe('#abc123');
   });
-
 });
 
 // ── skip (0,0) particles ──────────────────────────────────────────────────────
