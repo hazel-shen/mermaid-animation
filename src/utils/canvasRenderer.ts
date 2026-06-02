@@ -819,9 +819,15 @@ export const renderFrame = (
   }
 
   // Clusters first (background layer) — largest area first so outer boxes don't overdraw inner ones
+  const isDarkMode = canvasBgMode === 'dark';
   nodes.filter(n => n.type === 'cluster')
     .sort((a, b) => (b.width * b.height) - (a.width * a.height))
-    .forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
+    .forEach(node => {
+      const n = isDarkMode
+        ? { ...node, color: '#2a2a3e', stroke: '#6366f1' }
+        : node;
+      drawNode(ctx, n, isPremium, hoveredNodeId, particleColor);
+    });
 
   // Structural edges (lifelines) first
   edges.filter(e => e.type === 'structural')
@@ -841,7 +847,12 @@ export const renderFrame = (
   nodes
     .filter(n => n.type !== 'cluster' && n.nodeKind !== 'stepNum' && n.nodeKind !== 'activation')
     .sort((a, _b) => (a.type === 'note' ? 1 : 0))
-    .forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
+    .forEach(node => {
+      const n = (isDarkMode && (node.shape === 'circle' || node.shape === 'endCircle') && getLuminance(node.color) < 0.2)
+        ? { ...node, color: '#a5b4fc', stroke: '#6366f1' }
+        : node;
+      drawNode(ctx, n, isPremium, hoveredNodeId, particleColor);
+    });
 
   nodes.filter(n => n.nodeKind === 'activation')
     .forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
@@ -851,8 +862,11 @@ export const renderFrame = (
 
   if (seqLabels.length > 0) {
     ctx.shadowBlur = 0;
-    const isDarkBg = canvasBgMode === 'dark';
     seqLabels.forEach(lbl => {
+      const bgColor = (isDarkMode && lbl.bgColor && getLuminance(lbl.bgColor) > 0.3)
+        ? '#2a2a3e'
+        : lbl.bgColor;
+      lbl = { ...lbl, bgColor };
       ctx.font = `${lbl.bold ? 'bold ' : ''}${lbl.fontSize}px Red Hat Text, sans-serif`;
       ctx.textAlign = lbl.align;
       ctx.textBaseline = 'middle';
@@ -915,12 +929,12 @@ export const renderFrame = (
 
           // Text
           ctx.textAlign = 'left';
-          ctx.fillStyle = (isDarkBg && getLuminance(lbl.color) < 0.2) ? '#e2e8f0' : lbl.color;
+          ctx.fillStyle = (isDarkMode && getLuminance(lbl.color) < 0.2) ? '#e2e8f0' : lbl.color;
           ctx.fillText(lbl.text, textX, 0);
           ctx.restore();
           return;
         }
-        ctx.fillStyle = (isDarkBg && getLuminance(lbl.color) < 0.2) ? '#e2e8f0' : lbl.color;
+        ctx.fillStyle = (isDarkMode && getLuminance(lbl.color) < 0.2) ? '#e2e8f0' : lbl.color;
         ctx.fillText(lbl.text, 0, 0);
         ctx.restore();
         return;
@@ -940,7 +954,7 @@ export const renderFrame = (
         ctx.fill();
       }
 
-      ctx.fillStyle = (isDarkBg && getLuminance(lbl.color) < 0.2) ? '#e2e8f0' : lbl.color;
+      ctx.fillStyle = (isDarkMode && getLuminance(lbl.color) < 0.2) ? '#e2e8f0' : lbl.color;
       ctx.fillText(lbl.text, lbl.x, lbl.y);
     });
     ctx.textAlign = 'center';
