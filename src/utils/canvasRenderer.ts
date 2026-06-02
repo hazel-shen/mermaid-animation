@@ -56,10 +56,10 @@ const drawBangPath = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
   ctx.closePath();
 };
 
-export const drawGrid = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+export const drawGrid = (ctx: CanvasRenderingContext2D, w: number, h: number, color = 'rgba(0,0,0,0.05)') => {
   const bigW = w * 2;
   const bigH = h * 2;
-  ctx.strokeStyle = 'rgba(0,0,0,0.05)';
+  ctx.strokeStyle = color;
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let x = -bigW; x <= bigW; x += 40) { ctx.moveTo(x, -bigH); ctx.lineTo(x, bigH); }
@@ -749,6 +749,8 @@ export const findNodeAtPoint = (
   return best;
 };
 
+export type CanvasBgMode = 'grid' | 'white' | 'dark';
+
 export interface RenderFrameOptions {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
@@ -762,6 +764,8 @@ export interface RenderFrameOptions {
   isRecording: boolean;
   hoveredNodeId: string | null;
   exportBg?: ExportBg;
+  /** Live canvas background mode: 'grid' (default) or 'white'. */
+  canvasBgMode?: CanvasBgMode;
   /** When false, skip drawing particles (useful for clean static exports). Defaults to true. */
   showParticles?: boolean;
 }
@@ -776,7 +780,7 @@ export const renderFrame = (
   opts: RenderFrameOptions,
   dpr = 1
 ) => {
-  const { nodes, edges, particles, seqLabels, isPremium, particleColor, particleSize, particleShape, hoveredNodeId, exportBg, showParticles = true } = opts;
+  const { nodes, edges, particles, seqLabels, isPremium, particleColor, particleSize, particleShape, hoveredNodeId, exportBg, canvasBgMode = 'grid', showParticles = true } = opts;
 
   // Scale up to physical pixels so drawing commands use CSS-pixel coordinates
   ctx.save();
@@ -794,7 +798,13 @@ export const renderFrame = (
     ctx.fillRect(0, 0, w, h);
   } else {
     // Live canvas (no exportBg)
-    ctx.fillStyle = isPremium ? '#f8fafc' : '#fff';
+    if (canvasBgMode === 'white') {
+      ctx.fillStyle = '#ffffff';
+    } else if (canvasBgMode === 'dark') {
+      ctx.fillStyle = '#1e1e2e';
+    } else {
+      ctx.fillStyle = isPremium ? '#f8fafc' : '#fff';
+    }
     ctx.fillRect(0, 0, w, h);
   }
 
@@ -803,8 +813,10 @@ export const renderFrame = (
   ctx.scale(tr.scale, tr.scale);
   ctx.translate(offset.x, offset.y);
 
-  // 透明和純色匯出不畫格線；格紋和 live canvas 才畫
-  if (isPremium && exportBg !== 'transparent' && exportBg !== 'solid') drawGrid(ctx, w, h);
+  // 透明和純色匯出不畫格線；格紋和 live grid/dark 模式才畫
+  if (isPremium && exportBg !== 'transparent' && exportBg !== 'solid' && canvasBgMode !== 'white') {
+    drawGrid(ctx, w, h, canvasBgMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)');
+  }
 
   // Clusters first (background layer) — largest area first so outer boxes don't overdraw inner ones
   nodes.filter(n => n.type === 'cluster')
@@ -813,16 +825,16 @@ export const renderFrame = (
 
   // Structural edges (lifelines) first
   edges.filter(e => e.type === 'structural')
-    .forEach(edge => drawEdge(ctx, edge, isPremium, nodes));
+    .forEach(edge => drawEdge(ctx, edge, isPremium, nodes, canvasBgMode));
   ctx.setLineDash([]);
 
   // Link edges (message arrows) on top of lifelines
   edges.filter(e => e.type === 'link')
-    .forEach(edge => drawEdge(ctx, edge, isPremium, nodes));
+    .forEach(edge => drawEdge(ctx, edge, isPremium, nodes, canvasBgMode));
   ctx.setLineDash([]);
 
   if (isPremium && showParticles) {
-    drawParticles(ctx, particles, particleColor, particleSize, particleShape);
+    drawParticles(ctx, particles, particleColor, particleSize, particleShape, canvasBgMode === 'dark');
   }
 
   // Normal nodes + notes (step numbers always on top)
@@ -839,6 +851,7 @@ export const renderFrame = (
 
   if (seqLabels.length > 0) {
     ctx.shadowBlur = 0;
+    const isDarkBg = canvasBgMode === 'dark';
     seqLabels.forEach(lbl => {
       ctx.font = `${lbl.bold ? 'bold ' : ''}${lbl.fontSize}px Red Hat Text, sans-serif`;
       ctx.textAlign = lbl.align;
@@ -902,12 +915,12 @@ export const renderFrame = (
 
           // Text
           ctx.textAlign = 'left';
-          ctx.fillStyle = lbl.color;
+          ctx.fillStyle = (isDarkBg && getLuminance(lbl.color) < 0.2) ? '#e2e8f0' : lbl.color;
           ctx.fillText(lbl.text, textX, 0);
           ctx.restore();
           return;
         }
-        ctx.fillStyle = lbl.color;
+        ctx.fillStyle = (isDarkBg && getLuminance(lbl.color) < 0.2) ? '#e2e8f0' : lbl.color;
         ctx.fillText(lbl.text, 0, 0);
         ctx.restore();
         return;
@@ -927,7 +940,7 @@ export const renderFrame = (
         ctx.fill();
       }
 
-      ctx.fillStyle = lbl.color;
+      ctx.fillStyle = (isDarkBg && getLuminance(lbl.color) < 0.2) ? '#e2e8f0' : lbl.color;
       ctx.fillText(lbl.text, lbl.x, lbl.y);
     });
     ctx.textAlign = 'center';

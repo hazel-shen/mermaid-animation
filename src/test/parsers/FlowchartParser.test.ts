@@ -366,6 +366,53 @@ describe('parseFlowchartNodes', () => {
     const [node] = parseFlowchartNodes(svgElement, true);
     expect(node.stroke).toBe('#94a3b8');
   });
+
+  // ── labelColor extraction ─────────────────────────────────────────────────
+
+  it('reads labelColor from computed color of child <text> element', () => {
+    const g = el('g'); g.classList.add('node'); g.id = 'lc1';
+    g.appendChild(el('rect'));
+    const t = el('text'); t.textContent = 'Colored';
+    g.appendChild(t); svgElement.appendChild(g);
+
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((target) => {
+      if (target === t) {
+        return { color: 'rgb(24, 95, 165)', fill: '' } as unknown as CSSStyleDeclaration;
+      }
+      return { fill: '', stroke: '', strokeDasharray: '', strokeWidth: '' } as unknown as CSSStyleDeclaration;
+    });
+
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.labelColor).toBe('rgb(24, 95, 165)');
+    vi.restoreAllMocks();
+  });
+
+  it('leaves labelColor undefined when text color is black rgb(0,0,0)', () => {
+    const g = el('g'); g.classList.add('node'); g.id = 'lc2';
+    g.appendChild(el('rect'));
+    const t = el('text'); t.textContent = 'Black';
+    g.appendChild(t); svgElement.appendChild(g);
+
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((target) => {
+      if (target === t) {
+        return { color: 'rgb(0, 0, 0)', fill: '' } as unknown as CSSStyleDeclaration;
+      }
+      return { fill: '', stroke: '', strokeDasharray: '', strokeWidth: '' } as unknown as CSSStyleDeclaration;
+    });
+
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.labelColor).toBeUndefined();
+    vi.restoreAllMocks();
+  });
+
+  it('leaves labelColor undefined when node has no text element', () => {
+    const g = el('g'); g.classList.add('node'); g.id = 'lc3';
+    g.appendChild(el('rect'));
+    // no <text> child
+    svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.labelColor).toBeUndefined();
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -92,6 +92,18 @@ describe('drawEdge – edge color', () => {
     drawEdge(ctx, baseEdge({ stroke: 'none', type: 'link' }), false);
     expect(ctx.strokeStyle).toBe('#64748b');
   });
+
+  it('dark mode structural edge → #94a3b8', () => {
+    const ctx = makeCtx();
+    drawEdge(ctx, baseEdge({ stroke: '#333333', type: 'structural' }), true, [], 'dark');
+    expect(ctx.strokeStyle).toBe('#94a3b8');
+  });
+
+  it('dark mode link edge → #a5b4fc', () => {
+    const ctx = makeCtx();
+    drawEdge(ctx, baseEdge({ stroke: 'none', type: 'link' }), false, [], 'dark');
+    expect(ctx.strokeStyle).toBe('#a5b4fc');
+  });
 });
 
 // ── dash style ────────────────────────────────────────────────────────────────

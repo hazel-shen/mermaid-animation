@@ -86,3 +86,38 @@ describe('drawNode – hovered stroke', () => {
     expect(ctx.strokeStyle).toBe('#abc123');
   });
 });
+
+// ── label color: labelColor field ─────────────────────────────────────────────
+
+describe('drawNode – label color', () => {
+  const captureFillAtFillText = (ctx: CanvasRenderingContext2D): () => string => {
+    let captured = '';
+    (ctx.fillText as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      captured = ctx.fillStyle as string;
+    });
+    return () => captured;
+  };
+
+  it('uses labelColor when provided, regardless of background luminance', () => {
+    const ctx = makeCtx();
+    const getFill = captureFillAtFillText(ctx);
+    // White background would normally produce dark (#1e293b) auto-color;
+    // labelColor should override it.
+    drawNode(ctx, baseNode({ color: '#ffffff', labelColor: '#185FA5' }), false, null, '#6366f1');
+    expect(getFill()).toBe('#185FA5');
+  });
+
+  it('falls back to dark auto-color (#1e293b) on light background when labelColor is absent', () => {
+    const ctx = makeCtx();
+    const getFill = captureFillAtFillText(ctx);
+    drawNode(ctx, baseNode({ color: '#ffffff' }), false, null, '#6366f1');
+    expect(getFill()).toBe('#1e293b');
+  });
+
+  it('falls back to light auto-color (#f1f5f9) on dark background when labelColor is absent', () => {
+    const ctx = makeCtx();
+    const getFill = captureFillAtFillText(ctx);
+    drawNode(ctx, baseNode({ color: '#0f172a' }), false, null, '#6366f1');
+    expect(getFill()).toBe('#f1f5f9');
+  });
+});

@@ -82,3 +82,70 @@ describe('renderFrame – showParticles: false (static export)', () => {
     expect(drawParticles).not.toHaveBeenCalled();
   });
 });
+
+// ── canvasBgMode (live canvas background) ────────────────────────────
+
+describe('renderFrame – canvasBgMode', () => {
+  const liveOpts = (): RenderFrameOptions => ({ ...baseOpts(), exportBg: undefined });
+
+  it('fills #ffffff when canvasBgMode is "white"', () => {
+    const ctx = makeCtx();
+    let capturedFill = '';
+    (ctx.fillRect as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+      capturedFill = ctx.fillStyle as string;
+    });
+    renderFrame(ctx, 800, 600, tr, offset, false, {
+      ...liveOpts(),
+      canvasBgMode: 'white',
+    });
+    expect(capturedFill).toBe('#ffffff');
+  });
+
+  it('does not draw grid when canvasBgMode is "white"', () => {
+    const ctx = makeCtx();
+    renderFrame(ctx, 800, 600, tr, offset, false, {
+      ...liveOpts(),
+      isPremium: true,
+      canvasBgMode: 'white',
+    });
+    expect(ctx.moveTo).not.toHaveBeenCalled();
+  });
+
+  it('fills #f8fafc when canvasBgMode is "grid" (default)', () => {
+    const ctx = makeCtx();
+    let capturedFill = '';
+    (ctx.fillRect as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+      capturedFill = ctx.fillStyle as string;
+    });
+    renderFrame(ctx, 800, 600, tr, offset, false, {
+      ...liveOpts(),
+      isPremium: true,
+      canvasBgMode: 'grid',
+    });
+    expect(capturedFill).toBe('#f8fafc');
+  });
+
+  it('fills #1e1e2e when canvasBgMode is "dark"', () => {
+    const ctx = makeCtx();
+    let capturedFill = '';
+    (ctx.fillRect as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+      capturedFill = ctx.fillStyle as string;
+    });
+    renderFrame(ctx, 800, 600, tr, offset, false, {
+      ...liveOpts(),
+      canvasBgMode: 'dark',
+    });
+    expect(capturedFill).toBe('#1e1e2e');
+  });
+
+  it('draws grid with light color when canvasBgMode is "dark"', () => {
+    const ctx = makeCtx();
+    renderFrame(ctx, 800, 600, tr, offset, false, {
+      ...liveOpts(),
+      isPremium: true,
+      canvasBgMode: 'dark',
+    });
+    expect(ctx.strokeStyle).toBe('rgba(255,255,255,0.06)');
+    expect(ctx.moveTo).toHaveBeenCalled();
+  });
+});

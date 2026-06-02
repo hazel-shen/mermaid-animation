@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Zap, Video, Film, RefreshCw, Palette, Gauge, ChevronDown, Maximize2, Shapes, ChevronUp, Globe } from 'lucide-react';
+import { Zap, Video, Film, RefreshCw, Palette, Gauge, ChevronDown, Maximize2, Shapes, ChevronUp, Globe, ImageIcon } from 'lucide-react';
 import type { DownloadFormat } from '../hooks/useMediaRecorder';
-import type { ParticleShape } from '../utils/canvasRenderer';
+import type { ParticleShape, CanvasBgMode } from '../utils/canvasRenderer';
 
 const githubLogo = 'https://raw.githubusercontent.com/hazel-shen/mermaid-animation/refs/heads/main/src/assets/github-logo.png';
 
@@ -19,6 +19,7 @@ interface AppHeaderProps {
   particleColor: string;
   particleSize: number;
   particleShape: ParticleShape;
+  canvasBgMode: CanvasBgMode;
   onExport: () => void;
   onRefresh: () => void;
   onDownload: (format: DownloadFormat) => void;
@@ -26,6 +27,7 @@ interface AppHeaderProps {
   onParticleColorChange: (value: string) => void;
   onParticleSizeChange: (value: number) => void;
   onParticleShapeChange: (value: ParticleShape) => void;
+  onCanvasBgModeChange: (value: CanvasBgMode) => void;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
@@ -35,6 +37,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   particleColor,
   particleSize,
   particleShape,
+  canvasBgMode,
   onExport,
   onRefresh,
   onDownload,
@@ -42,6 +45,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onParticleColorChange,
   onParticleSizeChange,
   onParticleShapeChange,
+  onCanvasBgModeChange,
 }) => {
   const { t, i18n } = useTranslation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -220,6 +224,30 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                     className="w-16 px-1 py-0.5 rounded border border-gray-200 text-sm font-mono text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
                   />
                 </label>
+                <div className="flex items-center gap-1 text-sm text-slate-600">
+                  <ImageIcon size={13} className="text-slate-400 flex-shrink-0" />
+                  <span className="font-medium whitespace-nowrap">{t('header.bg')}</span>
+                  <div className="flex rounded border border-gray-200 overflow-hidden text-xs">
+                    <button
+                      onClick={() => onCanvasBgModeChange('white')}
+                      className={`px-2 py-0.5 transition-colors ${canvasBgMode === 'white' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-gray-50'}`}
+                    >
+                      {t('header.bgWhite')}
+                    </button>
+                    <button
+                      onClick={() => onCanvasBgModeChange('grid')}
+                      className={`px-2 py-0.5 border-l border-gray-200 transition-colors ${canvasBgMode === 'grid' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-gray-50'}`}
+                    >
+                      {t('header.bgGrid')}
+                    </button>
+                    <button
+                      onClick={() => onCanvasBgModeChange('dark')}
+                      className={`px-2 py-0.5 border-l border-gray-200 transition-colors ${canvasBgMode === 'dark' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-gray-50'}`}
+                    >
+                      {t('header.bgDark')}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 

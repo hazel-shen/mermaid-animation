@@ -8,9 +8,10 @@ export const drawParticles = (
   particleColor: string,
   particleSize: number,
   particleShape: ParticleShape,
+  darkMode = false,
 ) => {
-  ctx.globalCompositeOperation = 'multiply';
-  ctx.shadowBlur = 4;
+  ctx.globalCompositeOperation = darkMode ? 'screen' : 'multiply';
+  ctx.shadowBlur = darkMode ? 12 : 4;
   ctx.shadowColor = particleColor;
   ctx.fillStyle = particleColor;
   const r = particleSize;
