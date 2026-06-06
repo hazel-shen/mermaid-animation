@@ -26,6 +26,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, on
   const BG_OPTIONS: { value: ExportBg; label: string; style: React.CSSProperties }[] = [
     { value: 'solid',        label: t('export.bgWhite'),       style: { background: '#ffffff', border: '1.5px solid #e2e8f0' } },
     { value: 'checkerboard', label: t('export.bgDark'),         style: { background: '#f8fafc', backgroundImage: 'linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px)', backgroundSize: '8px 8px' } },
+    { value: 'dark',         label: t('export.bgDarkMode'),     style: { background: '#1e1e2e', border: '1.5px solid #6366f1' } },
     { value: 'transparent',  label: t('export.bgTransparent'),  style: { backgroundImage: 'repeating-conic-gradient(#cbd5e1 0% 25%, #ffffff 0% 50%)', backgroundSize: '8px 8px' } },
   ];
 
@@ -46,23 +47,23 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, on
            style={{ width: 'min(90vw, 900px)', height: 'min(80vh, 560px)' }}>
 
         {/* ── Left sidebar ── */}
-        <div className="flex flex-col w-11 shrink-0 border-r border-gray-100">
-          <div className="flex flex-col gap-2 p-2 flex-1">
+        <div className="flex flex-col w-9 shrink-0 border-r border-gray-100">
+          <div className="flex flex-col gap-1.5 p-1.5 flex-1">
             {/* Format */}
             <div className="flex flex-col gap-0.5">
-              <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">{t('export.format')}</p>
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{t('export.format')}</p>
               {FORMAT_OPTIONS.map(opt => (
                 <button
                   key={opt.value}
                   onClick={() => setSelectedFormat(opt.value)}
                   title={opt.label}
-                  className={`w-full py-0.5 rounded border text-center transition-all ${
+                  className={`w-full py-px rounded border text-center transition-all ${
                     selectedFormat === opt.value
                       ? 'border-blue-500 bg-blue-50'
                       : 'border-gray-200 hover:border-gray-300 bg-white'
                   }`}
                 >
-                  <span className={`text-[10px] font-bold ${selectedFormat === opt.value ? 'text-blue-600' : 'text-slate-600'}`}>
+                  <span className={`text-[11px] font-bold ${selectedFormat === opt.value ? 'text-blue-600' : 'text-slate-600'}`}>
                     {opt.label}
                   </span>
                 </button>
@@ -71,14 +72,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, on
 
             {/* Background */}
             <div className="flex flex-col gap-0.5">
-              <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">{t('export.background')}</p>
-              <div className="flex flex-col gap-1">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{t('export.background')}</p>
+              <div className="flex flex-col gap-0.5">
                 {BG_OPTIONS.map(opt => (
                   <button
                     key={opt.value}
                     onClick={() => setSelectedBg(opt.value)}
                     title={opt.label}
-                    className={`w-full h-4 rounded transition-all ${
+                    className={`w-full h-3.5 rounded transition-all ${
                       selectedBg === opt.value ? 'ring-2 ring-blue-500 ring-offset-1' : 'ring-1 ring-gray-200 hover:ring-gray-300'
                     }`}
                     style={opt.style}
@@ -93,9 +94,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, on
             <div className="flex flex-col gap-1">
               <button
                 onClick={() => onConfirm(selectedBg, selectedFormat, false)}
-                className="w-full py-1 rounded bg-slate-800 text-white text-[9px] font-bold flex items-center justify-center gap-0.5 hover:bg-slate-700 transition-colors"
+                className="w-full py-0.5 rounded bg-slate-800 text-white text-[10px] font-bold flex items-center justify-center gap-0.5 hover:bg-slate-700 transition-colors"
               >
-                <Download size={8} />
+                <Download size={7} />
                 {t('export.export')}
               </button>
             </div>
@@ -109,7 +110,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onClose, on
           </div>
           <button
             onClick={onClose}
-            className="absolute top-2 right-2 z-10 w-5 h-5 flex items-center justify-center rounded-full bg-white/50 hover:bg-red-50 text-slate-400 hover:text-red-500 shadow-sm border border-gray-200/60 hover:border-red-200 transition-colors"
+            className="absolute top-2 right-2 z-10 w-5 h-5 flex items-center justify-center rounded-full bg-white/50 hover:bg-red-50 text-slate-800 hover:text-red-500 shadow-sm border border-gray-200/60 hover:border-red-200 transition-colors"
           >
             <X size={10} strokeWidth={2} />
           </button>

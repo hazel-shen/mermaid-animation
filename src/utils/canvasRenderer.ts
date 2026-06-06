@@ -9,7 +9,7 @@ import type { ParticleShape } from './drawParticles';
 export type { ParticleShape };
 export { drawEdge };
 
-export type ExportBg = 'solid' | 'checkerboard' | 'transparent';
+export type ExportBg = 'solid' | 'checkerboard' | 'transparent' | 'dark';
 
 
 // Cloud shape centred at (0,0) fitting w×h.
@@ -782,6 +782,9 @@ export const renderFrame = (
 ) => {
   const { nodes, edges, particles, seqLabels, isPremium, particleColor, particleSize, particleShape, hoveredNodeId, exportBg, canvasBgMode = 'grid', showParticles = true } = opts;
 
+  // exportBg 'dark' is treated as canvasBgMode 'dark' for the entire render pass
+  const effectiveDarkMode = canvasBgMode === 'dark' || exportBg === 'dark';
+
   // Scale up to physical pixels so drawing commands use CSS-pixel coordinates
   ctx.save();
   ctx.scale(dpr, dpr);
@@ -795,6 +798,9 @@ export const renderFrame = (
   } else if (exportBg === 'solid') {
     // 純色 = 純白背景
     ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+  } else if (exportBg === 'dark') {
+    ctx.fillStyle = '#1e1e2e';
     ctx.fillRect(0, 0, w, h);
   } else {
     // Live canvas (no exportBg)
@@ -815,11 +821,11 @@ export const renderFrame = (
 
   // 透明和純色匯出不畫格線；格紋和 live grid/dark 模式才畫
   if (isPremium && exportBg !== 'transparent' && exportBg !== 'solid' && canvasBgMode !== 'white') {
-    drawGrid(ctx, w, h, canvasBgMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)');
+    drawGrid(ctx, w, h, effectiveDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)');
   }
 
   // Clusters first (background layer) — largest area first so outer boxes don't overdraw inner ones
-  const isDarkMode = canvasBgMode === 'dark';
+  const isDarkMode = effectiveDarkMode;
   nodes.filter(n => n.type === 'cluster')
     .sort((a, b) => (b.width * b.height) - (a.width * a.height))
     .forEach(node => {
@@ -831,16 +837,16 @@ export const renderFrame = (
 
   // Structural edges (lifelines) first
   edges.filter(e => e.type === 'structural')
-    .forEach(edge => drawEdge(ctx, edge, isPremium, nodes, canvasBgMode));
+    .forEach(edge => drawEdge(ctx, edge, isPremium, nodes, effectiveDarkMode ? 'dark' : canvasBgMode));
   ctx.setLineDash([]);
 
   // Link edges (message arrows) on top of lifelines
   edges.filter(e => e.type === 'link')
-    .forEach(edge => drawEdge(ctx, edge, isPremium, nodes, canvasBgMode));
+    .forEach(edge => drawEdge(ctx, edge, isPremium, nodes, effectiveDarkMode ? 'dark' : canvasBgMode));
   ctx.setLineDash([]);
 
   if (isPremium && showParticles) {
-    drawParticles(ctx, particles, particleColor, particleSize, particleShape, canvasBgMode === 'dark');
+    drawParticles(ctx, particles, particleColor, particleSize, particleShape, effectiveDarkMode);
   }
 
   // Normal nodes + notes (step numbers always on top)

@@ -57,6 +57,7 @@
     "export": "Export",
     "bgWhite": "White",
     "bgDark": "Dark",
+    "bgDarkMode": "Dark Mode",
     "bgTransparent": "Transparent"
   },
   "mobile": {
