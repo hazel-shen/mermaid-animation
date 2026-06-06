@@ -413,6 +413,48 @@ describe('parseFlowchartNodes', () => {
     const [node] = parseFlowchartNodes(svgElement, false);
     expect(node.labelColor).toBeUndefined();
   });
+
+  // ── preserveColor: user-defined style directive detection ─────────────────
+
+  it('sets preserveColor=true when shape element has inline fill style (style directive)', () => {
+    const g = el('g'); g.classList.add('node'); g.id = 'pc1';
+    const r = el<SVGRectElement>('rect');
+    r.setAttribute('style', 'fill:#9FE1CB;stroke:#0F6E56');
+    g.appendChild(r);
+    svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.preserveColor).toBe(true);
+  });
+
+  it('sets preserveColor=true when only stroke is in inline style', () => {
+    const g = el('g'); g.classList.add('node'); g.id = 'pc2';
+    const r = el<SVGRectElement>('rect');
+    r.setAttribute('style', 'stroke:#A32D2D');
+    g.appendChild(r);
+    svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.preserveColor).toBe(true);
+  });
+
+  it('leaves preserveColor undefined when no inline style on shape elements', () => {
+    const g = el('g'); g.classList.add('node'); g.id = 'pc3';
+    g.appendChild(el('rect'));
+    svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.preserveColor).toBeUndefined();
+  });
+
+  it('detects inline style on polygon (diamond node) as preserveColor', () => {
+    const g = el('g'); g.classList.add('node'); g.id = 'pc4';
+    const poly = el<SVGPolygonElement>('polygon');
+    poly.setAttribute('points', '50,0 100,25 50,50 0,25');
+    poly.setAttribute('style', 'fill:#FAC775;stroke:#854F0B');
+    g.appendChild(poly);
+    svgElement.appendChild(g);
+    const [node] = parseFlowchartNodes(svgElement, false);
+    expect(node.preserveColor).toBe(true);
+    expect(node.shape).toBe('diamond');
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

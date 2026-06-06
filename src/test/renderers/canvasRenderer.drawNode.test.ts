@@ -87,6 +87,54 @@ describe('drawNode – hovered stroke', () => {
   });
 });
 
+// ── cluster (subgraph) label rendering ───────────────────────────────────────
+
+describe('drawNode – cluster label', () => {
+  const captureFillAtFillText = (ctx: CanvasRenderingContext2D): () => string => {
+    let captured = '';
+    (ctx.fillText as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      captured = ctx.fillStyle as string;
+    });
+    return () => captured;
+  };
+
+  const clusterNode = (overrides: Partial<DiagramNode> = {}): DiagramNode => ({
+    id: 'sg1',
+    label: '應用服務',
+    type: 'cluster',
+    shape: 'rect',
+    color: '#2a2a3e',
+    stroke: '#6366f1',
+    x: 200,
+    y: 200,
+    width: 300,
+    height: 200,
+    ...overrides,
+  });
+
+  it('uses labelColor when provided (dark-mode override: #e2e8f0)', () => {
+    const ctx = makeCtx();
+    const getFill = captureFillAtFillText(ctx);
+    drawNode(ctx, clusterNode({ labelColor: '#e2e8f0' }), false, null, '#6366f1');
+    expect(getFill()).toBe('#e2e8f0');
+  });
+
+  it('falls back to light auto-color on dark cluster background when labelColor is absent', () => {
+    const ctx = makeCtx();
+    const getFill = captureFillAtFillText(ctx);
+    // color '#2a2a3e' has luminance < 0.35 → should pick '#f1f5f9'
+    drawNode(ctx, clusterNode(), false, null, '#6366f1');
+    expect(getFill()).toBe('#f1f5f9');
+  });
+
+  it('falls back to dark auto-color on light cluster background when labelColor is absent', () => {
+    const ctx = makeCtx();
+    const getFill = captureFillAtFillText(ctx);
+    drawNode(ctx, clusterNode({ color: '#ffffff' }), false, null, '#6366f1');
+    expect(getFill()).toBe('#334155');
+  });
+});
+
 // ── label color: labelColor field ─────────────────────────────────────────────
 
 describe('drawNode – label color', () => {

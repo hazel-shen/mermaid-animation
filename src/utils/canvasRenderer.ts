@@ -829,8 +829,8 @@ export const renderFrame = (
   nodes.filter(n => n.type === 'cluster')
     .sort((a, b) => (b.width * b.height) - (a.width * a.height))
     .forEach(node => {
-      const n = isDarkMode
-        ? { ...node, color: '#2a2a3e', stroke: '#6366f1' }
+      const n = (isDarkMode && !node.preserveColor)
+        ? { ...node, color: '#2a2a3e', stroke: '#6366f1', labelColor: '#e2e8f0' }
         : node;
       drawNode(ctx, n, isPremium, hoveredNodeId, particleColor);
     });
@@ -855,7 +855,7 @@ export const renderFrame = (
     .sort((a, _b) => (a.type === 'note' ? 1 : 0))
     .forEach(node => {
       let n = node;
-      if (isDarkMode) {
+      if (isDarkMode && !node.preserveColor) {
         if ((node.shape === 'circle' || node.shape === 'endCircle') && getLuminance(node.color) < 0.2) {
           // Dark state/flow terminal circles: lighten so they're visible on dark bg
           n = { ...node, color: '#a5b4fc', stroke: '#6366f1' };

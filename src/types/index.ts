@@ -46,6 +46,11 @@ export type DiagramNode = {
   gitCommitLabel?: string;
   /** Git graph: tag label text anchored above this node */
   gitTagLabel?: string;
+  /**
+   * When true, the dark-mode renderer skips its automatic color override so that
+   * parser-assigned section palette colors (mindmap, gantt, etc.) are preserved.
+   */
+  preserveColor?: boolean;
 };
 
 // link=訊息線(有粒子), structural=結構線(無粒子)

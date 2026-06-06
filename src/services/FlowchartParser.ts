@@ -45,6 +45,16 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
     if (style.fill && style.fill !== 'none' && style.fill !== 'rgb(0, 0, 0)') color = style.fill;
     if (style.stroke && style.stroke !== 'none') stroke = style.stroke;
 
+    // Detect user-defined style: Mermaid writes `style` directive colours as
+    // inline style attributes on the shape element. If any shape element in this
+    // node group carries an inline fill/stroke, the colours are intentional and
+    // must not be overridden by the dark-mode renderer.
+    const shapeEls = g.querySelectorAll('rect, polygon, circle, ellipse, path');
+    const hasInlineStyle = Array.from(shapeEls).some(el => {
+      const inlineStyle = el.getAttribute('style') || '';
+      return /fill\s*:/.test(inlineStyle) || /stroke\s*:/.test(inlineStyle);
+    });
+
     // Read text color from classDef (Mermaid applies it to <text> or <span> inside foreignObject).
     let labelColor: string | undefined;
     const textEl = g.querySelector('text, foreignObject span, foreignObject div');
@@ -205,7 +215,7 @@ export const parseFlowchartNodes = (svgElement: SVGSVGElement, isPremium: boolea
     if (width > 0 && height > 0) {
       const nodeId = g.id || nextId('node');
       if (!extractedNodes.some(n => n.id === nodeId)) {
-        extractedNodes.push({ id: nodeId, label, type, x: finalX, y: finalY, width, height, color, stroke, shape, labelColor });
+        extractedNodes.push({ id: nodeId, label, type, x: finalX, y: finalY, width, height, color, stroke, shape, labelColor, preserveColor: hasInlineStyle || undefined });
       }
     }
   });

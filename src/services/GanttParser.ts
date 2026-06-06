@@ -37,7 +37,29 @@ const STATUS_COLORS: Record<string, { color: string; stroke: string }> = {
   doneCrit:    { color: '#e5e7eb', stroke: '#6b7280' },   // cool-gray
   crit:        { color: '#fecaca', stroke: '#ef4444' },   // red
   milestone:   { color: '#f0abfc', stroke: '#a21caf' },   // purple (diamond shape)
-  default:     { color: '#c7d7f7', stroke: '#6366f1' },   // indigo
+  default:     { color: '#c7d7f7', stroke: '#6366f1' },   // indigo (fallback only)
+};
+
+/**
+ * Per-section palette for default-status tasks.
+ * Cycles through distinct hues so each section gets its own colour family.
+ */
+const SECTION_PALETTES: Array<{ color: string; stroke: string }> = [
+  { color: '#bfdbfe', stroke: '#3b82f6' },   // 0 – blue
+  { color: '#bbf7d0', stroke: '#16a34a' },   // 1 – green
+  { color: '#fde68a', stroke: '#d97706' },   // 2 – amber
+  { color: '#ddd6fe', stroke: '#7c3aed' },   // 3 – violet
+  { color: '#fed7aa', stroke: '#ea580c' },   // 4 – orange
+  { color: '#a5f3fc', stroke: '#0891b2' },   // 5 – cyan
+  { color: '#fbcfe8', stroke: '#db2777' },   // 6 – pink
+  { color: '#d9f99d', stroke: '#65a30d' },   // 7 – lime
+];
+
+/** Extract the numeric section index appended to the status token, e.g. "task2" → 2. */
+const sectionIndexOf = (rect: SVGRectElement): number => {
+  const cls = rect.getAttribute('class') ?? rect.className?.baseVal ?? '';
+  const m = cls.match(/(\d+)\s*$/);
+  return m ? parseInt(m[1], 10) : 0;
 };
 
 /**
@@ -79,11 +101,16 @@ export const parseGanttNodes = (svgElement: SVGSVGElement): DiagramNode[] => {
     if (!geom) return;
     if (geom.width < 10 || geom.height < 4) return;
 
-    const style = window.getComputedStyle(rect);
-    const rawFill = style.fill;
-    const color = (rawFill && rawFill !== 'none' && rawFill !== 'rgb(0, 0, 0)')
-      ? rawFill
-      : 'rgba(200,210,230,0.15)';
+    // Use section-index palette with low opacity so the band reads as a subtle
+    // tint in both light and dark modes (preserveColor prevents dark-mode override).
+    const idx = sectionIndexOf(rect);
+    const baseColor = SECTION_PALETTES[idx % SECTION_PALETTES.length].color;
+    // Convert hex to rgba at 25% opacity for a gentle background band
+    const hex = baseColor.replace('#', '');
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g2 = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    const color = `rgba(${r},${g2},${b},0.25)`;
 
     nodes.push({
       id: nextId('gantt-section'),
@@ -94,6 +121,7 @@ export const parseGanttNodes = (svgElement: SVGSVGElement): DiagramNode[] => {
       width: geom.width, height: geom.height,
       color,
       stroke: 'transparent',
+      preserveColor: true,
     });
   });
 
@@ -115,7 +143,12 @@ export const parseGanttNodes = (svgElement: SVGSVGElement): DiagramNode[] => {
     const nodeHeight = geom.height;
     if (!isMilestone && nodeWidth < 4) return;
 
-    const { color, stroke } = extractComputedColors(rect, STATUS_COLORS[statusKey]);
+    // For default-status tasks, always apply the section palette colour so bars
+    // get distinct hues per section regardless of what Mermaid's theme injects.
+    // Semantic statuses (done, crit, active, …) keep their computed/fallback colour.
+    const { color, stroke } = statusKey === 'default'
+      ? SECTION_PALETTES[sectionIndexOf(rect) % SECTION_PALETTES.length]
+      : extractComputedColors(rect, STATUS_COLORS[statusKey]);
     // Milestone label is rendered as a SeqLabel beside the diamond (not inside),
     // so the diamond shape stays at a fixed small size regardless of text length.
     const label = isMilestone ? '' : (labelByTaskId[rect.id ?? ''] ?? '');
@@ -128,6 +161,7 @@ export const parseGanttNodes = (svgElement: SVGSVGElement): DiagramNode[] => {
       x: geom.cx, y: geom.cy,
       width: nodeWidth, height: nodeHeight,
       color, stroke,
+      preserveColor: true,
     });
   });
 
@@ -148,10 +182,18 @@ export const parseGanttEdges = (svgElement: SVGSVGElement, isPremium: boolean): 
     if (!geom) return;
     if (geom.width < 20) return;
 
-    const style = window.getComputedStyle(rect);
-    const rawFill = style.fill;
-    const hasFill = rawFill && rawFill !== 'none' && rawFill !== 'rgb(0, 0, 0)';
-    const stroke = hasFill ? rawFill : (isPremium ? '#6366f1' : '#60a5fa');
+    const statusKey = taskStatusKey(rect);
+    // Default-status: always use the section palette stroke for particle colour.
+    // Semantic statuses: prefer the SVG's computed fill (matches the bar colour).
+    let stroke: string;
+    if (statusKey === 'default') {
+      stroke = SECTION_PALETTES[sectionIndexOf(rect) % SECTION_PALETTES.length].stroke;
+    } else {
+      const style = window.getComputedStyle(rect);
+      const rawFill = style.fill;
+      const hasFill = rawFill && rawFill !== 'none' && rawFill !== 'rgb(0, 0, 0)';
+      stroke = hasFill ? rawFill : STATUS_COLORS[statusKey].stroke;
+    }
 
     const left  = geom.cx - geom.width / 2;
     const right = geom.cx + geom.width / 2;
