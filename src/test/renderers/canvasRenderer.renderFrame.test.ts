@@ -240,4 +240,82 @@ describe('renderFrame – dark mode node color overrides', () => {
     expect(fillTextColors).toContain('#faf9e6');
     expect(fillTextColors).not.toContain('#1e293b');
   });
+
+  // ── preserveColor: section-palette nodes bypass dark-mode override ────────
+
+  it('does NOT override node fill when preserveColor=true (mindmap/gantt palette)', () => {
+    const ctx = makeCtx();
+    const fillHistory: string[] = [];
+    (ctx.fill as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      fillHistory.push(ctx.fillStyle as string);
+    });
+    renderFrame(ctx, 800, 600, tr, offset, false, {
+      ...darkOpts(),
+      nodes: [makeNode({ color: '#bbf7d0', stroke: '#16a34a', preserveColor: true })],
+    });
+    expect(fillHistory).toContain('#bbf7d0');
+    expect(fillHistory).not.toContain('#2a2a3e');
+  });
+
+  it('still overrides light node fill when preserveColor is absent', () => {
+    const ctx = makeCtx();
+    const fillHistory: string[] = [];
+    (ctx.fill as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      fillHistory.push(ctx.fillStyle as string);
+    });
+    renderFrame(ctx, 800, 600, tr, offset, false, {
+      ...darkOpts(),
+      nodes: [makeNode({ color: '#bbf7d0', stroke: '#16a34a' })],
+    });
+    expect(fillHistory).toContain('#2a2a3e');
+    expect(fillHistory).not.toContain('#bbf7d0');
+  });
+});
+
+// ── dark mode: cluster color overrides ───────────────────────────────
+
+describe('renderFrame – dark mode cluster color overrides', () => {
+  const darkOpts = (): RenderFrameOptions => ({
+    ...baseOpts(),
+    exportBg: undefined,
+    canvasBgMode: 'dark',
+  });
+
+  const makeCluster = (overrides = {}) => ({
+    id: 'sg1',
+    label: '應用服務',
+    type: 'cluster' as const,
+    shape: 'rect' as const,
+    color: '#ffffff',
+    stroke: '#94a3b8',
+    x: 300, y: 300, width: 400, height: 200,
+    ...overrides,
+  });
+
+  it('overrides cluster fill to #2a2a3e in dark mode (flowchart subgraph)', () => {
+    const ctx = makeCtx();
+    const fillHistory: string[] = [];
+    (ctx.fill as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      fillHistory.push(ctx.fillStyle as string);
+    });
+    renderFrame(ctx, 800, 600, tr, offset, false, {
+      ...darkOpts(),
+      nodes: [makeCluster()],
+    });
+    expect(fillHistory).toContain('#2a2a3e');
+  });
+
+  it('does NOT override cluster fill when preserveColor=true (gantt section band)', () => {
+    const ctx = makeCtx();
+    const fillHistory: string[] = [];
+    (ctx.fill as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      fillHistory.push(ctx.fillStyle as string);
+    });
+    renderFrame(ctx, 800, 600, tr, offset, false, {
+      ...darkOpts(),
+      nodes: [makeCluster({ color: 'rgba(191,219,254,0.25)', preserveColor: true })],
+    });
+    expect(fillHistory).toContain('rgba(191,219,254,0.25)');
+    expect(fillHistory).not.toContain('#2a2a3e');
+  });
 });

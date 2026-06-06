@@ -217,6 +217,7 @@ export const parseMindmapNodes = (svgElement: SVGSVGElement, _isPremium: boolean
       height: geom.height,
       color,
       stroke,
+      preserveColor: true,
     });
   });
 

@@ -179,11 +179,39 @@ describe('parseGanttNodes', () => {
     expect(t.stroke).toBe('#a21caf');
   });
 
-  it('uses indigo default colors for plain class "task task0"', () => {
+  it('uses section-0 palette (blue) for plain class "task task0"', () => {
     makeTaskRect('task task0');
     const [t] = parseGanttNodes(svg).filter(n => n.id.startsWith('gantt-task'));
-    expect(t.color).toBe('#c7d7f7');
-    expect(t.stroke).toBe('#6366f1');
+    expect(t.color).toBe('#bfdbfe');
+    expect(t.stroke).toBe('#3b82f6');
+  });
+
+  it('uses section-1 palette (green) for plain class "task task1"', () => {
+    makeTaskRect('task task1');
+    const [t] = parseGanttNodes(svg).filter(n => n.id.startsWith('gantt-task'));
+    expect(t.color).toBe('#bbf7d0');
+    expect(t.stroke).toBe('#16a34a');
+  });
+
+  it('uses section-2 palette (amber) for plain class "task task2"', () => {
+    makeTaskRect('task task2');
+    const [t] = parseGanttNodes(svg).filter(n => n.id.startsWith('gantt-task'));
+    expect(t.color).toBe('#fde68a');
+    expect(t.stroke).toBe('#d97706');
+  });
+
+  it('default-status tasks in different sections get different colors', () => {
+    makeTaskRect('task task0', 'a');
+    makeTaskRect('task task1', 'b');
+    const tasks = parseGanttNodes(svg).filter(n => n.id.startsWith('gantt-task'));
+    expect(tasks[0].color).not.toBe(tasks[1].color);
+  });
+
+  it('crit-status tasks retain semantic color regardless of section', () => {
+    makeTaskRect('task crit1');
+    const [t] = parseGanttNodes(svg).filter(n => n.id.startsWith('gantt-task'));
+    expect(t.color).toBe('#fecaca');
+    expect(t.stroke).toBe('#ef4444');
   });
 
   it('skips task rect with zero-dimension BBox', () => {
@@ -226,6 +254,33 @@ describe('parseGanttNodes', () => {
     expect(sections[0].shape).toBe('rect');
     expect(sections[0].type).toBe('cluster');
     expect(sections[0].stroke).toBe('transparent');
+  });
+
+  it('section band has preserveColor=true so dark mode cannot override it', () => {
+    makeSectionRect('section section0', mockBBox(0, 0, 600, 80));
+    const [s] = parseGanttNodes(svg).filter(n => n.id.startsWith('gantt-section'));
+    expect(s.preserveColor).toBe(true);
+  });
+
+  it('section-0 band uses blue palette tint (rgba from #bfdbfe at 25% opacity)', () => {
+    makeSectionRect('section section0', mockBBox(0, 0, 600, 80));
+    const [s] = parseGanttNodes(svg).filter(n => n.id.startsWith('gantt-section'));
+    // #bfdbfe → rgb(191,219,254) at 0.25
+    expect(s.color).toBe('rgba(191,219,254,0.25)');
+  });
+
+  it('section-1 band uses green palette tint (rgba from #bbf7d0 at 25% opacity)', () => {
+    makeSectionRect('section section1', mockBBox(0, 80, 600, 80));
+    const [s] = parseGanttNodes(svg).filter(n => n.id.startsWith('gantt-section'));
+    // #bbf7d0 → rgb(187,247,208) at 0.25
+    expect(s.color).toBe('rgba(187,247,208,0.25)');
+  });
+
+  it('different sections get different band colors', () => {
+    makeSectionRect('section section0', mockBBox(0,  0, 600, 80));
+    makeSectionRect('section section1', mockBBox(0, 80, 600, 80));
+    const sections = parseGanttNodes(svg).filter(n => n.id.startsWith('gantt-section'));
+    expect(sections[0].color).not.toBe(sections[1].color);
   });
 
   it('finds section band with class "section section1"', () => {
@@ -295,16 +350,22 @@ describe('parseGanttEdges', () => {
     expect(parseGanttEdges(svg, false).filter(e => e.id.startsWith('gantt-flow'))).toHaveLength(0);
   });
 
-  it('flow edge stroke falls back to blue (non-premium) when fill is absent', () => {
+  it('flow edge stroke uses section-0 palette stroke (#3b82f6) for "task task0" when fill is absent', () => {
     makeTaskRect('task task0', 'des1', mockBBox(0, 0, 200, 20));
     const [e] = parseGanttEdges(svg, false).filter(e => e.id.startsWith('gantt-flow'));
-    expect(e.stroke).toBe('#60a5fa');
+    expect(e.stroke).toBe('#3b82f6');
   });
 
-  it('flow edge stroke falls back to indigo (premium) when fill is absent', () => {
-    makeTaskRect('task task0', 'des1', mockBBox(0, 0, 200, 20));
-    const [e] = parseGanttEdges(svg, true).filter(e => e.id.startsWith('gantt-flow'));
-    expect(e.stroke).toBe('#6366f1');
+  it('flow edge stroke uses section-1 palette stroke (#16a34a) for "task task1" when fill is absent', () => {
+    makeTaskRect('task task1', 'des1', mockBBox(0, 0, 200, 20));
+    const [e] = parseGanttEdges(svg, false).filter(e => e.id.startsWith('gantt-flow'));
+    expect(e.stroke).toBe('#16a34a');
+  });
+
+  it('flow edge stroke uses semantic crit stroke (#ef4444) for "task crit0" when fill is absent', () => {
+    makeTaskRect('task crit0', 'des1', mockBBox(0, 0, 200, 20));
+    const [e] = parseGanttEdges(svg, false).filter(e => e.id.startsWith('gantt-flow'));
+    expect(e.stroke).toBe('#ef4444');
   });
 
   it('captures g.grid lines as structural edges', () => {
