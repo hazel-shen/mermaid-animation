@@ -57,6 +57,7 @@
     "export": "エクスポート",
     "bgWhite": "白",
     "bgDark": "暗い",
+    "bgDarkMode": "ダークモード",
     "bgTransparent": "透明"
   },
   "mobile": {
