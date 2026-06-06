@@ -848,9 +848,18 @@ export const renderFrame = (
     .filter(n => n.type !== 'cluster' && n.nodeKind !== 'stepNum' && n.nodeKind !== 'activation')
     .sort((a, _b) => (a.type === 'note' ? 1 : 0))
     .forEach(node => {
-      const n = (isDarkMode && (node.shape === 'circle' || node.shape === 'endCircle') && getLuminance(node.color) < 0.2)
-        ? { ...node, color: '#a5b4fc', stroke: '#6366f1' }
-        : node;
+      let n = node;
+      if (isDarkMode) {
+        if ((node.shape === 'circle' || node.shape === 'endCircle') && getLuminance(node.color) < 0.2) {
+          // Dark state/flow terminal circles: lighten so they're visible on dark bg
+          n = { ...node, color: '#a5b4fc', stroke: '#6366f1' };
+        } else if (node.type !== 'note' && node.shape !== 'pie' && getLuminance(node.color) > 0.15) {
+          // Light-filled regular nodes (rect, rounded, stadium, etc.): apply dark theme.
+          // Pie wedges are excluded — their colors encode data and must be preserved.
+          // Force labelColor to light so it stays readable regardless of the original value.
+          n = { ...node, color: '#2a2a3e', stroke: '#6366f1', labelColor: '#faf9e6' };
+        }
+      }
       drawNode(ctx, n, isPremium, hoveredNodeId, particleColor);
     });
 

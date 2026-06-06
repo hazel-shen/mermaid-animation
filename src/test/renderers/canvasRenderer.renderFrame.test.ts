@@ -149,3 +149,95 @@ describe('renderFrame – canvasBgMode', () => {
     expect(ctx.moveTo).toHaveBeenCalled();
   });
 });
+
+// ── dark mode: node color overrides ──────────────────────────────────
+
+describe('renderFrame – dark mode node color overrides', () => {
+  const darkOpts = (): RenderFrameOptions => ({
+    ...baseOpts(),
+    exportBg: undefined,
+    canvasBgMode: 'dark',
+  });
+
+  const makeNode = (overrides = {}) => ({
+    id: 'n1',
+    label: 'Test',
+    type: 'node' as const,
+    shape: 'roundRect' as const,
+    color: '#fde8c8',
+    stroke: '#b08020',
+    x: 100, y: 100, width: 120, height: 60,
+    ...overrides,
+  });
+
+  it('overrides light node fill to #2a2a3e in dark mode', () => {
+    const ctx = makeCtx();
+    const fillHistory: string[] = [];
+    (ctx.fill as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      fillHistory.push(ctx.fillStyle as string);
+    });
+    renderFrame(ctx, 800, 600, tr, offset, false, {
+      ...darkOpts(),
+      nodes: [makeNode()],
+    });
+    expect(fillHistory).toContain('#2a2a3e');
+  });
+
+  it('does not override node fill in light (grid) mode', () => {
+    const ctx = makeCtx();
+    const fillHistory: string[] = [];
+    (ctx.fill as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      fillHistory.push(ctx.fillStyle as string);
+    });
+    renderFrame(ctx, 800, 600, tr, offset, false, {
+      ...baseOpts(),
+      exportBg: undefined,
+      canvasBgMode: 'grid',
+      nodes: [makeNode()],
+    });
+    expect(fillHistory).toContain('#fde8c8');
+    expect(fillHistory).not.toContain('#2a2a3e');
+  });
+
+  it('does not override already-dark node fill in dark mode', () => {
+    const ctx = makeCtx();
+    const fillHistory: string[] = [];
+    (ctx.fill as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      fillHistory.push(ctx.fillStyle as string);
+    });
+    renderFrame(ctx, 800, 600, tr, offset, false, {
+      ...darkOpts(),
+      nodes: [makeNode({ color: '#0f172a' })],
+    });
+    expect(fillHistory).not.toContain('#2a2a3e');
+  });
+
+  it('does not override pie wedge colors in dark mode (data colors must be preserved)', () => {
+    const ctx = makeCtx();
+    const fillHistory: string[] = [];
+    (ctx.fill as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      fillHistory.push(ctx.fillStyle as string);
+    });
+    renderFrame(ctx, 800, 600, tr, offset, false, {
+      ...darkOpts(),
+      nodes: [makeNode({ shape: 'pie', color: '#a78bfa', pieWedge: { cx: 100, cy: 100, radius: 80, startAngle: 0, endAngle: Math.PI } })],
+    });
+    expect(fillHistory).toContain('#a78bfa');
+    expect(fillHistory).not.toContain('#2a2a3e');
+  });
+
+  it('forces labelColor to #faf9e6 so text stays visible on dark node fill', () => {
+    const ctx = makeCtx();
+    const fillTextColors: string[] = [];
+    (ctx.fillText as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      fillTextColors.push(ctx.fillStyle as string);
+    });
+    // Node has a deep-dark labelColor that would be invisible on #2a2a3e bg
+    renderFrame(ctx, 800, 600, tr, offset, false, {
+      ...darkOpts(),
+      nodes: [makeNode({ labelColor: '#1e293b' })],
+    });
+    expect(fillTextColors).toContain('#faf9e6');
+    expect(fillTextColors).not.toContain('#1e293b');
+  });
+});
