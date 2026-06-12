@@ -6,16 +6,17 @@ import { EditorSidebar } from './components/EditorSidebar';
 import { CanvasView } from './components/CanvasView';
 import { MobileDrawer } from './components/MobileDrawer';
 import { MobilePillToolbar } from './components/MobilePillToolbar';
-import { ExportModal, type ExportFormat } from './components/ExportModal';
+import { ExportModal } from './components/ExportModal';
 
 import { useMermaidParser } from './hooks/useMermaidParser';
 import { useCanvasTransform, useCanvasResize } from './hooks/useCanvasTransform';
 import { useParticleSystem } from './hooks/useParticleSystem';
 import { useMediaRecorder } from './hooks/useMediaRecorder';
 import { useEditorResize } from './hooks/useEditorResize';
+import { useExportPipeline } from './hooks/useExportPipeline';
 
 import { renderFrame } from './utils/canvasRenderer';
-import type { ParticleShape, ExportBg } from './utils/canvasRenderer';
+import type { ParticleShape } from './utils/canvasRenderer';
 
 import { SAMPLES, SAMPLE_KEYS, DEFAULT_SAMPLE_KEY } from './constants/sampleDiagrams';
 
@@ -151,112 +152,27 @@ const CanvasDiagram = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, edges, particles, seqLabels, isRecording, particleColor, particleSpeed, particleSize, particleShape, canvasBgMode]);
 
-  // --- Download handler ---
-  const handleDownload = useCallback((format: import('./hooks/useMediaRecorder').DownloadFormat) => {
-    startDownload(
-      canvasRef,
-      diagramSizeRef,
-      { nodes, edges, particles, seqLabels, isPremium: true, particleColor, particleSpeed, particleSize, particleShape, isRecording, hoveredNodeId: hoveredNodeIdRef.current, canvasBgMode },
-      format
-    );
-  }, [startDownload, nodes, edges, particles, seqLabels, particleColor, particleSize, particleShape, isRecording, diagramSizeRef, canvasBgMode]);
-
-  // --- Shared helper: build tight-crop render options ---
-  const buildExportFrame = useCallback((PADDING = 40, SS = 2) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return null;
-    const diagramOffset = (canvas as any).viewBoxOffset || { x: 0, y: 0 };
-    const { w: dw, h: dh } = diagramSizeRef.current;
-    const OUT_W = dw > 0 ? Math.round(dw + PADDING * 2) : 1920;
-    const OUT_H = dh > 0 ? Math.round(dh + PADDING * 2) : 1080;
-    const SS_W = OUT_W * SS;
-    const SS_H = OUT_H * SS;
-    const ssTr = { x: PADDING * SS, y: PADDING * SS, scale: SS };
-    return { OUT_W, OUT_H, SS_W, SS_H, ssTr, diagramOffset };
-  }, [canvasRef, diagramSizeRef]);
-
-  // --- Preview render callback — used by ExportModal ---
-  const handlePreviewRender = useCallback((exportBg: ExportBg, dstCanvas: HTMLCanvasElement, showParticles = true) => {
-    const frame = buildExportFrame(40, 1);
-    if (!frame) return;
-    const { OUT_W, OUT_H, ssTr, diagramOffset } = frame;
-    dstCanvas.width  = OUT_W;
-    dstCanvas.height = OUT_H;
-    const ctx = dstCanvas.getContext('2d');
-    if (!ctx) return;
-    renderFrame(ctx, OUT_W, OUT_H, ssTr, diagramOffset, false, {
-      nodes, edges, particles, seqLabels,
-      isPremium: true,
-      particleColor, particleSpeed, particleSize, particleShape,
-      isRecording: false,
-      hoveredNodeId: null,
-      exportBg,
-      showParticles,
-    });
-  }, [buildExportFrame, nodes, edges, particles, seqLabels, particleColor, particleSpeed, particleSize, particleShape]);
-
-  // --- Static export handler ---
-  const handleExport = useCallback((exportBg: ExportBg, format: ExportFormat = 'png', showParticles = true) => {
-    // MMD: download raw Mermaid source
-    if (format === 'mmd') {
-      const blob = new Blob([code], { type: 'text/plain' });
-      const link = document.createElement('a');
-      link.download = 'flowmotion.mmd';
-      link.href = URL.createObjectURL(blob);
-      link.click();
-      URL.revokeObjectURL(link.href);
-      setExportModalOpen(false);
-      return;
-    }
-
-    // SVG: grab the Mermaid-rendered SVG from the hidden container
-    if (format === 'svg') {
-      const svgEl = hiddenContainerRef.current?.querySelector('svg');
-      if (!svgEl) return;
-      const serializer = new XMLSerializer();
-      const svgStr = serializer.serializeToString(svgEl);
-      const blob = new Blob([svgStr], { type: 'image/svg+xml' });
-      const link = document.createElement('a');
-      link.download = 'flowmotion.svg';
-      link.href = URL.createObjectURL(blob);
-      link.click();
-      URL.revokeObjectURL(link.href);
-      setExportModalOpen(false);
-      return;
-    }
-
-    // PNG: tight-crop supersampled render
-    const frame = buildExportFrame();
-    if (!frame) return;
-    const { OUT_W, OUT_H, SS_W, SS_H, ssTr, diagramOffset } = frame;
-
-    const ssCanvas = document.createElement('canvas');
-    ssCanvas.width  = SS_W;
-    ssCanvas.height = SS_H;
-    const ssCtx = ssCanvas.getContext('2d')!;
-    renderFrame(ssCtx, SS_W, SS_H, ssTr, diagramOffset, false, {
-      nodes, edges, particles, seqLabels,
-      isPremium: true,
-      particleColor, particleSpeed, particleSize, particleShape,
-      isRecording: false,
-      hoveredNodeId: null,
-      exportBg,
-      showParticles,
-    });
-
-    const outCanvas = document.createElement('canvas');
-    outCanvas.width  = OUT_W;
-    outCanvas.height = OUT_H;
-    const outCtx = outCanvas.getContext('2d')!;
-    outCtx.drawImage(ssCanvas, 0, 0, OUT_W, OUT_H);
-
-    const link = document.createElement('a');
-    link.download = 'flowmotion.png';
-    link.href = outCanvas.toDataURL('image/png');
-    link.click();
-
-    setExportModalOpen(false);
-  }, [buildExportFrame, code, hiddenContainerRef, nodes, edges, particles, seqLabels, particleColor, particleSpeed, particleSize, particleShape]);
+  // --- Export pipeline (PNG / SVG / MMD / MP4 / GIF + modal preview) ---
+  const closeExportModal = useCallback(() => setExportModalOpen(false), []);
+  const { handleDownload, handlePreviewRender, handleExport } = useExportPipeline({
+    canvasRef,
+    hiddenContainerRef: hiddenContainerRef as React.RefObject<HTMLDivElement>,
+    diagramSizeRef,
+    hoveredNodeIdRef,
+    code,
+    nodes,
+    edges,
+    particles,
+    seqLabels,
+    particleColor,
+    particleSpeed,
+    particleSize,
+    particleShape,
+    canvasBgMode,
+    isRecording,
+    startDownload,
+    onExported: closeExportModal,
+  });
 
   // --- Mouse event wrappers (bind hoveredNodeIdRef) ---
   const onMouseMove = useCallback(
