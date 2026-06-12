@@ -131,7 +131,7 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
             spellCheck={false}
           />
           {errorMsg && (
-            <div className="p-3 text-xs" style={{ background: '#2a1a1a', color: '#f38ba8', borderTop: '1px solid #4a2a2a' }}>
+            <div className="p-3 text-xs font-mono whitespace-pre-line" style={{ background: '#2a1a1a', color: '#f38ba8', borderTop: '1px solid #4a2a2a' }}>
               ⚠️ {errorMsg}
             </div>
           )}

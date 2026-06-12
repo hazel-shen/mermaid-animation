@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { DiagramNode, DiagramEdge, SeqLabel } from '../types';
 import { getDiagramType } from '../services/diagramTypes';
 import type { DiagramType } from '../services/diagramTypes';
+import { formatMermaidError } from '../utils/formatMermaidError';
 
 // Sequence
 import { parseSequenceNodes, parseSequenceEdges, parseSequenceLoopFrames, parseSequenceMessageLabels, parseSequenceStepNumbers } from '../services/SequenceParser';
@@ -315,15 +316,7 @@ export const useMermaidParser = (
       }
     } catch (err: any) {
       console.warn("Mermaid Render Warning:", err.message);
-      let msg = "語法錯誤或無法解析";
-      if (err.message) {
-        if (err.message.includes('No diagram type detected')) {
-          msg = "無法識別圖表類型，請檢查開頭關鍵字 (如 sequenceDiagram, graph TB, classDiagram)";
-        } else {
-          msg = err.message.split('\n')[0];
-        }
-      }
-      setErrorMsg(msg);
+      setErrorMsg(formatMermaidError(err.message));
     } finally {
       setIsLoading(false);
     }
