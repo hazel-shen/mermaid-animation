@@ -125,6 +125,9 @@ export const parsePieNodes = (svgElement: SVGSVGElement): DiagramNode[] => {
         height: worldH,
         color,
         stroke: color,
+        // Legend swatch colors mirror the wedge palette — they encode data,
+        // so the dark-mode renderer must not repaint them.
+        preserveColor: true,
       });
     } catch { /* ignore */ }
   });

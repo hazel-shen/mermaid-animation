@@ -101,6 +101,12 @@ describe('parseSankeyNodes', () => {
     expect(parseSankeyNodes(svg)).toHaveLength(1);
   });
 
+  it('marks node bars preserveColor so dark mode keeps their category color', () => {
+    makeNodeRect(0, 0, 10, 60);
+    const nodes = parseSankeyNodes(svg);
+    expect(nodes[0].preserveColor).toBe(true);
+  });
+
   it('skips rect with zero width', () => {
     makeNodeRect(0, 0, 0, 60);
     expect(parseSankeyNodes(svg)).toHaveLength(0);
