@@ -2,26 +2,19 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Video, Film, RefreshCw, Gauge, Palette, Maximize2, Shapes, ImageIcon } from 'lucide-react';
 import type { DownloadFormat } from '../hooks/useMediaRecorder';
-import type { ParticleShape, CanvasBgMode } from '../utils/canvasRenderer';
+import type { ParticleShape } from '../utils/canvasRenderer';
+import type { ParticleSettings } from '../types';
 
 interface MobileDrawerProps {
   isOpen: boolean;
   isLoading: boolean;
   isRecording: boolean;
-  particleSpeed: number;
-  particleColor: string;
-  particleSize: number;
-  particleShape: ParticleShape;
-  canvasBgMode: CanvasBgMode;
+  settings: ParticleSettings;
+  onSettingsChange: (patch: Partial<ParticleSettings>) => void;
   onClose: () => void;
   onExport: () => void;
   onRefresh: () => void;
   onDownload: (format: DownloadFormat) => void;
-  onParticleSpeedChange: (value: number) => void;
-  onParticleColorChange: (value: string) => void;
-  onParticleSizeChange: (value: number) => void;
-  onParticleShapeChange: (value: ParticleShape) => void;
-  onCanvasBgModeChange: (value: CanvasBgMode) => void;
 }
 
 
@@ -29,20 +22,12 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
   isOpen,
   isLoading,
   isRecording,
-  particleSpeed,
-  particleColor,
-  particleSize,
-  particleShape,
-  canvasBgMode,
+  settings,
+  onSettingsChange,
   onClose,
   onExport,
   onRefresh,
   onDownload,
-  onParticleSpeedChange,
-  onParticleColorChange,
-  onParticleSizeChange,
-  onParticleShapeChange,
-  onCanvasBgModeChange,
 }) => {
   const { t } = useTranslation();
   const [selectedFormat, setSelectedFormat] = useState<DownloadFormat>('gif');
@@ -101,29 +86,29 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
               <span className="font-medium whitespace-nowrap">{t('header.speed')}</span>
               <input
                 type="range" min="0.1" max="5" step="0.1"
-                value={particleSpeed}
-                onChange={e => onParticleSpeedChange(parseFloat(e.target.value))}
+                value={settings.speed}
+                onChange={e => onSettingsChange({ speed: parseFloat(e.target.value) })}
                 className="flex-1 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
               />
-              <span className="text-sm text-slate-400 w-8 text-right tabular-nums">{particleSpeed.toFixed(1)}</span>
+              <span className="text-sm text-slate-400 w-8 text-right tabular-nums">{settings.speed.toFixed(1)}</span>
             </label>
             <label className="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer col-span-2">
               <Maximize2 size={14} className="text-slate-400 flex-shrink-0" />
               <span className="font-medium whitespace-nowrap">{t('header.size')}</span>
               <input
                 type="range" min="1" max="10" step="0.5"
-                value={particleSize}
-                onChange={e => onParticleSizeChange(parseFloat(e.target.value))}
+                value={settings.size}
+                onChange={e => onSettingsChange({ size: parseFloat(e.target.value) })}
                 className="flex-1 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
               />
-              <span className="text-sm text-slate-400 w-8 text-right tabular-nums">{particleSize.toFixed(1)}</span>
+              <span className="text-sm text-slate-400 w-8 text-right tabular-nums">{settings.size.toFixed(1)}</span>
             </label>
             <div className="col-span-2 flex items-center gap-1.5 text-sm text-slate-600">
               <Shapes size={14} className="text-slate-400 flex-shrink-0" />
               <span className="font-medium whitespace-nowrap">{t('header.shape')}</span>
               <select
-                value={particleShape}
-                onChange={e => onParticleShapeChange(e.target.value as ParticleShape)}
+                value={settings.shape}
+                onChange={e => onSettingsChange({ shape: e.target.value as ParticleShape })}
                 className="rounded border border-gray-200 bg-white text-sm text-slate-700 px-1.5 py-0.5 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-400"
               >
                 {SHAPE_OPTIONS.map(o => (
@@ -135,16 +120,16 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
               <Palette size={14} className="text-slate-400 flex-shrink-0" />
               <span className="font-medium whitespace-nowrap flex-shrink-0">{t('header.color')}</span>
               <input
-                type="color" value={particleColor}
-                onChange={e => onParticleColorChange(e.target.value)}
+                type="color" value={settings.color}
+                onChange={e => onSettingsChange({ color: e.target.value })}
                 className="w-4 h-4 rounded overflow-hidden border border-gray-200 p-0 bg-white cursor-pointer flex-shrink-0"
               />
               <input
                 type="text"
-                value={particleColor}
+                value={settings.color}
                 onChange={e => {
                   const v = e.target.value;
-                  if (/^#[0-9a-fA-F]{6}$/.test(v)) onParticleColorChange(v);
+                  if (/^#[0-9a-fA-F]{6}$/.test(v)) onSettingsChange({ color: v });
                 }}
                 maxLength={7}
                 spellCheck={false}
@@ -156,20 +141,20 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
               <span className="font-medium whitespace-nowrap flex-shrink-0">{t('header.bg')}</span>
               <div className="flex rounded border border-gray-200 overflow-hidden text-xs">
                 <button
-                  onClick={() => onCanvasBgModeChange('white')}
-                  className={`px-3 py-1 transition-colors ${canvasBgMode === 'white' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-gray-50'}`}
+                  onClick={() => onSettingsChange({ bgMode: 'white' })}
+                  className={`px-3 py-1 transition-colors ${settings.bgMode === 'white' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-gray-50'}`}
                 >
                   {t('header.bgWhite')}
                 </button>
                 <button
-                  onClick={() => onCanvasBgModeChange('grid')}
-                  className={`px-3 py-1 border-l border-gray-200 transition-colors ${canvasBgMode === 'grid' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-gray-50'}`}
+                  onClick={() => onSettingsChange({ bgMode: 'grid' })}
+                  className={`px-3 py-1 border-l border-gray-200 transition-colors ${settings.bgMode === 'grid' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-gray-50'}`}
                 >
                   {t('header.bgGrid')}
                 </button>
                 <button
-                  onClick={() => onCanvasBgModeChange('dark')}
-                  className={`px-3 py-1 border-l border-gray-200 transition-colors ${canvasBgMode === 'dark' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-gray-50'}`}
+                  onClick={() => onSettingsChange({ bgMode: 'dark' })}
+                  className={`px-3 py-1 border-l border-gray-200 transition-colors ${settings.bgMode === 'dark' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-gray-50'}`}
                 >
                   {t('header.bgDark')}
                 </button>

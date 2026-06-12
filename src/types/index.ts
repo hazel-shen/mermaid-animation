@@ -1,3 +1,6 @@
+import type { ParticleShape } from '../utils/drawParticles';
+import type { CanvasBgMode } from '../utils/canvasRenderer';
+
 // --- 節點類型 ---
 export type NodeType = 'node' | 'cluster' | 'actor' | 'note';
 
@@ -142,3 +145,13 @@ export type DiagramData = {
   edges: DiagramEdge[];
   seqLabels: SeqLabel[];
 };
+
+/** User-tunable particle/canvas appearance settings, grouped so UI layers
+ *  pass one object + one patch-style onChange instead of five value/setter pairs. */
+export interface ParticleSettings {
+  speed: number;
+  color: string;
+  size: number;
+  shape: ParticleShape;
+  bgMode: CanvasBgMode;
+}
