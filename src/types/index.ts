@@ -45,6 +45,8 @@ export type DiagramNode = {
   classLines?: ClassLine[];
   /** Present only for pie chart wedge nodes */
   pieWedge?: PieWedge;
+  /** C4 person: absolute box of the SVG person icon <image>, used to draw the canvas silhouette at the same spot */
+  c4IconBox?: { x: number; y: number; width: number; height: number };
   /** Git graph: commit ID label text anchored below this node */
   gitCommitLabel?: string;
   /** Git graph: tag label text anchored above this node */
