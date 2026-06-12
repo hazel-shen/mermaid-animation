@@ -118,6 +118,16 @@ describe('parseC4Nodes', () => {
     expect(nodes.every(n => n.label === '')).toBe(true);
   });
 
+  it('marks element nodes preserveColor so the dark theme keeps C4 semantic colors', () => {
+    makeBoundary(svg, { id: 'b1' });
+    makeRectElement(svg, 'api');
+
+    const nodes = parseC4Nodes(svg, false);
+    expect(nodes.find(n => n.id === 'api')!.preserveColor).toBe(true);
+    // Boundaries stay themeable (structural, not semantic)
+    expect(nodes.find(n => n.id === 'b1')!.preserveColor).toBeUndefined();
+  });
+
   it('skips boundaries with zero width or height', () => {
     makeBoundary(svg, { rect: { width: '0' } });
     expect(parseC4Nodes(svg, false)).toEqual([]);

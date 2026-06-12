@@ -157,6 +157,10 @@ export const parseC4Nodes = (svgElement: SVGSVGElement, _isPremium: boolean): Di
       height,
       color,
       stroke,
+      // C4 colors are semantic (person / system / external) and always pair a
+      // saturated or dark fill with white text — keep them on dark canvases
+      // instead of letting the luminance-based dark theme rewrite some of them.
+      preserveColor: true,
       ...(c4IconBox ? { c4IconBox } : {}),
     });
   });
