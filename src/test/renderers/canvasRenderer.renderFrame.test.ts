@@ -330,7 +330,7 @@ describe('renderFrame – dark mode label backgrounds', () => {
   });
 
   const makeLabel = (bgColor: string) => ({
-    x: 100, y: 100, text: '呼叫', fontSize: 12,
+    x: 100, y: 100, text: '呼叫', fontSize: 12, bold: false,
     color: '#333333', align: 'center' as const, bgColor,
   });
 
