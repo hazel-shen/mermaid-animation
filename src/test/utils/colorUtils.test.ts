@@ -71,6 +71,17 @@ describe('hexToRgba', () => {
     expect(hexToRgba('  #000000  ', 1)).toBe('rgba(0, 0, 0, 1)');
   });
 
+  // FlowchartParser.ts:38 defaults cluster color to '#fff' in non-premium mode,
+  // so 3-digit shorthand reaches hexToRgba whenever the computed fill is
+  // none/black. Previously this produced invalid CSS: rgba(255, 15, NaN, …).
+  it('expands 3-digit hex shorthand (#fff)', () => {
+    expect(hexToRgba('#fff', 0.05)).toBe('rgba(255, 255, 255, 0.05)');
+  });
+
+  it('expands mixed 3-digit hex shorthand (#f90)', () => {
+    expect(hexToRgba('#f90', 1)).toBe('rgba(255, 153, 0, 1)');
+  });
+
   it('supports alpha 0 (fully transparent)', () => {
     expect(hexToRgba('#123456', 0)).toBe('rgba(18, 52, 86, 0)');
   });
