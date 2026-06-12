@@ -1,5 +1,3 @@
-(🚧：It's still under development...)
-
 # Mermaid Animation: Universal Diagram Animator
 
 <img width="1921" height="960" alt="image" src="https://github.com/user-attachments/assets/a9730225-2c95-471e-9a95-bda06770a913" />
