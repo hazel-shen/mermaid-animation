@@ -268,4 +268,44 @@ describe('getCumulativeMatrix', () => {
 
     expect(getCumulativeMatrix(el, svg)).toEqual({ tx: 0, ty: 0, sx: 1, sy: 1 });
   });
+
+  // Mixed scale/translate nesting is where composition order matters:
+  // world = Outer(Inner(local)), so an outer translate is NOT scaled by an
+  // inner scale, while an inner translate IS scaled by an outer scale.
+
+  it('does not scale an outer translate by an inner scale', () => {
+    const outer = makeG('translate(100, 0)');
+    const inner = makeG('scale(2)');
+    const el = document.createElementNS(NS, 'path');
+    inner.appendChild(el);
+    outer.appendChild(inner);
+    svg.appendChild(outer);
+
+    // world = translate(scale(x)) = 2x + 100
+    expect(getCumulativeMatrix(el, svg)).toEqual({ tx: 100, ty: 0, sx: 2, sy: 2 });
+  });
+
+  it('scales an inner translate by an outer scale', () => {
+    const outer = makeG('scale(2)');
+    const inner = makeG('translate(10, 5)');
+    const el = document.createElementNS(NS, 'path');
+    inner.appendChild(el);
+    outer.appendChild(inner);
+    svg.appendChild(outer);
+
+    // world = scale(translate(x)) = 2(x + 10) = 2x + 20
+    expect(getCumulativeMatrix(el, svg)).toEqual({ tx: 20, ty: 10, sx: 2, sy: 2 });
+  });
+
+  it('applies an outer matrix to an inner translate', () => {
+    const outer = makeG('matrix(2, 0, 0, 2, 100, 50)');
+    const inner = makeG('translate(10, 5)');
+    const el = document.createElementNS(NS, 'path');
+    inner.appendChild(el);
+    outer.appendChild(inner);
+    svg.appendChild(outer);
+
+    // world = matrix(translate(x)) = 2(x + 10) + 100 = 2x + 120
+    expect(getCumulativeMatrix(el, svg)).toEqual({ tx: 120, ty: 60, sx: 2, sy: 2 });
+  });
 });

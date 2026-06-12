@@ -55,10 +55,11 @@ export const getCumulativeMatrix = (
 
   // Represent cumulative transform as [a, d, e, f] (no shear for SVG pie):
   // world = [ sx * local_x + tx, sy * local_y + ty ]
-  // Compose outer-first (chain is inner→outer, so iterate reversed)
+  // Walk the chain from the element outwards (inner→outer), applying each
+  // ancestor's transform on top of (outside) the accumulated one.
   let sx = 1, sy = 1, tx = 0, ty = 0;
 
-  for (let i = chain.length - 1; i >= 0; i--) {
+  for (let i = 0; i < chain.length; i++) {
     const attr = chain[i].getAttribute('transform');
     if (!attr) continue;
 
