@@ -79,7 +79,7 @@
   "samples": {
     "sequence": "Sequence Diagram",
     "flowchart": "Flowchart",
-    "arch": "C4 Diagram（TODO）",
+    "arch": "C4 Diagram",
     "class": "Class Diagram",
     "state": "State Diagram",
     "er": "ER Diagram",

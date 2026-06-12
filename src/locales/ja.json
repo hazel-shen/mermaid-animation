@@ -79,7 +79,7 @@
   "samples": {
     "sequence": "シーケンス図",
     "flowchart": "フローチャート",
-    "arch": "C4 図 (TODO)",
+    "arch": "C4 図 ",
     "class": "クラス図",
     "state": "状態遷移図",
     "er": "ER 図",
