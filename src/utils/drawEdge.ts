@@ -40,6 +40,9 @@ const rayPolyIntersect = (
  * - diamond:           L1-norm border
  * - asymmetric:        pentagon (concave left notch)
  * - parallelogram/trapezoid variants: quadrilateral with skewed edges
+ * - hexagon:           6-vertex polygon (left/right tips at mid-height)
+ * - stadium:           rect body + semicircular end caps
+ * - cylinder:          vertical sides + elliptical top/bottom caps
  * - others:            rectangle border
  */
 export const borderPoint = (angle: number, node: DiagramNode): { x: number; y: number } => {
@@ -97,6 +100,60 @@ export const borderPoint = (angle: number, node: DiagramNode): { x: number; y: n
       [tl, t2], [tr, t2], [br, b], [bl, b],
     ]);
     if (pt) return pt;
+  }
+
+  if (shape === 'hexagon') {
+    // Tip inset matches canvasRenderer: hH/2 = hh
+    const tip = Math.min(hh, hw);
+    const l = cx - hw, r2 = cx + hw, t2 = cy - hh, b = cy + hh;
+    const pt = rayPolyIntersect(cx, cy, dx, dy, [
+      [l + tip,  t2],
+      [r2 - tip, t2],
+      [r2,       cy],
+      [r2 - tip, b],
+      [l + tip,  b],
+      [l,        cy],
+    ]);
+    if (pt) return pt;
+  }
+
+  if (shape === 'stadium') {
+    // Rect body + semicircular end caps of radius hh (matches roundRect radius height/2)
+    const cap = Math.max(hw - hh, 0); // x-offset of the cap circle centres
+    const ty2 = dy !== 0 ? hh / Math.abs(dy) : Infinity;
+    if (isFinite(ty2) && Math.abs(dx) * ty2 <= cap) {
+      return { x: cx + dx * ty2, y: cy + dy * ty2 }; // exits through the flat top/bottom
+    }
+    // Exits through the end circle centred at (±cap, 0):
+    // (dx·t − ccx)² + (dy·t)² = hh²  →  t² − 2(dx·ccx)t + ccx² − hh² = 0
+    const ccx = dx >= 0 ? cap : -cap;
+    const bHalf = dx * ccx;
+    const disc = bHalf * bHalf - (ccx * ccx - hh * hh);
+    if (disc >= 0) {
+      const t2 = bHalf + Math.sqrt(disc);
+      return { x: cx + dx * t2, y: cy + dy * t2 };
+    }
+  }
+
+  if (shape === 'cylinder') {
+    // Vertical sides + elliptical caps; cap ry matches canvasRenderer: max(6, height·0.18)
+    const ry = Math.max(6, height * 0.18);
+    const capY = Math.max(hh - ry, 0); // y-offset of the cap ellipse centres
+    const tx2 = dx !== 0 ? hw / Math.abs(dx) : Infinity;
+    if (isFinite(tx2) && Math.abs(dy) * tx2 <= capY) {
+      return { x: cx + dx * tx2, y: cy + dy * tx2 }; // exits through a straight side
+    }
+    // Exits through the cap ellipse centred at (0, ±capY) with radii (hw, ry):
+    // (dx·t/hw)² + ((dy·t − ccy)/ry)² = 1
+    const ccy = dy >= 0 ? capY : -capY;
+    const a = (dx / hw) ** 2 + (dy / ry) ** 2;
+    const bHalf = (dy * ccy) / (ry * ry);
+    const c = (ccy / ry) ** 2 - 1;
+    const disc = bHalf * bHalf - a * c;
+    if (a > 0 && disc >= 0) {
+      const t2 = (bHalf + Math.sqrt(disc)) / a;
+      return { x: cx + dx * t2, y: cy + dy * t2 };
+    }
   }
 
   const tx = dx !== 0 ? hw / Math.abs(dx) : Infinity;
