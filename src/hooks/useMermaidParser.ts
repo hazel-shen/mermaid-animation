@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { DiagramNode, DiagramEdge, SeqLabel } from '../types';
 import { getDiagramType } from '../services/diagramTypes';
 import type { DiagramType } from '../services/diagramTypes';
+import { classifyMermaidError } from '../utils/parserError';
+import type { ParserError } from '../utils/parserError';
 
 // Sequence
 import { parseSequenceNodes, parseSequenceEdges, parseSequenceLoopFrames, parseSequenceMessageLabels, parseSequenceStepNumbers } from '../services/SequenceParser';
@@ -34,7 +36,7 @@ interface UseMermaidParserReturn {
   seqLabels: SeqLabel[];
   diagramType: DiagramType;
   isLoading: boolean;
-  errorMsg: string | null;
+  error: ParserError | null;
   mermaidReady: boolean;
   renderMermaidToData: () => Promise<void>;
   viewBox: { x: number; y: number; width: number; height: number } | null;
@@ -50,7 +52,7 @@ export const useMermaidParser = (
   const [seqLabels, setSeqLabels] = useState<SeqLabel[]>([]);
   const [diagramType, setDiagramType] = useState<DiagramType>('flowchart');
   const [isLoading, setIsLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [error, setError] = useState<ParserError | null>(null);
   const [mermaidReady, setMermaidReady] = useState(false);
   const [viewBox, setViewBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
@@ -66,7 +68,7 @@ export const useMermaidParser = (
     const script = document.createElement('script');
     script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js';
     script.onload = initializeMermaid;
-    script.onerror = () => setErrorMsg("無法載入 Mermaid 庫，請檢查網路連線。");
+    script.onerror = () => setError({ kind: 'load-failed' });
     document.body.appendChild(script);
 
     function initializeMermaid() {
@@ -280,20 +282,20 @@ export const useMermaidParser = (
   const renderMermaidToData = useCallback(async () => {
     if (!mermaidReady || !hiddenContainerRef.current) return;
     if (!code || !code.trim()) {
-      setErrorMsg("請輸入 Mermaid 代碼");
+      setError({ kind: 'empty-code' });
       setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
-    setErrorMsg(null);
+    setError(null);
 
     const type = getDiagramType(code);
     setDiagramType(type);
 
     // classDiagram: classDef color definitions are not supported by this renderer.
     if (type === 'class' && /^\s*classDef\s+/m.test(code)) {
-      setErrorMsg("classDiagram 不支援顏色樣式定義（classDef）。\n請移除所有 classDef 行及 class ... style 套用行後再試。");
+      setError({ kind: 'classdef-unsupported' });
       setIsLoading(false);
       return;
     }
@@ -310,20 +312,12 @@ export const useMermaidParser = (
         if (svgEl) {
           extractDataFromSVG(svgEl as SVGSVGElement, type);
         } else {
-          throw new Error("SVG 生成失敗");
+          setError({ kind: 'svg-failed' });
         }
       }
     } catch (err: any) {
       console.warn("Mermaid Render Warning:", err.message);
-      let msg = "語法錯誤或無法解析";
-      if (err.message) {
-        if (err.message.includes('No diagram type detected')) {
-          msg = "無法識別圖表類型，請檢查開頭關鍵字 (如 sequenceDiagram, graph TB, classDiagram)";
-        } else {
-          msg = err.message.split('\n')[0];
-        }
-      }
-      setErrorMsg(msg);
+      setError(classifyMermaidError(err.message));
     } finally {
       setIsLoading(false);
     }
@@ -337,5 +331,5 @@ export const useMermaidParser = (
     }
   }, [code, mermaidReady, renderMermaidToData]);
 
-  return { nodes, edges, seqLabels, diagramType, isLoading, errorMsg, mermaidReady, renderMermaidToData, viewBox };
+  return { nodes, edges, seqLabels, diagramType, isLoading, error, mermaidReady, renderMermaidToData, viewBox };
 };

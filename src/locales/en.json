@@ -28,7 +28,16 @@
     "collapseEditor": "Collapse editor",
     "expandEditor": "Expand editor",
     "samples": "Samples",
-    "resizeHandle": "Drag to resize"
+    "resizeHandle": "Drag to resize",
+    "errors": {
+      "loadFailed": "Failed to load the Mermaid library. Please check your network connection.",
+      "emptyCode": "Please enter Mermaid code",
+      "classDefUnsupported": "classDiagram does not support color style definitions (classDef).\nRemove all classDef lines and class ... style assignments, then try again.",
+      "noDiagramType": "Could not detect the diagram type. Check the opening keyword (e.g. sequenceDiagram, graph TB, classDiagram).",
+      "svgFailed": "Failed to generate SVG",
+      "parseErrorLine": "Syntax error on line {{line}}:",
+      "unknown": "Syntax error or unable to parse"
+    }
   },
   "canvas": {
     "rendering": "Rendering...",

@@ -28,7 +28,16 @@
     "collapseEditor": "收合編輯器",
     "expandEditor": "展開編輯器",
     "samples": "範例",
-    "resizeHandle": "拖曳調整寬度"
+    "resizeHandle": "拖曳調整寬度",
+    "errors": {
+      "loadFailed": "無法載入 Mermaid 庫，請檢查網路連線。",
+      "emptyCode": "請輸入 Mermaid 代碼",
+      "classDefUnsupported": "classDiagram 不支援顏色樣式定義（classDef）。\n請移除所有 classDef 行及 class ... style 套用行後再試。",
+      "noDiagramType": "無法識別圖表類型，請檢查開頭關鍵字 (如 sequenceDiagram, graph TB, classDiagram)",
+      "svgFailed": "SVG 生成失敗",
+      "parseErrorLine": "第 {{line}} 行語法錯誤：",
+      "unknown": "語法錯誤或無法解析"
+    }
   },
   "canvas": {
     "rendering": "渲染中...",

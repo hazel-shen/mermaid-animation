@@ -1,6 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Code, X, ChevronDown } from 'lucide-react';
+import { parserErrorToText } from '../utils/parserError';
+import type { ParserError } from '../utils/parserError';
 
 export interface SampleOption {
   value: string;
@@ -10,7 +12,7 @@ export interface SampleOption {
 
 interface EditorSidebarProps {
   code: string;
-  errorMsg: string | null;
+  error: ParserError | null;
   isOpen: boolean;
   isDesktop: boolean;
   editorWidth: number;
@@ -25,7 +27,7 @@ interface EditorSidebarProps {
 
 export const EditorSidebar: React.FC<EditorSidebarProps> = ({
   code,
-  errorMsg,
+  error,
   isOpen,
   isDesktop,
   editorWidth,
@@ -130,9 +132,9 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
             style={{ background: '#1e1e2e', color: '#cdd6f4', caretColor: '#89b4fa' }}
             spellCheck={false}
           />
-          {errorMsg && (
-            <div className="p-3 text-xs" style={{ background: '#2a1a1a', color: '#f38ba8', borderTop: '1px solid #4a2a2a' }}>
-              ⚠️ {errorMsg}
+          {error && (
+            <div className="p-3 text-xs font-mono whitespace-pre-line" style={{ background: '#2a1a1a', color: '#f38ba8', borderTop: '1px solid #4a2a2a' }}>
+              ⚠️ {parserErrorToText(error, t)}
             </div>
           )}
         </>
