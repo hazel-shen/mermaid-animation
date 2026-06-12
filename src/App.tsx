@@ -551,7 +551,7 @@ const CanvasDiagram = () => {
   }, []);
 
   // --- Hooks ---
-  const { nodes, edges, seqLabels, isLoading, errorMsg, renderMermaidToData, viewBox } =
+  const { nodes, edges, seqLabels, isLoading, error, renderMermaidToData, viewBox } =
     useMermaidParser(code, true, hiddenContainerRef as React.RefObject<HTMLDivElement>);
 
   const particles = useParticleSystem(edges);
@@ -821,7 +821,7 @@ const CanvasDiagram = () => {
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
         <EditorSidebar
           code={code}
-          errorMsg={errorMsg}
+          error={error}
           isOpen={isEditorOpen}
           isDesktop={isDesktop}
           editorWidth={editorWidth}

@@ -28,7 +28,16 @@
     "collapseEditor": "エディタを閉じる",
     "expandEditor": "エディタを開く",
     "samples": "サンプル",
-    "resizeHandle": "ドラッグしてリサイズ"
+    "resizeHandle": "ドラッグしてリサイズ",
+    "errors": {
+      "loadFailed": "Mermaid ライブラリを読み込めませんでした。ネットワーク接続を確認してください。",
+      "emptyCode": "Mermaid コードを入力してください",
+      "classDefUnsupported": "classDiagram はカラースタイル定義（classDef）に対応していません。\nすべての classDef 行と class ... style 適用行を削除してから再試行してください。",
+      "noDiagramType": "図の種類を認識できません。先頭のキーワード（sequenceDiagram、graph TB、classDiagram など）を確認してください。",
+      "svgFailed": "SVG の生成に失敗しました",
+      "parseErrorLine": "{{line}} 行目に構文エラー：",
+      "unknown": "構文エラーまたは解析できません"
+    }
   },
   "canvas": {
     "rendering": "レンダリング中...",
