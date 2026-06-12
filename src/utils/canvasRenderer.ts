@@ -946,12 +946,17 @@ export const renderFrame = (
     .forEach(edge => drawEdge(ctx, edge, isPremium, nodes, effectiveDarkMode ? 'dark' : canvasBgMode));
   ctx.setLineDash([]);
 
-  // Link edges (message arrows) on top of lifelines
-  edges.filter(e => e.type === 'link')
+  // Link edges (message arrows) on top of lifelines.
+  // aboveNodes edges (C4) follow Mermaid's paint order — relationship lines
+  // overlay the shapes — and are deferred until after the node layer.
+  const overlayEdges = edges.filter(e => e.type === 'link' && e.aboveNodes);
+  edges.filter(e => e.type === 'link' && !e.aboveNodes)
     .forEach(edge => drawEdge(ctx, edge, isPremium, nodes, effectiveDarkMode ? 'dark' : canvasBgMode));
   ctx.setLineDash([]);
 
-  if (isPremium && showParticles) {
+  // Particles travel along the edges, so they move above the nodes together
+  // with the overlay edges; otherwise they stay below as before.
+  if (isPremium && showParticles && overlayEdges.length === 0) {
     drawParticles(ctx, particles, particleColor, particleSize, particleShape, effectiveDarkMode);
   }
 
@@ -977,6 +982,15 @@ export const renderFrame = (
 
   nodes.filter(n => n.nodeKind === 'activation')
     .forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
+
+  // Deferred overlay edges (C4): lines + their particles above the node layer
+  if (overlayEdges.length > 0) {
+    overlayEdges.forEach(edge => drawEdge(ctx, edge, isPremium, nodes, effectiveDarkMode ? 'dark' : canvasBgMode));
+    ctx.setLineDash([]);
+    if (isPremium && showParticles) {
+      drawParticles(ctx, particles, particleColor, particleSize, particleShape, effectiveDarkMode);
+    }
+  }
 
   nodes.filter(n => n.nodeKind === 'stepNum')
     .forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));

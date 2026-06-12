@@ -219,6 +219,8 @@ describe('parseC4Edges', () => {
     expect(edges[0].noSnap).toBe(true);
     expect(edges[0].fromNodeId).toBeUndefined();
     expect(edges[0].toNodeId).toBeUndefined();
+    // Mermaid paints rels after shapes — lines overlay the node boxes
+    expect(edges[0].aboveNodes).toBe(true);
   });
 
   it('sets arrowStart for BiRel lines with marker-start', () => {
@@ -292,6 +294,22 @@ describe('parseC4NodeLabels', () => {
     expect(type.color).toBe('rgba(255,255,255,0.65)');
   });
 
+  it('follows UpdateElementStyle($fontColor) via the fill attribute', () => {
+    const g = makeRectElement(svg, 'api', { texts: [{ content: 'Styled Name', bold: true }] });
+    g.querySelector('text')!.setAttribute('fill', '#ff0000');
+
+    const labels = parseC4NodeLabels(svg);
+    expect(labels[0].color).toBe('#ff0000');
+  });
+
+  it('keeps the default white scheme when fill is Mermaid default white', () => {
+    const g = makeRectElement(svg, 'api', { texts: [{ content: 'Plain Name', bold: true }] });
+    g.querySelector('text')!.setAttribute('fill', '#FFFFFF');
+
+    const labels = parseC4NodeLabels(svg);
+    expect(labels[0].color).toBe('rgba(255,255,255,1)');
+  });
+
   it('emits boundary titles as bold dark labels', () => {
     makeBoundary(svg, { title: '網路銀行系統' });
 
@@ -324,7 +342,7 @@ describe('parseC4EdgeLabels', () => {
     const labels = parseC4EdgeLabels(svg);
     expect(labels).toHaveLength(1);
     expect(labels[0].text).toBe('呼叫');
-    expect(labels[0].bgColor).toBe('rgba(255,255,255,0.85)');
+    expect(labels[0].bgColor).toBe('rgba(255,255,255,0.5)');
     // centre of the mocked 100×50 bbox
     expect(labels[0].x).toBe(50);
     expect(labels[0].y).toBe(25);
@@ -335,5 +353,21 @@ describe('parseC4EdgeLabels', () => {
     makeBoundary(svg, { title: 'boundary title' });
 
     expect(parseC4EdgeLabels(svg)).toEqual([]);
+  });
+
+  it('follows UpdateRelStyle($textColor) via the fill attribute', () => {
+    const styled = el<SVGTextElement>('text');
+    styled.textContent = '紅字';
+    styled.setAttribute('fill', 'red');
+    svg.appendChild(styled);
+
+    const plain = el<SVGTextElement>('text');
+    plain.textContent = '預設';
+    plain.setAttribute('fill', '#444444'); // Mermaid's default rel text color
+    svg.appendChild(plain);
+
+    const labels = parseC4EdgeLabels(svg);
+    expect(labels.find(l => l.text === '紅字')!.color).toBe('red');
+    expect(labels.find(l => l.text === '預設')!.color).toBe('#333333');
   });
 });

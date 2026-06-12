@@ -196,6 +196,9 @@ export const parseC4Edges = (svgElement: SVGSVGElement, isPremium: boolean): Dia
       // Mermaid already ends paths at node borders; skip border-snap so
       // arrowheads stay at the SVG endpoint (not pushed inside the node box).
       noSnap: true,
+      // Mermaid paints C4 rels AFTER the shapes (svgDraw.drawRels runs last),
+      // so lines that cross other boxes stay visible — mirror that paint order.
+      aboveNodes: true,
     });
   };
 
@@ -224,6 +227,18 @@ export const parseC4Edges = (svgElement: SVGSVGElement, isPremium: boolean): Dia
 };
 
 // ── Node / boundary text labels ──────────────────────────────────────────────
+
+/**
+ * Custom text color set by UpdateRelStyle($textColor) / UpdateElementStyle($fontColor).
+ * Mermaid writes it as a fill attribute on the <text>; returns '' for the
+ * defaults (#444444 rel text, #FFFFFF element text) so callers can apply
+ * their own default treatment.
+ */
+const customFill = (t: SVGTextElement, defaults: string[]): string => {
+  const fill = (t.getAttribute('fill') ?? '').trim().toLowerCase();
+  if (!fill || fill === 'none' || defaults.includes(fill)) return '';
+  return fill;
+};
 
 /** Measures a text element and pushes a positioned SeqLabel; no-op if unmeasurable. */
 const pushTextLabel = (
@@ -265,19 +280,21 @@ const pushTextLabel = (
 export const parseC4NodeLabels = (svgElement: SVGSVGElement): SeqLabel[] => {
   const labels: SeqLabel[] = [];
 
-  // Element texts: white on the colored shape, like Mermaid's default fontColor
+  // Element texts: white on the colored shape, like Mermaid's default fontColor.
+  // UpdateElementStyle($fontColor) overrides are picked up from the fill attr.
   svgElement.querySelectorAll<SVGGElement>('g.person-man').forEach(g => {
     Array.from(g.querySelectorAll<SVGTextElement>('text')).forEach(t => {
+      const custom = customFill(t, ['#ffffff', '#fff', 'white', 'rgb(255,255,255)']);
       pushTextLabel(labels, t, svgElement, style => {
         const bold = (parseFloat(style.fontWeight) || 400) >= 600;
         const italic = style.fontStyle === 'italic';
         return {
           bold,
-          color: bold
+          color: custom || (bold
             ? 'rgba(255,255,255,1)'
             : italic
               ? 'rgba(255,255,255,0.65)'
-              : 'rgba(255,255,255,0.9)',
+              : 'rgba(255,255,255,0.9)'),
         };
       });
     });
@@ -327,15 +344,20 @@ export const parseC4EdgeLabels = (svgElement: SVGSVGElement): SeqLabel[] => {
       const isItalic = tStyle.fontStyle === 'italic';
       const isBold = parseFloat(tStyle.fontWeight) >= 600;
       const fontSize = Math.min(parseFloat(tStyle.fontSize) || 11, 20);
+      // UpdateRelStyle($textColor) — Mermaid writes it as the fill attr;
+      // the default #444444 falls through to our standard greys.
+      const custom = customFill(t, ['#444444', 'rgb(68,68,68)']);
       labels.push({
         x: cx,
         y: cy,
         text,
         fontSize,
         bold: isBold,
-        color: isItalic ? '#888888' : '#333333',
+        color: custom || (isItalic ? '#888888' : '#333333'),
         align: 'center',
-        bgColor: 'rgba(255,255,255,0.85)',
+        // Subtle halo just strong enough to lift the text off the line —
+        // dark mode swaps this centrally (luminance-based) in drawFrame.
+        bgColor: 'rgba(255,255,255,0.5)',
       });
     } catch {
       // skip elements that can't be measured (e.g. hidden)

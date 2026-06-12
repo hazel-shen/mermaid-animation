@@ -99,6 +99,8 @@ export type DiagramEdge = {
   fromNodeId?: string;
   /** Node id that this edge points to (used to snap arrow to box border) */
   toNodeId?: string;
+  /** Draw this edge (and its particles) ABOVE the node layer — C4 follows Mermaid's paint order where relationship lines overlay the shapes. */
+  aboveNodes?: boolean;
   /** Skip node-border snapping for this edge (e.g. sequence message lines) */
   noSnap?: boolean;
   /** Override the default stroke lineWidth for this edge */
