@@ -344,6 +344,10 @@ export const parseC4EdgeLabels = (svgElement: SVGSVGElement): SeqLabel[] => {
       const isItalic = tStyle.fontStyle === 'italic';
       const isBold = parseFloat(tStyle.fontWeight) >= 600;
       const fontSize = Math.min(parseFloat(tStyle.fontSize) || 11, 20);
+      // The diagram title is the only <text> Mermaid appends directly to the
+      // SVG root (rel labels live inside the rels <g>) — render it at twice
+      // the size and bold so it reads as a heading.
+      const isTitle = t.parentElement === (svgElement as unknown as Element);
       // UpdateRelStyle($textColor) — Mermaid writes it as the fill attr;
       // the default #444444 falls through to our standard greys.
       const custom = customFill(t, ['#444444', 'rgb(68,68,68)']);
@@ -351,8 +355,8 @@ export const parseC4EdgeLabels = (svgElement: SVGSVGElement): SeqLabel[] => {
         x: cx,
         y: cy,
         text,
-        fontSize,
-        bold: isBold,
+        fontSize: isTitle ? fontSize * 2 : fontSize,
+        bold: isTitle || isBold,
         color: custom || (isItalic ? '#888888' : '#333333'),
         align: 'center',
         // Subtle halo just strong enough to lift the text off the line —

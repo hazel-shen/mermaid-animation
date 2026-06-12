@@ -334,18 +334,45 @@ describe('parseC4EdgeLabels', () => {
   let svg: SVGSVGElement;
   beforeEach(() => { svg = makeSvg(); document.body.appendChild(svg); });
 
-  it('parses free-standing relationship texts with a background color', () => {
+  /** Rel labels live inside the rels <g> Mermaid appends (svgDraw.drawRels). */
+  const makeRelLabel = (content: string, attrs: Record<string, string> = {}) => {
+    let relsG = svg.querySelector<SVGGElement>(':scope > g.test-rels');
+    if (!relsG) {
+      relsG = el<SVGGElement>('g');
+      relsG.setAttribute('class', 'test-rels');
+      svg.appendChild(relsG);
+    }
     const text = el<SVGTextElement>('text');
-    text.textContent = '呼叫';
-    svg.appendChild(text);
+    text.textContent = content;
+    setAttrs(text, attrs);
+    relsG.appendChild(text);
+    return text;
+  };
+
+  it('parses relationship texts with a background color', () => {
+    makeRelLabel('呼叫');
 
     const labels = parseC4EdgeLabels(svg);
     expect(labels).toHaveLength(1);
     expect(labels[0].text).toBe('呼叫');
     expect(labels[0].bgColor).toBe('rgba(255,255,255,0.5)');
+    expect(labels[0].bold).toBe(false);
     // centre of the mocked 100×50 bbox
     expect(labels[0].x).toBe(50);
     expect(labels[0].y).toBe(25);
+  });
+
+  it('renders the diagram title (direct SVG-root text) at twice the size, bold', () => {
+    const title = el<SVGTextElement>('text');
+    title.textContent = 'System Context diagram for Internet Banking System';
+    svg.appendChild(title);
+    makeRelLabel('呼叫');
+
+    const labels = parseC4EdgeLabels(svg);
+    const t = labels.find(l => l.text.startsWith('System Context'))!;
+    const rel = labels.find(l => l.text === '呼叫')!;
+    expect(t.bold).toBe(true);
+    expect(t.fontSize).toBe(rel.fontSize * 2);
   });
 
   it('excludes texts inside person-man groups and boundary groups', () => {
@@ -356,15 +383,8 @@ describe('parseC4EdgeLabels', () => {
   });
 
   it('follows UpdateRelStyle($textColor) via the fill attribute', () => {
-    const styled = el<SVGTextElement>('text');
-    styled.textContent = '紅字';
-    styled.setAttribute('fill', 'red');
-    svg.appendChild(styled);
-
-    const plain = el<SVGTextElement>('text');
-    plain.textContent = '預設';
-    plain.setAttribute('fill', '#444444'); // Mermaid's default rel text color
-    svg.appendChild(plain);
+    makeRelLabel('紅字', { fill: 'red' });
+    makeRelLabel('預設', { fill: '#444444' }); // Mermaid's default rel text color
 
     const labels = parseC4EdgeLabels(svg);
     expect(labels.find(l => l.text === '紅字')!.color).toBe('red');
