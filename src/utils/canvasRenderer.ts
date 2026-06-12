@@ -1,6 +1,6 @@
 import type { DiagramNode, DiagramEdge, SeqLabel, Transform } from '../types';
 import { Particle } from './particle';
-import { getLuminance } from './colorUtils';
+import { getLuminance, getAlpha } from './colorUtils';
 import { drawClassNode } from './drawClassNode';
 import { drawEdge } from './drawEdge';
 import { drawParticles } from './drawParticles';
@@ -998,8 +998,10 @@ export const renderFrame = (
   if (seqLabels.length > 0) {
     ctx.shadowBlur = 0;
     seqLabels.forEach(lbl => {
+      // Dark mode: swap light label backgrounds to the dark theme color while
+      // preserving each label's designed translucency (e.g. C4's 0.5 halo).
       const bgColor = (isDarkMode && lbl.bgColor && getLuminance(lbl.bgColor) > 0.3)
-        ? '#2a2a3e'
+        ? `rgba(42,42,62,${getAlpha(lbl.bgColor)})`
         : lbl.bgColor;
       lbl = { ...lbl, bgColor };
       ctx.font = `${lbl.bold ? 'bold ' : ''}${lbl.fontSize}px Red Hat Text, sans-serif`;

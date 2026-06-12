@@ -1,4 +1,13 @@
 /**
+ * Returns the alpha channel of a CSS color string, or 1 when the color has
+ * no explicit alpha (hex, rgb(), named colors).
+ */
+export const getAlpha = (colorStr: string): number => {
+  const m = colorStr?.match(/rgba\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*([\d.]+)\s*\)/i);
+  return m ? parseFloat(m[1]) : 1;
+};
+
+/**
  * Parses a CSS color string (hex, rgb, rgba, named) and returns perceived
  * luminance in [0, 1]. Returns 1 (light) for unrecognised formats.
  */

@@ -1,5 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { getLuminance, hexToRgba } from '../../utils/colorUtils';
+import { getLuminance, getAlpha, hexToRgba } from '../../utils/colorUtils';
+
+describe('getAlpha', () => {
+  it('extracts the alpha channel from rgba()', () => {
+    expect(getAlpha('rgba(255,255,255,0.5)')).toBe(0.5);
+    expect(getAlpha('rgba(255, 255, 255, 0.85)')).toBe(0.85);
+  });
+
+  it('returns 1 for colors without explicit alpha', () => {
+    expect(getAlpha('#ffffff')).toBe(1);
+    expect(getAlpha('rgb(255,255,255)')).toBe(1);
+    expect(getAlpha('white')).toBe(1);
+  });
+});
 
 describe('getLuminance', () => {
   it('returns 1 for empty string', () => {

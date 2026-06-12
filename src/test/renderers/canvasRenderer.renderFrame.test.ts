@@ -319,3 +319,58 @@ describe('renderFrame – dark mode cluster color overrides', () => {
     expect(fillHistory).not.toContain('#2a2a3e');
   });
 });
+
+// ── dark mode: label background translucency ─────────────────────────
+
+describe('renderFrame – dark mode label backgrounds', () => {
+  const darkOpts = (): RenderFrameOptions => ({
+    ...baseOpts(),
+    exportBg: undefined,
+    canvasBgMode: 'dark',
+  });
+
+  const makeLabel = (bgColor: string) => ({
+    x: 100, y: 100, text: '呼叫', fontSize: 12,
+    color: '#333333', align: 'center' as const, bgColor,
+  });
+
+  const fillsOf = (ctx: CanvasRenderingContext2D) => {
+    const fillHistory: string[] = [];
+    (ctx.fill as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      fillHistory.push(ctx.fillStyle as string);
+    });
+    return fillHistory;
+  };
+
+  it('keeps the label translucency when swapping light bg to dark (C4 halo)', () => {
+    const ctx = makeCtx();
+    const fillHistory = fillsOf(ctx);
+    renderFrame(ctx, 800, 600, tr, offset, false, {
+      ...darkOpts(),
+      seqLabels: [makeLabel('rgba(255,255,255,0.5)')],
+    });
+    expect(fillHistory).toContain('rgba(42,42,62,0.5)');
+  });
+
+  it('swaps opaque light bg to opaque dark (flowchart edge labels)', () => {
+    const ctx = makeCtx();
+    const fillHistory = fillsOf(ctx);
+    renderFrame(ctx, 800, 600, tr, offset, false, {
+      ...darkOpts(),
+      seqLabels: [makeLabel('#ffffff')],
+    });
+    expect(fillHistory).toContain('rgba(42,42,62,1)');
+  });
+
+  it('leaves label bg untouched in light mode', () => {
+    const ctx = makeCtx();
+    const fillHistory = fillsOf(ctx);
+    renderFrame(ctx, 800, 600, tr, offset, false, {
+      ...baseOpts(),
+      exportBg: undefined,
+      canvasBgMode: 'grid',
+      seqLabels: [makeLabel('rgba(255,255,255,0.5)')],
+    });
+    expect(fillHistory).toContain('rgba(255,255,255,0.5)');
+  });
+});
