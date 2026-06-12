@@ -16,7 +16,8 @@ import { useEditorResize } from './hooks/useEditorResize';
 import { useExportPipeline } from './hooks/useExportPipeline';
 
 import { renderFrame } from './utils/canvasRenderer';
-import type { ParticleShape } from './utils/canvasRenderer';
+import { applyParticleSettingsPatch, DEFAULT_PARTICLE_SETTINGS } from './utils/particleSettings';
+import type { ParticleSettings } from './types';
 
 import { SAMPLES, SAMPLE_KEYS, DEFAULT_SAMPLE_KEY } from './constants/sampleDiagrams';
 
@@ -34,16 +35,11 @@ const CanvasDiagram = () => {
   const [selectedSample, setSelectedSample] = useState(DEFAULT_SAMPLE_KEY);
   const [code, setCode] = useState(SAMPLES[DEFAULT_SAMPLE_KEY]);
   const [exportModalOpen, setExportModalOpen] = useState(false);
-  const [particleColor, setParticleColor] = useState('#2ea4ff');
-  const [particleSpeed, setParticleSpeed] = useState(1);
-  const [particleSize, setParticleSize] = useState(3);
-  const [particleShape, setParticleShape] = useState<ParticleShape>('circle');
-  const [canvasBgMode, setCanvasBgMode] = useState<import('./utils/canvasRenderer').CanvasBgMode>('grid');
-  const handleCanvasBgModeChange = useCallback((mode: import('./utils/canvasRenderer').CanvasBgMode) => {
-    setCanvasBgMode(mode);
-    if (mode === 'dark') setParticleColor('#a5b4fc');
-    else setParticleColor('#2ea4ff');
+  const [particleSettings, setParticleSettings] = useState<ParticleSettings>(DEFAULT_PARTICLE_SETTINGS);
+  const updateParticleSettings = useCallback((patch: Partial<ParticleSettings>) => {
+    setParticleSettings(prev => applyParticleSettingsPatch(prev, patch));
   }, []);
+  const { speed: particleSpeed, color: particleColor, size: particleSize, shape: particleShape, bgMode: canvasBgMode } = particleSettings;
   const [isControlBarOpen, setIsControlBarOpen] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(true);
   const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
@@ -195,19 +191,11 @@ const CanvasDiagram = () => {
       <AppHeader
         isLoading={isLoading}
         isRecording={isRecording}
-        particleSpeed={particleSpeed}
-        particleColor={particleColor}
-        particleSize={particleSize}
-        particleShape={particleShape}
-        canvasBgMode={canvasBgMode}
+        settings={particleSettings}
+        onSettingsChange={updateParticleSettings}
         onExport={() => setExportModalOpen(true)}
         onRefresh={renderMermaidToData}
         onDownload={handleDownload}
-        onParticleSpeedChange={setParticleSpeed}
-        onParticleColorChange={setParticleColor}
-        onParticleSizeChange={setParticleSize}
-        onParticleShapeChange={setParticleShape}
-        onCanvasBgModeChange={handleCanvasBgModeChange}
       />
 
       {exportModalOpen && (
@@ -222,20 +210,12 @@ const CanvasDiagram = () => {
         isOpen={isControlBarOpen}
         isLoading={isLoading}
         isRecording={isRecording}
-        particleSpeed={particleSpeed}
-        particleColor={particleColor}
-        particleSize={particleSize}
-        particleShape={particleShape}
-        canvasBgMode={canvasBgMode}
+        settings={particleSettings}
+        onSettingsChange={updateParticleSettings}
         onClose={() => setIsControlBarOpen(false)}
         onExport={() => setExportModalOpen(true)}
         onRefresh={renderMermaidToData}
         onDownload={handleDownload}
-        onParticleSpeedChange={setParticleSpeed}
-        onParticleColorChange={setParticleColor}
-        onParticleSizeChange={setParticleSize}
-        onParticleShapeChange={setParticleShape}
-        onCanvasBgModeChange={handleCanvasBgModeChange}
       />
 
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
