@@ -725,6 +725,115 @@ export const drawNode = (
   }
 };
 
+/** Point-in-polygon (ray casting, even-odd) — also handles concave shapes like 'asymmetric'. */
+const pointInPolygon = (px: number, py: number, pts: Array<[number, number]>): boolean => {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i];
+    const [xj, yj] = pts[j];
+    if ((yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+};
+
+/**
+ * Shape-aware exact hit test for a single node, mirroring the geometry that
+ * drawNode() paints. `pad` inflates the shape outward for snapping tolerance.
+ *
+ * Vertices are derived from the node's parsed width/height; diamond and
+ * hexagon may be drawn slightly larger when a long label forces expansion,
+ * which this test intentionally ignores (the parsed bbox already reflects
+ * the label for Mermaid-produced nodes).
+ */
+export const hitTestNode = (n: DiagramNode, px: number, py: number, pad = 0): boolean => {
+  const dx = px - n.x;
+  const dy = py - n.y;
+  const hw = n.width / 2 + pad;
+  const hh = n.height / 2 + pad;
+
+  if (n.shape === 'pie' && n.pieWedge) {
+    const { cx, cy, radius, startAngle, endAngle } = n.pieWedge;
+    const wx = px - cx;
+    const wy = py - cy;
+    if (Math.hypot(wx, wy) > radius + pad) return false;
+    // Normalise mouse angle to [0, 2π) then check if it falls in the wedge sweep
+    const TAU = Math.PI * 2;
+    const angle = ((Math.atan2(wy, wx) % TAU) + TAU) % TAU;
+    const start = ((startAngle % TAU) + TAU) % TAU;
+    const end   = ((endAngle   % TAU) + TAU) % TAU;
+    return end >= start
+      ? angle >= start && angle <= end
+      : angle >= start || angle <= end; // wedge crosses the 0/2π boundary
+  }
+
+  switch (n.shape) {
+    case 'circle':
+    case 'endCircle':
+    case 'mergeCircle':
+    case 'reverseCircle':
+      return Math.hypot(dx, dy) <= n.width / 2 + pad;
+
+    case 'diamond':
+      // L1-norm: |dx|/hw + |dy|/hh <= 1 describes the rhombus
+      return Math.abs(dx) / hw + Math.abs(dy) / hh <= 1;
+
+    case 'stadium': {
+      // Capsule: rect core + semicircle ends, r = height/2
+      const r = n.height / 2;
+      const coreDx = Math.max(Math.abs(dx) - (n.width / 2 - r), 0);
+      return Math.hypot(coreDx, dy) <= r + pad;
+    }
+
+    case 'hexagon': {
+      const tip = hh;
+      return pointInPolygon(px, py, [
+        [n.x - hw + tip, n.y - hh],
+        [n.x + hw - tip, n.y - hh],
+        [n.x + hw,       n.y],
+        [n.x + hw - tip, n.y + hh],
+        [n.x - hw + tip, n.y + hh],
+        [n.x - hw,       n.y],
+      ]);
+    }
+
+    case 'parallelogram':
+    case 'parallelogramAlt':
+    case 'trapezoid':
+    case 'trapezoidAlt': {
+      const skew = (hh * 2) * 0.3;
+      const l = n.x - hw, r = n.x + hw;
+      const t = n.y - hh, b = n.y + hh;
+      let tl: number, tr: number, bl: number, br: number;
+      if (n.shape === 'parallelogram') {
+        tl = l + skew; tr = r;        bl = l;        br = r - skew;
+      } else if (n.shape === 'parallelogramAlt') {
+        tl = l;        tr = r - skew; bl = l + skew; br = r;
+      } else if (n.shape === 'trapezoid') {
+        tl = l + skew; tr = r - skew; bl = l;        br = r;
+      } else {
+        tl = l;        tr = r;        bl = l + skew; br = r - skew;
+      }
+      return pointInPolygon(px, py, [[tl, t], [tr, t], [br, b], [bl, b]]);
+    }
+
+    case 'asymmetric': {
+      // >text] : flat right edge, concave notch on the left pointing right
+      const notch = (hh * 2) * 0.45;
+      const l = n.x - hw, r = n.x + hw;
+      const t = n.y - hh, b = n.y + hh;
+      return pointInPolygon(px, py, [
+        [l, t], [r, t], [r, b], [l, b], [l + notch, n.y],
+      ]);
+    }
+
+    default:
+      // Rect-like shapes (rect, roundRect, subroutine, note, cylinder, …): bbox
+      return Math.abs(dx) <= hw && Math.abs(dy) <= hh;
+  }
+};
+
 export const findNodeAtPoint = (
   nodes: DiagramNode[],
   px: number, py: number,
@@ -732,11 +841,7 @@ export const findNodeAtPoint = (
 ): DiagramNode | null => {
   for (const n of nodes) {
     if (n.type === 'cluster') continue;
-    const pad = 20;
-    if (
-      px >= n.x - n.width  / 2 - pad && px <= n.x + n.width  / 2 + pad &&
-      py >= n.y - n.height / 2 - pad && py <= n.y + n.height / 2 + pad
-    ) return n;
+    if (hitTestNode(n, px, py, 20)) return n;
   }
   if (exactOnly) return null;
   let best: DiagramNode | null = null;

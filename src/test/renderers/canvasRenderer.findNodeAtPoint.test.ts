@@ -1,22 +1,18 @@
 /**
- * Tests for findNodeAtPoint — the shared snapping helper used by drawEdge
- * for all diagram types.
+ * Tests for hitTestNode + findNodeAtPoint.
  *
- * Snapping strategy
- * ─────────────────
- * Priority 1 — bbox hit: if (px,py) is inside the node box ±20 px, return
- *   that node.  Works for all diagram types when the path endpoint is on or
- *   very near the box border.
+ * hitTestNode — shape-aware exact hit test (issue #43). Mirrors the geometry
+ *   drawNode() paints: pie wedge sweep, diamond L1-norm, capsule stadium,
+ *   point-in-polygon for hexagon / parallelogram / trapezoid / asymmetric.
+ *   Used by useCanvasTransform.handleMouseMove for hover detection (pad=0).
  *
- * Priority 2 (exactOnly=false) — nearest-centre within 120 px: return the
- *   closest node whose centre is within 120 px.  This catches flowchart paths
- *   that end a few pixels outside the box.  Sequence edges use noSnap=true on
- *   the DiagramEdge so findNodeAtPoint is never called for them.
- *
- * When exactOnly=true the fallback is skipped entirely (bbox only).
+ * findNodeAtPoint — snapping wrapper built on hitTestNode:
+ *   Priority 1 — shape hit with pad=20 tolerance.
+ *   Priority 2 (exactOnly=false) — nearest-centre within 120 px.
+ *   When exactOnly=true the fallback is skipped entirely.
  */
 import { describe, it, expect } from 'vitest';
-import { findNodeAtPoint } from '../../utils/canvasRenderer';
+import { findNodeAtPoint, hitTestNode } from '../../utils/canvasRenderer';
 import type { DiagramNode } from '../../types';
 
 const makeNode = (
@@ -111,5 +107,109 @@ describe('findNodeAtPoint', () => {
     const node = makeNode({ x: 300, y: 100, width: 120, height: 60 });
     // Right border = 360; 360+15=375 is within pad=20
     expect(findNodeAtPoint([node], 375, 100, true)).toBe(node);
+  });
+});
+
+// All shape nodes below: centre (200,100), width 120, height 60 → hw=60, hh=30
+describe('hitTestNode — shape-aware exact tests (issue #43)', () => {
+  it('rect-like default: bbox corner still hits', () => {
+    const node = makeNode({ x: 200, y: 100, width: 120, height: 60 });
+    expect(hitTestNode(node, 255, 125)).toBe(true);
+  });
+
+  // ── diamond ────────────────────────────────────────────────────────────────
+  it('diamond: centre and vertices hit', () => {
+    const node = makeNode({ x: 200, y: 100, width: 120, height: 60, shape: 'diamond' });
+    expect(hitTestNode(node, 200, 100)).toBe(true);
+    expect(hitTestNode(node, 260, 100)).toBe(true); // right vertex, on edge
+    expect(hitTestNode(node, 200, 70)).toBe(true);  // top vertex
+  });
+
+  it('diamond: empty bbox corners no longer hit', () => {
+    const node = makeNode({ x: 200, y: 100, width: 120, height: 60, shape: 'diamond' });
+    // (250,120) is inside the bbox but outside the rhombus: 50/60 + 20/30 = 1.5 > 1
+    expect(hitTestNode(node, 250, 120)).toBe(false);
+    expect(hitTestNode(node, 150, 80)).toBe(false);
+  });
+
+  // ── circle family ──────────────────────────────────────────────────────────
+  it('circle: radial test rejects bbox corners', () => {
+    const node = makeNode({ x: 200, y: 100, width: 60, height: 60, shape: 'circle' });
+    expect(hitTestNode(node, 220, 100)).toBe(true);  // r=20 < 30
+    expect(hitTestNode(node, 225, 125)).toBe(false); // corner: r≈35 > 30
+  });
+
+  it('endCircle: same radial test', () => {
+    const node = makeNode({ x: 200, y: 100, width: 40, height: 40, shape: 'endCircle' });
+    expect(hitTestNode(node, 200, 118)).toBe(true);
+    expect(hitTestNode(node, 216, 116)).toBe(false); // corner: r≈22.6 > 20
+  });
+
+  // ── stadium ────────────────────────────────────────────────────────────────
+  it('stadium: capsule test rejects corners but keeps rounded ends', () => {
+    const node = makeNode({ x: 200, y: 100, width: 120, height: 60, shape: 'stadium' });
+    expect(hitTestNode(node, 142, 100)).toBe(true);  // left rounded end
+    expect(hitTestNode(node, 145, 75)).toBe(false);  // top-left bbox corner
+    expect(hitTestNode(node, 200, 128)).toBe(true);  // flat bottom of core
+  });
+
+  // ── hexagon ────────────────────────────────────────────────────────────────
+  it('hexagon: side tips hit, cut corners do not', () => {
+    const node = makeNode({ x: 200, y: 100, width: 120, height: 60, shape: 'hexagon' });
+    // vertices: (170,70)(230,70)(260,100)(230,130)(170,130)(140,100)
+    expect(hitTestNode(node, 255, 100)).toBe(true);  // near right tip
+    expect(hitTestNode(node, 145, 75)).toBe(false);  // cut top-left corner
+    expect(hitTestNode(node, 255, 128)).toBe(false); // cut bottom-right corner
+  });
+
+  // ── parallelogram / trapezoid ─────────────────────────────────────────────
+  it('parallelogram: skewed corners no longer hit', () => {
+    const node = makeNode({ x: 200, y: 100, width: 120, height: 60, shape: 'parallelogram' });
+    // skew=18 → vertices (158,70)(260,70)(242,130)(140,130)
+    expect(hitTestNode(node, 200, 100)).toBe(true);
+    expect(hitTestNode(node, 145, 72)).toBe(false);  // top-left skew gap
+    expect(hitTestNode(node, 255, 128)).toBe(false); // bottom-right skew gap
+  });
+
+  it('trapezoid: narrowed top corners no longer hit', () => {
+    const node = makeNode({ x: 200, y: 100, width: 120, height: 60, shape: 'trapezoid' });
+    // skew=18 → vertices (158,70)(242,70)(140,130)(260,130)
+    expect(hitTestNode(node, 145, 72)).toBe(false);
+    expect(hitTestNode(node, 255, 72)).toBe(false);
+    expect(hitTestNode(node, 145, 128)).toBe(true); // wide bottom edge
+  });
+
+  // ── asymmetric ────────────────────────────────────────────────────────────
+  it('asymmetric: left notch concavity no longer hits', () => {
+    const node = makeNode({ x: 200, y: 100, width: 120, height: 60, shape: 'asymmetric' });
+    // notch=27 → vertices (140,70)(260,70)(260,130)(140,130)(167,100)
+    expect(hitTestNode(node, 150, 100)).toBe(false); // inside the notch
+    expect(hitTestNode(node, 180, 100)).toBe(true);  // just past the notch tip
+    expect(hitTestNode(node, 145, 75)).toBe(true);   // top-left wing is solid
+    expect(hitTestNode(node, 255, 100)).toBe(true);  // flat right edge
+  });
+
+  // ── pie wedge ─────────────────────────────────────────────────────────────
+  it('pie wedge: hits inside the sweep, misses outside angle or radius', () => {
+    const node = makeNode({
+      x: 200, y: 100, width: 100, height: 100, shape: 'pie',
+      pieWedge: { cx: 200, cy: 100, radius: 50, startAngle: 0, endAngle: Math.PI / 2 },
+    });
+    expect(hitTestNode(node, 230, 130)).toBe(true);  // 45°, r≈42
+    expect(hitTestNode(node, 230, 70)).toBe(false);  // -45° outside sweep
+    expect(hitTestNode(node, 260, 160)).toBe(false); // r≈85 outside radius
+  });
+
+  // ── pad tolerance ─────────────────────────────────────────────────────────
+  it('pad inflates the shape outward (diamond)', () => {
+    const node = makeNode({ x: 200, y: 100, width: 120, height: 60, shape: 'diamond' });
+    expect(hitTestNode(node, 265, 100)).toBe(false);    // beyond right vertex
+    expect(hitTestNode(node, 265, 100, 20)).toBe(true); // within pad
+  });
+
+  it('pad inflates the shape outward (circle)', () => {
+    const node = makeNode({ x: 200, y: 100, width: 60, height: 60, shape: 'circle' });
+    expect(hitTestNode(node, 240, 100)).toBe(false);
+    expect(hitTestNode(node, 240, 100, 15)).toBe(true);
   });
 });
