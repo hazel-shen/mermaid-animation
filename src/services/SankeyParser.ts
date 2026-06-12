@@ -125,6 +125,9 @@ export const parseSankeyNodes = (svgElement: SVGSVGElement): DiagramNode[] => {
       height: h,
       color,
       stroke: color,
+      // Sankey bar colors encode flow categories — the dark-mode renderer
+      // must not repaint them.
+      preserveColor: true,
     });
   });
 

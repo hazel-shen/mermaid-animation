@@ -240,6 +240,21 @@ describe('parsePieNodes', () => {
     expect(nodes[0].shape).toBe('rect');
   });
 
+  it('marks legend swatches preserveColor so dark mode keeps their palette color', () => {
+    vi.spyOn(window, 'getComputedStyle').mockReturnValue({
+      fill: 'rgb(100, 200, 100)', stroke: 'rgb(100, 200, 100)',
+    } as unknown as CSSStyleDeclaration);
+    const rect = el<SVGRectElement>('rect');
+    rect.classList.add('legendRect');
+    rect.setAttribute('x', '10');
+    rect.setAttribute('y', '20');
+    rect.setAttribute('width', '12');
+    rect.setAttribute('height', '12');
+    svg.appendChild(rect);
+    const nodes = parsePieNodes(svg);
+    expect(nodes[0].preserveColor).toBe(true);
+  });
+
   it('skips legend rect with zero width or height', () => {
     const rect = el<SVGRectElement>('rect');
     rect.classList.add('legendRect');

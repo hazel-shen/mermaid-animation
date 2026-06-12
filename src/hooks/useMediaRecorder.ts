@@ -17,9 +17,9 @@ interface UseMediaRecorderReturn {
 
 const DURATION_MS = 4000;
 
-const CROP_PADDING = 40;
+export const CROP_PADDING = 40;
 
-function getTightCropDimensions(diagramSizeRef: React.MutableRefObject<{ w: number; h: number }>) {
+export function getTightCropDimensions(diagramSizeRef: React.MutableRefObject<{ w: number; h: number }>) {
   const { w: dw, h: dh } = diagramSizeRef.current;
   const outW = dw > 0 ? Math.round(dw + CROP_PADDING * 2) : 1280;
   const outH = dh > 0 ? Math.round(dh + CROP_PADDING * 2) : 720;
