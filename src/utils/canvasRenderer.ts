@@ -1,6 +1,6 @@
 import type { DiagramNode, DiagramEdge, SeqLabel, Transform } from '../types';
 import { Particle } from './particle';
-import { getLuminance } from './colorUtils';
+import { getLuminance, getAlpha } from './colorUtils';
 import { drawClassNode } from './drawClassNode';
 import { drawEdge } from './drawEdge';
 import { drawParticles } from './drawParticles';
@@ -342,35 +342,36 @@ export const drawNode = (
     ctx.shadowOffsetY = 0;
 
     const iconColor = getLuminance(color) < 0.35 ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.75)';
-    const iconR = Math.min(width * 0.09, height * 0.13, 16);
-    const iconCX = x;
-    const iconTopY = y - height / 2 + iconR * 2.8;
+
+    // Draw the silhouette inside the box Mermaid reserved for its person PNG,
+    // so it sits between <<person>> and the name exactly like the original.
+    // Fall back to a top-anchored estimate when no icon box was scraped.
+    const box = node.c4IconBox ?? {
+      x: x - 24,
+      y: y - height / 2 + 18,
+      width: 48,
+      height: 48,
+    };
+    const iconR = box.width * 0.22;
+    const iconCX = box.x + box.width / 2;
+    const headCY = box.y + iconR * 1.4;
 
     // Head
     ctx.beginPath();
-    ctx.arc(iconCX, iconTopY, iconR, 0, Math.PI * 2);
+    ctx.arc(iconCX, headCY, iconR, 0, Math.PI * 2);
     ctx.fillStyle = iconColor;
     ctx.fill();
 
     // Body (shoulders / torso)
-    const bodyW = iconR * 2.4;
-    const bodyH = iconR * 1.8;
-    const bodyY = iconTopY + iconR * 1.5;
+    const bodyW = iconR * 2.6;
+    const bodyH = box.y + box.height - (headCY + iconR * 1.3);
     ctx.beginPath();
-    ctx.roundRect(iconCX - bodyW / 2, bodyY, bodyW, bodyH, iconR * 0.4);
+    ctx.roundRect(iconCX - bodyW / 2, headCY + iconR * 1.3, bodyW, bodyH, iconR * 0.4);
     ctx.fillStyle = iconColor;
     ctx.fill();
 
-    // Bold name label anchored just below the icon body
-    const labelY = bodyY + bodyH + iconR * 0.3;
-    ctx.fillStyle = iconColor;
-    ctx.font = `bold ${Math.max(11, iconR * 0.9)}px Red Hat Text, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(label, iconCX, labelY);
-
-    // Non-bold text (<<person>>, description) is rendered via SeqLabel
-    // from parseC4NodeLabels at their original SVG positions.
+    // All text (name / <<person>> / description) is rendered via SeqLabel
+    // from parseC4NodeLabels at the original SVG positions.
     return;
   }
 
@@ -945,12 +946,17 @@ export const renderFrame = (
     .forEach(edge => drawEdge(ctx, edge, isPremium, nodes, effectiveDarkMode ? 'dark' : canvasBgMode));
   ctx.setLineDash([]);
 
-  // Link edges (message arrows) on top of lifelines
-  edges.filter(e => e.type === 'link')
+  // Link edges (message arrows) on top of lifelines.
+  // aboveNodes edges (C4) follow Mermaid's paint order — relationship lines
+  // overlay the shapes — and are deferred until after the node layer.
+  const overlayEdges = edges.filter(e => e.type === 'link' && e.aboveNodes);
+  edges.filter(e => e.type === 'link' && !e.aboveNodes)
     .forEach(edge => drawEdge(ctx, edge, isPremium, nodes, effectiveDarkMode ? 'dark' : canvasBgMode));
   ctx.setLineDash([]);
 
-  if (isPremium && showParticles) {
+  // Particles travel along the edges, so they move above the nodes together
+  // with the overlay edges; otherwise they stay below as before.
+  if (isPremium && showParticles && overlayEdges.length === 0) {
     drawParticles(ctx, particles, particleColor, particleSize, particleShape, effectiveDarkMode);
   }
 
@@ -977,14 +983,25 @@ export const renderFrame = (
   nodes.filter(n => n.nodeKind === 'activation')
     .forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
 
+  // Deferred overlay edges (C4): lines + their particles above the node layer
+  if (overlayEdges.length > 0) {
+    overlayEdges.forEach(edge => drawEdge(ctx, edge, isPremium, nodes, effectiveDarkMode ? 'dark' : canvasBgMode));
+    ctx.setLineDash([]);
+    if (isPremium && showParticles) {
+      drawParticles(ctx, particles, particleColor, particleSize, particleShape, effectiveDarkMode);
+    }
+  }
+
   nodes.filter(n => n.nodeKind === 'stepNum')
     .forEach(node => drawNode(ctx, node, isPremium, hoveredNodeId, particleColor));
 
   if (seqLabels.length > 0) {
     ctx.shadowBlur = 0;
     seqLabels.forEach(lbl => {
+      // Dark mode: swap light label backgrounds to the dark theme color while
+      // preserving each label's designed translucency (e.g. C4's 0.5 halo).
       const bgColor = (isDarkMode && lbl.bgColor && getLuminance(lbl.bgColor) > 0.3)
-        ? '#2a2a3e'
+        ? `rgba(42,42,62,${getAlpha(lbl.bgColor)})`
         : lbl.bgColor;
       lbl = { ...lbl, bgColor };
       ctx.font = `${lbl.bold ? 'bold ' : ''}${lbl.fontSize}px Red Hat Text, sans-serif`;

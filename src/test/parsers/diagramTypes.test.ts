@@ -60,6 +60,14 @@ describe('getDiagramType', () => {
     expect(getDiagramType('sankey\n  A,B,10')).toBe('sankey');
   });
 
+  it('detects c4 from all five C4 keywords', () => {
+    expect(getDiagramType('C4Context\n  title X')).toBe('c4');
+    expect(getDiagramType('C4Container\n  title X')).toBe('c4');
+    expect(getDiagramType('C4Component\n  title X')).toBe('c4');
+    expect(getDiagramType('C4Dynamic\n  title X')).toBe('c4');
+    expect(getDiagramType('C4Deployment\n  title X')).toBe('c4');
+  });
+
   it('returns generic for unknown diagram type', () => {
     expect(getDiagramType('unknownDiagram\n  foo')).toBe('generic');
   });

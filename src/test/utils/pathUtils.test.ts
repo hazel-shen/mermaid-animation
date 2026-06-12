@@ -63,6 +63,16 @@ describe('getPathEnd', () => {
     expect(result!.y).toBeCloseTo(0);
   });
 
+  it('extracts endpoint and tangent angle from a M+Q path (C4 relationships)', () => {
+    // Q ends at the last two numbers; tangent = end − control point
+    const result = getPathEnd('M 0 0 Q 50 100 100 0');
+    expect(result).not.toBeNull();
+    expect(result!.x).toBeCloseTo(100);
+    expect(result!.y).toBeCloseTo(0);
+    // Tangent direction (100−50, 0−100) = (50, −100) → atan2(−100, 50)
+    expect(result!.angle).toBeCloseTo(Math.atan2(-100, 50));
+  });
+
   it('returns correct angle for a downward line', () => {
     // Vertical downward → angle ≈ π/2
     const result = getPathEnd('M 0 0 L 0 100');

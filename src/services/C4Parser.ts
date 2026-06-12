@@ -57,17 +57,14 @@ export const parseC4Nodes = (svgElement: SVGSVGElement, _isPremium: boolean): Di
     if (bw <= 0 || bh <= 0) return;
     const { x: btx, y: bty } = getCumulativeTransform(rect, svgElement);
 
-    // Boundary title: first direct-child text element
-    const label = Array.from(parentG.querySelectorAll<SVGTextElement>(':scope > text'))
-      .map(t => t.textContent?.trim() ?? '')
-      .find(Boolean) ?? '';
-
     const fill = rect.getAttribute('fill') ?? 'none';
     const strokeColor = rect.getAttribute('stroke') ?? '#888888';
 
     nodes.push({
       id: parentG.id || nextId('c4-boundary'),
-      label,
+      // Boundary title is rendered as a positioned label (parseC4NodeLabels)
+      // at its original SVG spot, matching Mermaid's own layout.
+      label: '',
       type: 'cluster',
       shape: 'rect',
       x: btx + bx + bw / 2,
@@ -128,18 +125,30 @@ export const parseC4Nodes = (svgElement: SVGSVGElement, _isPremium: boolean): Di
     const defaultFill = '#1168bd';
     const { color, stroke } = extractComputedColors(colorEl, { color: defaultFill, stroke: '#073b6f' });
 
-    // Label: prefer bold text (the element name), fall back to first text
-    const allTexts = Array.from(g.querySelectorAll<SVGTextElement>('text'));
-    let label = '';
-    for (const t of allTexts) {
-      const fw = parseFloat(window.getComputedStyle(t).fontWeight) || 400;
-      if (fw >= 600) { label = t.textContent?.trim() ?? ''; break; }
+    // Person icon: capture the 48×48 <image> box so the canvas silhouette is
+    // drawn exactly where Mermaid placed the PNG (between <<type>> and name).
+    let c4IconBox: DiagramNode['c4IconBox'];
+    const image = g.querySelector<SVGImageElement>('image');
+    if (image) {
+      const iw = parseFloat(image.getAttribute('width') || '0');
+      const ih = parseFloat(image.getAttribute('height') || '0');
+      if (iw > 0 && ih > 0) {
+        const { x: itx, y: ity } = getCumulativeTransform(image, svgElement);
+        c4IconBox = {
+          x: itx + parseFloat(image.getAttribute('x') || '0'),
+          y: ity + parseFloat(image.getAttribute('y') || '0'),
+          width: iw,
+          height: ih,
+        };
+      }
     }
-    if (!label) label = allTexts[0]?.textContent?.trim() ?? '';
 
     nodes.push({
       id: g.id || nextId('c4'),
-      label,
+      // All element text (name / <<type>> / description) is rendered as
+      // positioned labels (parseC4NodeLabels) at the original SVG spots,
+      // matching Mermaid's top-down text stacking inside the shape.
+      label: '',
       type: 'node',
       shape,
       x: cx,
@@ -148,10 +157,14 @@ export const parseC4Nodes = (svgElement: SVGSVGElement, _isPremium: boolean): Di
       height,
       color,
       stroke,
+      // C4 colors are semantic (person / system / external) and always pair a
+      // saturated or dark fill with white text — keep them on dark canvases
+      // instead of letting the luminance-based dark theme rewrite some of them.
+      preserveColor: true,
+      ...(c4IconBox ? { c4IconBox } : {}),
     });
   });
 
-  console.log('[C4Parser] nodes parsed:', nodes.length, nodes.map(n => ({ id: n.id, label: n.label, shape: n.shape, x: n.x, y: n.y, w: n.width, h: n.height })));
   return nodes;
 };
 
@@ -183,20 +196,11 @@ export const parseC4Edges = (svgElement: SVGSVGElement, isPremium: boolean): Dia
       // Mermaid already ends paths at node borders; skip border-snap so
       // arrowheads stay at the SVG endpoint (not pushed inside the node box).
       noSnap: true,
+      // Mermaid paints C4 rels AFTER the shapes (svgDraw.drawRels runs last),
+      // so lines that cross other boxes stay visible — mirror that paint order.
+      aboveNodes: true,
     });
   };
-
-  // Debug: log all lines and paths with their marker attributes
-  const allLines = Array.from(svgElement.querySelectorAll<SVGLineElement>('line'));
-  const allPaths = Array.from(svgElement.querySelectorAll<SVGPathElement>('path'));
-  console.log('[C4Parser] lines found:', allLines.length);
-  allLines.forEach((l, i) => {
-    console.log(`  line[${i}] marker-end="${l.getAttribute('marker-end')}" marker-start="${l.getAttribute('marker-start')}" insidePersonMan=${insidePersonMan(l)} x1=${l.getAttribute('x1')} y1=${l.getAttribute('y1')} x2=${l.getAttribute('x2')} y2=${l.getAttribute('y2')}`);
-  });
-  console.log('[C4Parser] paths found:', allPaths.length);
-  allPaths.forEach((p, i) => {
-    console.log(`  path[${i}] marker-end="${p.getAttribute('marker-end')}" marker-start="${p.getAttribute('marker-start')}" insidePersonMan=${insidePersonMan(p)} d="${p.getAttribute('d')?.slice(0, 40)}"`);
-  });
 
   // <line> elements with marker — first Rel() in the diagram
   svgElement.querySelectorAll<SVGLineElement>('line').forEach(line => {
@@ -219,108 +223,92 @@ export const parseC4Edges = (svgElement: SVGSVGElement, isPremium: boolean): Dia
     pushEdge(applyTranslateToPathD(d, tx, ty), path, hasStart);
   });
 
-  console.log('[C4Parser] edges parsed:', edges.length, edges);
   return edges;
 };
 
-// ── Snap edges to node borders ────────────────────────────────────────────────
+// ── Node / boundary text labels ──────────────────────────────────────────────
 
 /**
- * Attach fromNodeId / toNodeId to each C4 edge by matching path endpoints
- * to the nearest node. This lets drawEdge snap arrowheads to the exact node
- * border instead of drawing them at the raw SVG coordinates (which would be
- * covered by the node box drawn on top).
+ * Custom text color set by UpdateRelStyle($textColor) / UpdateElementStyle($fontColor).
+ * Mermaid writes it as a fill attribute on the <text>; returns '' for the
+ * defaults (#444444 rel text, #FFFFFF element text) so callers can apply
+ * their own default treatment.
  */
-export const snapC4EdgesToNodes = (
-  edges: DiagramEdge[],
-  nodes: DiagramNode[],
-): DiagramEdge[] => {
-  const nonCluster = nodes.filter(n => n.type !== 'cluster');
-  if (nonCluster.length === 0) return edges;
-
-  const nearest = (x: number, y: number): DiagramNode =>
-    nonCluster.reduce((best, n) =>
-      Math.hypot(n.x - x, n.y - y) < Math.hypot(best.x - x, best.y - y) ? n : best
-    );
-
-  const startPt = (d: string) => {
-    const m = d.match(/M\s*([-+]?[\d.e]+)[,\s]+([-+]?[\d.e]+)/i);
-    return m ? { x: parseFloat(m[1]), y: parseFloat(m[2]) } : null;
-  };
-  const endPt = (d: string) => {
-    const m = d.match(/[MLCSQTA][^MLCSQTAZHV]*$/i);
-    if (!m) return null;
-    const nums = [...m[0].matchAll(/[-+]?[\d.]+(?:e[-+]?\d+)?/g)].map(n => parseFloat(n[0]));
-    return nums.length >= 2 ? { x: nums[nums.length - 2], y: nums[nums.length - 1] } : null;
-  };
-
-  return edges.map(edge => {
-    const sp = startPt(edge.pathD);
-    const ep = endPt(edge.pathD);
-    return {
-      ...edge,
-      fromNodeId: sp ? nearest(sp.x, sp.y).id : undefined,
-      toNodeId:   ep ? nearest(ep.x, ep.y).id : undefined,
-    };
-  });
+const customFill = (t: SVGTextElement, defaults: string[]): string => {
+  const fill = (t.getAttribute('fill') ?? '').trim().toLowerCase();
+  if (!fill || fill === 'none' || defaults.includes(fill)) return '';
+  return fill;
 };
 
-// ── Node type / description labels ───────────────────────────────────────────
+/** Measures a text element and pushes a positioned SeqLabel; no-op if unmeasurable. */
+const pushTextLabel = (
+  labels: SeqLabel[],
+  t: SVGTextElement,
+  svgElement: SVGSVGElement,
+  styleOf: (s: CSSStyleDeclaration) => { color: string; bold: boolean },
+) => {
+  const text = t.textContent?.trim() ?? '';
+  if (!text) return;
+  try {
+    const bbox = (t as SVGGraphicsElement).getBBox();
+    if (bbox.width <= 0) return;
+    const { x: tx, y: ty } = getCumulativeTransform(t, svgElement);
+    const style = window.getComputedStyle(t);
+    const { color, bold } = styleOf(style);
+    labels.push({
+      x: tx + bbox.x + bbox.width  / 2,
+      y: ty + bbox.y + bbox.height / 2,
+      text,
+      fontSize: Math.min(parseFloat(style.fontSize) || 11, 14),
+      bold,
+      color,
+      align: 'center',
+    });
+  } catch {
+    // skip unmeasurable elements
+  }
+};
 
 /**
- * Extracts the type label (e.g. <<person>>, <<system>>) and description text
- * from each C4 element, using their actual SVG positions for accurate placement.
+ * Extracts all element texts (bold name, <<type>>, description) and boundary
+ * titles at their actual SVG positions.
  *
- * The bold name text is already rendered as the node label by drawNode, so
- * only non-bold text elements are emitted here.
+ * Mermaid stacks element text top-down inside each shape (name is NOT
+ * vertically centred), so every text — including the bold name — is emitted
+ * as a positioned label rather than drawn by drawNodeLabel at the node centre.
  */
 export const parseC4NodeLabels = (svgElement: SVGSVGElement): SeqLabel[] => {
   const labels: SeqLabel[] = [];
 
+  // Element texts: white on the colored shape, like Mermaid's default fontColor.
+  // UpdateElementStyle($fontColor) overrides are picked up from the fill attr.
   svgElement.querySelectorAll<SVGGElement>('g.person-man').forEach(g => {
-    // Person nodes (have <image>): render non-bold text (<<person>>, description)
-    // at SVG positions. Bold name is drawn directly in the c4Person canvas block
-    // so it stays anchored below the icon figure.
-    // Non-person nodes: skip bold name (drawNodeLabel handles it).
     Array.from(g.querySelectorAll<SVGTextElement>('text')).forEach(t => {
-      const text = t.textContent?.trim() ?? '';
-      if (!text) return;
+      const custom = customFill(t, ['#ffffff', '#fff', 'white', 'rgb(255,255,255)']);
+      pushTextLabel(labels, t, svgElement, style => {
+        const bold = (parseFloat(style.fontWeight) || 400) >= 600;
+        const italic = style.fontStyle === 'italic';
+        return {
+          bold,
+          color: custom || (bold
+            ? 'rgba(255,255,255,1)'
+            : italic
+              ? 'rgba(255,255,255,0.65)'
+              : 'rgba(255,255,255,0.9)'),
+        };
+      });
+    });
+  });
 
-      const style = window.getComputedStyle(t);
-      const fw = parseFloat(style.fontWeight) || 400;
-      const isBold = fw >= 600;
-
-      // Skip bold name for all nodes: non-person nodes use drawNodeLabel,
-      // person nodes draw the name in the canvas c4Person block.
-      if (isBold) return;
-
-      try {
-        const bbox = (t as SVGGraphicsElement).getBBox();
-        if (bbox.width <= 0) return;
-        const { x: tx, y: ty } = getCumulativeTransform(t, svgElement);
-        const cx = tx + bbox.x + bbox.width  / 2;
-        const cy = ty + bbox.y + bbox.height / 2;
-
-        const isItalic = style.fontStyle === 'italic';
-        const fontSize = Math.min(parseFloat(style.fontSize) || 11, 14);
-        const color = isBold
-          ? 'rgba(255,255,255,1)'
-          : isItalic
-            ? 'rgba(255,255,255,0.65)'
-            : 'rgba(255,255,255,0.9)';
-
-        labels.push({
-          x: cx,
-          y: cy,
-          text,
-          fontSize,
-          bold: isBold,
-          color,
-          align: 'center',
-        });
-      } catch {
-        // skip unmeasurable elements
-      }
+  // Boundary titles: bold dark text near the top of the dashed box
+  const seenBoundary = new Set<Element>();
+  svgElement.querySelectorAll<SVGRectElement>('rect[stroke-dasharray]').forEach(rect => {
+    if (insidePersonMan(rect)) return;
+    const parentG = rect.parentElement;
+    if (!parentG || seenBoundary.has(parentG)) return;
+    seenBoundary.add(parentG);
+    Array.from(parentG.querySelectorAll<SVGTextElement>(':scope > text')).forEach(t => {
+      pushTextLabel(labels, t, svgElement, () => ({ bold: true, color: '#444444' }));
     });
   });
 
@@ -356,15 +344,24 @@ export const parseC4EdgeLabels = (svgElement: SVGSVGElement): SeqLabel[] => {
       const isItalic = tStyle.fontStyle === 'italic';
       const isBold = parseFloat(tStyle.fontWeight) >= 600;
       const fontSize = Math.min(parseFloat(tStyle.fontSize) || 11, 20);
+      // The diagram title is the only <text> Mermaid appends directly to the
+      // SVG root (rel labels live inside the rels <g>) — render it at twice
+      // the size and bold so it reads as a heading.
+      const isTitle = t.parentElement === (svgElement as unknown as Element);
+      // UpdateRelStyle($textColor) — Mermaid writes it as the fill attr;
+      // the default #444444 falls through to our standard greys.
+      const custom = customFill(t, ['#444444', 'rgb(68,68,68)']);
       labels.push({
         x: cx,
         y: cy,
         text,
-        fontSize,
-        bold: isBold,
-        color: isItalic ? '#888888' : '#333333',
+        fontSize: isTitle ? fontSize * 2 : fontSize,
+        bold: isTitle || isBold,
+        color: custom || (isItalic ? '#888888' : '#333333'),
         align: 'center',
-        bgColor: 'rgba(255,255,255,0.85)',
+        // Subtle halo just strong enough to lift the text off the line —
+        // dark mode swaps this centrally (luminance-based) in drawFrame.
+        bgColor: 'rgba(255,255,255,0.5)',
       });
     } catch {
       // skip elements that can't be measured (e.g. hidden)

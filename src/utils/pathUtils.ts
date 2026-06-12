@@ -22,7 +22,11 @@ export const getPathEnd = (pathD: string): { x: number; y: number; angle: number
 
   let ex: number, ey: number, dx: number, dy: number;
 
-  if (cmd === 'C' && nums.length >= 6) {
+  if (cmd === 'Q' && nums.length >= 4) {
+    // Quadratic Bézier (C4 relationships): tangent at end = end − control point
+    ex = nums[nums.length - 2]; ey = nums[nums.length - 1];
+    dx = ex - nums[nums.length - 4]; dy = ey - nums[nums.length - 3];
+  } else if (cmd === 'C' && nums.length >= 6) {
     ex = nums[nums.length - 2]; ey = nums[nums.length - 1];
     dx = ex - nums[nums.length - 4]; dy = ey - nums[nums.length - 3];
   } else if (cmd === 'L' && nums.length >= 2) {
