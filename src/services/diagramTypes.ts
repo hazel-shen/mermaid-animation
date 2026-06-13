@@ -14,7 +14,14 @@ export type DiagramType =
   | 'generic';
 
 export const getDiagramType = (code: string): DiagramType => {
-  let lines = code.trim().split('\n');
+  // Strip %%{...}%% directives first. These can span multiple lines (e.g. a
+  // multi-line init/themeVariables block), and only the opening line starts
+  // with %%, so a line-by-line "skip lines starting with %%" check would treat
+  // the directive's inner lines as the first meaningful line and misdetect the type.
+  let lines = code
+    .replace(/%%\{[\s\S]*?\}%%/g, '')
+    .trim()
+    .split('\n');
 
   // Skip YAML front-matter block (--- ... ---) used by Mermaid config directives
   if (lines[0]?.trim() === '---') {
@@ -22,7 +29,7 @@ export const getDiagramType = (code: string): DiagramType => {
     if (closingIdx > 0) lines = lines.slice(closingIdx + 1);
   }
 
-  // Skip %%{init: ...}%% directives and blank/comment lines
+  // Skip remaining %% comment lines and blank lines
   const firstMeaningfulLine = lines
     .map(l => l.trim())
     .find(l => l.length > 0 && !l.startsWith('%%'))
