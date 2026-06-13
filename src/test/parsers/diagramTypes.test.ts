@@ -87,6 +87,26 @@ describe('getDiagramType', () => {
     expect(getDiagramType(code)).toBe('flowchart');
   });
 
+  it('skips a multi-line %%{init}%% directive and reads the next meaningful line', () => {
+    const code = `%%{init: {'theme': 'base', 'themeVariables': {
+  'primaryColor': '#2d1b69',
+  'primaryTextColor': '#e0d4ff',
+  'fontFamily': 'ui-sans-serif, system-ui'
+}}}%%
+flowchart TD
+  A([使用者請求]) --> B{身份驗證}`;
+    expect(getDiagramType(code)).toBe('flowchart');
+  });
+
+  it('skips a multi-line %%{init}%% directive before a sequence diagram', () => {
+    const code = `%%{init: {
+  'theme': 'dark'
+}}%%
+sequenceDiagram
+  Alice->>Bob: Hello`;
+    expect(getDiagramType(code)).toBe('sequence');
+  });
+
   it('skips blank lines before the first keyword', () => {
     expect(getDiagramType('\n\n  \nsequenceDiagram')).toBe('sequence');
   });
